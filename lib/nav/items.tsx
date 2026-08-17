@@ -73,7 +73,7 @@ export const navItems: NavItem[] = [
     ),
   },
   {
-    href: (s) => `/w/${s}/documents`,
+    href: (s) => `/w/${s}/files`,
     label: 'Documents',
     section: 'workspace',
     icon: (
