@@ -41,6 +41,17 @@ for (const [target, sources] of Object.entries(aliases)) {
   }
 }
 
+// Set explicit defaults for Clerk's sign-in/up URL env vars. Clerk's
+// middleware reads these to know where to redirect when an unauthenticated
+// user hits a protected route. Without them, the middleware does a
+// rewrite-to-404 (or 500) instead of a proper redirect.
+if (!process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL) {
+  process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL = '/sign-in';
+}
+if (!process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL) {
+  process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL = '/sign-up';
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
