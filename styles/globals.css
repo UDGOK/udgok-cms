@@ -1,0 +1,69 @@
+/* UDGOK Bold — design system tokens
+ * Source of truth for the palette. Tailwind config references these via CSS vars.
+ * See docs/superpowers/specs/2026-08-16-handoff-cms-slice-b-design.md section 1.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* UDGOK Bold palette */
+  --ink: #1e2a3a;
+  --ink-2: #2a3a4e;
+  --ink-70: rgba(30, 42, 58, 0.7);
+  --ink-50: rgba(30, 42, 58, 0.5);
+  --ink-30: rgba(30, 42, 58, 0.3);
+  --ink-15: rgba(30, 42, 58, 0.15);
+  --ink-08: rgba(30, 42, 58, 0.08);
+
+  --orange: #f06a2d;
+  --orange-d: #d44a1a;
+  --orange-l: #ff8a5a;
+  --orange-bg: rgba(240, 106, 45, 0.08);
+
+  --paper: #ffffff;
+  --cream: #f5f1ea;
+  --cream-2: #ede7d9;
+
+  --success: #2d6a4f;
+  --warn: #b08900;
+  --error: #9d2c2c;
+
+  --line: var(--ink-15);
+  --line-soft: var(--ink-08);
+}
+
+body {
+  color: var(--ink);
+  background: var(--cream);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Component-layer helpers used across the app */
+@layer components {
+  .label-eyebrow {
+    font-family: var(--font-inter), sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--orange-d);
+  }
+  .label-mono {
+    font-family: var(--font-jetbrains-mono), monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

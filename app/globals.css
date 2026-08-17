@@ -1,27 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Re-export of the design system tokens.
+ * Kept at app/globals.css (the file Next reads) so HMR works without an import chain.
+ * The canonical source is styles/globals.css.
+ */
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+@import '../styles/globals.css';
