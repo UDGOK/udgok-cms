@@ -23,7 +23,19 @@ export async function getProject(workspaceId: string, id: string) {
         orderBy: { drawNumber: 'desc' },
         include: { divisions: true },
       },
-      tasks: { where: { status: { not: 'DONE' } }, take: 10 },
+      // All tasks that have any kind of date — used for the Gantt chart.
+      // Tasks with no date at all are excluded (can't be placed on a timeline).
+      tasks: {
+        where: {
+          OR: [
+            { startDate: { not: null } },
+            { endDate: { not: null } },
+            { dueDate: { not: null } },
+          ],
+        },
+        orderBy: { startDate: 'asc' },
+        take: 100,
+      },
     },
   });
 }

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getProject } from '@/lib/projects/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
+import { GanttChart, type GanttTask } from '@/components/workspace/GanttChart';
 import { NewDivisionForm } from './NewDivisionForm';
 import { GeneratePayAppButton } from './GeneratePayAppButton';
 
@@ -125,13 +126,35 @@ export default async function ProjectDetailPage({
         </div>
       </div>
 
+      {/* Schedule (Gantt) */}
+      <div className="mb-6">
+        <GanttChart
+          workspaceSlug={params.workspace}
+          projectName={project.name}
+          projectStart={project.startDate}
+          projectEnd={project.endDate}
+          tasks={project.tasks.map<GanttTask>((t) => ({
+            id: t.id,
+            title: t.title,
+            status: t.status as GanttTask['status'],
+            priority: t.priority as GanttTask['priority'],
+            startDate: t.startDate,
+            endDate: t.endDate,
+            dueDate: t.dueDate,
+          }))}
+        />
+      </div>
+
       {/* Pay Apps Section */}
       <div className="bg-paper border-2 border-line">
-        <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-line flex items-center justify-between bg-cream-2">
           <div>
             <div className="label-eyebrow">{'// Pay applications'}</div>
             <div className="text-[11px] text-ink-50 mt-0.5">
               {project.payApps.length} draw{project.payApps.length === 1 ? '' : 's'} issued
+              {project.payApps.length > 0 ? (
+                <> · latest <b className="text-ink">${Number(project.payApps[0].totalThisDraw).toLocaleString()}</b></>
+              ) : null}
             </div>
           </div>
           <GeneratePayAppButton
@@ -142,7 +165,15 @@ export default async function ProjectDetailPage({
         </div>
         {project.payApps.length === 0 ? (
           <div className="px-6 py-12 text-center text-ink-50">
-            No pay apps yet. Generate the first draw once you have at least one division.
+            <p className="mb-4">No pay apps yet. Generate the first draw once you have at least one division.</p>
+            {project.divisions.length > 0 ? (
+              <Link
+                href={`/w/${params.workspace}/projects/${project.id}/pay-apps/new`}
+                className="inline-block px-5 py-3 bg-orange text-paper border-2 border-orange font-extrabold uppercase tracking-[0.12em] text-xs"
+              >
+                + Generate the first pay app
+              </Link>
+            ) : null}
           </div>
         ) : (
           <div>
