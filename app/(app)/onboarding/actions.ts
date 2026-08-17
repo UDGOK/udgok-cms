@@ -118,17 +118,17 @@ export async function createWorkspaceAction(
       if (apiKey) {
         const resend = new Resend(apiKey);
         const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cms.udgok.com';
-        for (const email of invites) {
+        for (const inviteEmail of invites) {
           try {
             await resend.emails.send({
               from: fromAddress,
-              to: email,
+              to: inviteEmail,
               subject: `${userName ?? 'A teammate'} invited you to ${name} on UDGOK CMS`,
               html: `<p>You've been invited to <b>${name}</b> on UDGOK CMS.</p>
                      <p>Sign up to join: <a href="${appUrl}/sign-up?workspace=${slug}">${appUrl}/sign-up</a></p>`,
             });
           } catch (err) {
-            console.warn(`[createWorkspace] failed to email invite to ${email}`, err);
+            console.warn(`[createWorkspace] failed to email invite to ${inviteEmail}`, err);
           }
         }
       } else {
