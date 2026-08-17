@@ -7,6 +7,8 @@ import { auth } from '@clerk/nextjs/server';
 import { requireRole } from '@/lib/auth/require-role';
 import { getWorkspace } from '@/lib/workspace/get-workspace';
 
+import { DEFAULT_SOV_TEMPLATE } from '@/lib/construction/csi-masterformat';
+
 const projectSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   code: z.string().max(40).optional(),
@@ -15,6 +17,7 @@ const projectSchema = z.object({
   contractValue: z.coerce.number().min(0).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  seedTemplate: z.union([z.literal('on'), z.literal('true'), z.literal('1')]).optional(),
 });
 
 export type CreateProjectState =
@@ -39,6 +42,7 @@ export async function createProjectAction(
     contractValue: formData.get('contractValue') || undefined,
     startDate: formData.get('startDate') || undefined,
     endDate: formData.get('endDate') || undefined,
+    seedTemplate: formData.get('seedTemplate') || undefined,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -48,6 +52,10 @@ export async function createProjectAction(
     }
     return { error: 'Please fix the errors below', fieldErrors };
   }
+
+  // Compute the default SOV line budgets from the contract value + template %
+  const contractValue = parsed.data.contractValue ?? 0;
+  const template = parsed.data.seedTemplate ? DEFAULT_SOV_TEMPLATE : [];
 
   const project = await prisma.project.create({
     data: {
@@ -62,6 +70,24 @@ export async function createProjectAction(
     },
     select: { id: true },
   });
+
+  // Seed the standard SOV template if the user opted in
+  if (template.length > 0) {
+    const lines = template.map((t, i) => ({
+      projectId: project.id,
+      code: t.code,
+      trade: t.trade,
+      budget: Math.round(contractValue * (t.pctOfBudget / 100) * 100) / 100,
+      sortOrder: i + 1,
+    }));
+    // Fix rounding drift: add the difference to the last line so total = contract
+    const totalFromTemplate = lines.reduce((acc, l) => acc + l.budget, 0);
+    const drift = Math.round((contractValue - totalFromTemplate) * 100) / 100;
+    if (lines.length > 0 && Math.abs(drift) >= 0.01) {
+      lines[lines.length - 1].budget = Math.round((lines[lines.length - 1].budget + drift) * 100) / 100;
+    }
+    await prisma.projectDivision.createMany({ data: lines });
+  }
 
   revalidatePath(`/w/${workspaceSlug}/projects`);
   return { id: project.id };

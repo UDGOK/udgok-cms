@@ -81,6 +81,27 @@ export function NewProjectForm({
         />
       </Field>
 
+      {/* Pre-fill SOV with the standard CSI template */}
+      <label className="flex items-start gap-3 bg-cream-2 border-2 border-line p-4 cursor-pointer hover:border-orange transition-colors">
+        <input
+          type="checkbox"
+          name="seedTemplate"
+          defaultChecked
+          className="mt-1 w-4 h-4 accent-orange"
+        />
+        <div>
+          <div className="font-extrabold text-[13px]">
+            Pre-fill the schedule of values with the standard CSI template
+          </div>
+          <p className="text-[11px] text-ink-50 mt-1">
+            16 industry-standard lines (General Conditions, Concrete, Masonry,
+            Metals, Wood, Thermal, Openings, Finishes, Plumbing, HVAC, Electrical,
+            Site) sized as a percentage of the contract value. Edit any line
+            after creation.
+          </p>
+        </div>
+      </label>
+
       {state?.error && !state.fieldErrors ? (
         <p className="text-sm text-error font-semibold">{state.error}</p>
       ) : null}
