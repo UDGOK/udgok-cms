@@ -51,8 +51,11 @@ export async function createWorkspaceAction(
       createdBy: userId,
     });
   } catch (err) {
+    // Pull the most useful field off the Clerk error so we can see what went wrong.
+    const anyErr = err as { errors?: Array<{ message?: string; code?: string; longMessage?: string }>; message?: string };
+    const detail = anyErr.errors?.[0]?.longMessage ?? anyErr.errors?.[0]?.message ?? anyErr.message ?? 'Unknown error';
     console.error('[createWorkspace] Clerk org create failed', err);
-    return { error: 'Could not create workspace. Please try again.' };
+    return { error: `Clerk: ${detail}` };
   }
 
   // Insert the Workspace + Membership in our DB.
@@ -110,11 +113,12 @@ export async function createWorkspaceAction(
     }
   } catch (err) {
     console.error('[createWorkspace] DB insert failed, rolling back Clerk org', err);
+    const msg = err instanceof Error ? err.message : String(err);
     // Best-effort cleanup.
     await client.organizations
       .deleteOrganization(clerkOrg.id)
       .catch((e) => console.error('[createWorkspace] rollback also failed', e));
-    return { error: 'Could not save workspace. Please try again.' };
+    return { error: `Database: ${msg}` };
   }
 
   // Redirect to the new workspace's dashboard.
