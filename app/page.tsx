@@ -6,23 +6,31 @@ import { prisma } from '@/lib/db/client';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const { userId } = await auth();
-
-  if (userId) {
-    // Find any workspace the user is a member of; if none, send to onboarding.
-    const membership = await prisma.membership.findFirst({
-      where: { userId },
-      orderBy: { joinedAt: 'asc' },
-      include: { workspace: true },
-    });
-    if (membership) {
-      redirect(`/w/${membership.workspace.slug}/dashboard`);
-    }
-    // No membership yet → first-time user, push them to onboarding.
-    redirect('/onboarding');
+  // Best-effort: if auth or DB is broken, we still render the landing page.
+  let userId: string | null = null;
+  try {
+    const a = await auth();
+    userId = a.userId;
+  } catch {
+    // ignore — fall through to public landing
   }
 
-  // Signed-out: show the public landing page.
+  if (userId) {
+    try {
+      const membership = await prisma.membership.findFirst({
+        where: { userId },
+        orderBy: { joinedAt: 'asc' },
+        include: { workspace: true },
+      });
+      if (membership) {
+        redirect(`/w/${membership.workspace.slug}/dashboard`);
+      }
+      redirect('/onboarding');
+    } catch {
+      // fall through to landing
+    }
+  }
+
   return (
     <div className="min-h-screen bg-cream">
       <header className="border-b border-line bg-paper">
