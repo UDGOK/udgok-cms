@@ -39,7 +39,12 @@ export default async function SubDetailPage({
   const csi = CSI_MASTERFORMAT.find((d) => d.number === sub.primaryTrade);
 
   return (
-    <div className="px-10 py-8">
+    <div className="px-4 md:px-10 py-4 md:py-8">
+      <div className="md:hidden mb-4">
+        <Link href={`/w/${ctx.workspace.slug}/subcontractors`} className="text-[11px] text-orange-d font-extrabold uppercase tracking-[0.1em]">
+          ← Subcontractors
+        </Link>
+      </div>
       <PageHeader
         title={sub.name}
         subtitle={csi ? `${csi.number} · ${csi.name}` : 'Subcontractor'}
@@ -62,9 +67,9 @@ export default async function SubDetailPage({
         }
       />
 
-      <div className="mt-6 grid grid-cols-3 gap-6">
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {/* Left: contact details */}
-        <div className="col-span-1 bg-paper border-2 border-ink p-5 space-y-4 h-fit">
+        <div className="md:col-span-1 bg-paper border-2 border-ink p-5 space-y-4 h-fit">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-50 mb-2">Contact</h2>
           <Field label="Contact name" value={sub.contactName} />
           <Field label="Email" value={sub.contactEmail} mono />
@@ -98,7 +103,7 @@ export default async function SubDetailPage({
         </div>
 
         {/* Right: project assignments */}
-        <div className="col-span-2 space-y-4">
+        <div className="md:col-span-2 space-y-4">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-50">
             Project assignments · {sub.assignments.length}
           </h2>

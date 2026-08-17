@@ -36,9 +36,9 @@ export default async function ClientDetailPage({
   const activeTasksCount = client.tasks.length;
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-6xl">
       {/* Header */}
-      <div className="flex justify-between items-start gap-4 flex-wrap pb-7 border-b border-line bg-paper p-7 -m-7 mb-7">
+      <div className="flex justify-between items-start gap-4 flex-wrap pb-5 md:pb-7 border-b border-line bg-paper p-4 md:p-7 -mx-4 md:-m-7 mb-5 md:mb-7">
         <div className="flex items-center gap-5">
           <div className="w-[72px] h-[72px] rounded-full bg-orange text-paper flex items-center justify-center font-black text-3xl flex-shrink-0">
             {initials(client.name)}

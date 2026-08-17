@@ -2,9 +2,10 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/client';
 import { Sidebar } from '@/components/workspace/Sidebar';
-import { Topbar } from '@/components/workspace/Topbar';
+import { TopbarWithDrawer } from '@/components/workspace/TopbarWithDrawer';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceContext';
 import { PresenceShell } from '@/components/workspace/PresenceShell';
+import { MobileShellClient } from '@/components/workspace/MobileShellClient';
 
 export default async function WorkspaceLayout({
   children,
@@ -27,8 +28,6 @@ export default async function WorkspaceLayout({
     where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
   });
   if (!membership) {
-    // User is signed in but not a member of this workspace.
-    // Send them to the switcher so they can pick one they belong to.
     redirect('/workspaces');
   }
 
@@ -55,13 +54,22 @@ export default async function WorkspaceLayout({
       }}
     >
       <PresenceShell workspaceId={workspace.id}>
-        <div className="flex min-h-screen bg-cream">
-          <Sidebar />
-          <div className="flex-1 flex flex-col min-w-0">
-            <Topbar allWorkspaces={allWorkspaces} />
-            <main className="flex-1 overflow-y-auto">{children}</main>
+        <MobileShellClient
+          workspaceId={workspace.id}
+          allWorkspaces={allWorkspaces}
+        >
+          <div className="flex min-h-screen bg-cream">
+            {/* Desktop sidebar — hidden on mobile (md:flex) */}
+            <div className="hidden md:flex">
+              <Sidebar />
+            </div>
+            <div className="flex-1 flex flex-col min-w-0">
+              <TopbarWithDrawer allWorkspaces={allWorkspaces} />
+              {/* pb-16 on mobile to leave room for the bottom tab bar */}
+              <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
+            </div>
           </div>
-        </div>
+        </MobileShellClient>
       </PresenceShell>
     </WorkspaceProvider>
   );

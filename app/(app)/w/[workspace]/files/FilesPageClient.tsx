@@ -175,47 +175,68 @@ export function FilesPageClient({
   }, [initialFiles]);
 
   return (
-    <div className="grid grid-cols-[240px_1fr] gap-6">
-      {/* Left sidebar — categories */}
+    <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4 md:gap-6">
+      {/* Left sidebar — categories (hidden on mobile, shown as filter dropdown) */}
       <aside>
-        <div className="text-[9px] font-mono font-extrabold tracking-[0.18em] text-ink-50 uppercase px-3 pb-2">
-          Categories
+        {/* Mobile: dropdown-style category picker */}
+        <div className="md:hidden mb-4">
+          <label className="block text-[9px] font-mono font-extrabold tracking-[0.18em] text-ink-50 uppercase pb-1.5">
+            Categories
+          </label>
+          <select
+            value={activeCategory}
+            onChange={(e) => setActiveCategory(e.target.value)}
+            className="block w-full px-3 py-3 bg-paper border-2 border-ink text-ink text-sm"
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label} ({counts[c.id] ?? 0})
+              </option>
+            ))}
+          </select>
         </div>
-        <ul className="space-y-0.5">
-          {CATEGORIES.map((c) => {
-            const count = counts[c.id] ?? 0;
-            const isActive = activeCategory === c.id;
-            return (
-              <li key={c.id}>
-                <button
-                  onClick={() => setActiveCategory(c.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 text-[13px] font-extrabold transition-colors ${
-                    isActive
-                      ? 'bg-cream-2 text-ink'
-                      : 'text-ink-70 hover:bg-cream-2'
-                  }`}
-                >
-                  <span className={isActive ? 'text-orange-d' : ''}>{c.label}</span>
-                  <span
-                    className={`font-mono text-[11px] ${
-                      isActive ? 'text-orange-d font-extrabold' : 'text-ink-50'
+
+        {/* Desktop: full sidebar list */}
+        <div className="hidden md:block">
+          <div className="text-[9px] font-mono font-extrabold tracking-[0.18em] text-ink-50 uppercase px-3 pb-2">
+            Categories
+          </div>
+          <ul className="space-y-0.5">
+            {CATEGORIES.map((c) => {
+              const count = counts[c.id] ?? 0;
+              const isActive = activeCategory === c.id;
+              return (
+                <li key={c.id}>
+                  <button
+                    onClick={() => setActiveCategory(c.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 text-[13px] font-extrabold transition-colors ${
+                      isActive
+                        ? 'bg-cream-2 text-ink'
+                        : 'text-ink-70 hover:bg-cream-2'
                     }`}
                   >
-                    {count}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    <span className={isActive ? 'text-orange-d' : ''}>{c.label}</span>
+                    <span
+                      className={`font-mono text-[11px] ${
+                        isActive ? 'text-orange-d font-extrabold' : 'text-ink-50'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </aside>
 
       {/* Main area */}
       <div>
         {/* Header bar */}
-        <div className="flex items-baseline justify-between mb-5">
+        <div className="flex items-baseline justify-between mb-3 md:mb-5">
           <div>
-            <h1 className="text-3xl font-black tracking-tight">{activeCategoryLabel.toUpperCase()}</h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight">{activeCategoryLabel.toUpperCase()}</h1>
             <span className="text-[11px] font-mono text-ink-50 uppercase tracking-[0.1em] ml-1">
               {filtered.length} {filtered.length === 1 ? 'file' : 'files'}
             </span>
@@ -226,7 +247,7 @@ export function FilesPageClient({
                 const root = document.getElementById('upload-form');
                 if (root) root.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-3 py-2 border-2 border-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-cream transition-colors"
+              className="hidden md:inline-block px-3 py-2 border-2 border-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-cream transition-colors"
             >
               Filter
             </button>
@@ -235,7 +256,7 @@ export function FilesPageClient({
                 const root = document.getElementById('upload-form');
                 if (root) root.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-4 py-2 bg-orange text-paper border-2 border-orange text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d transition-colors"
+              className="px-3 md:px-4 py-2 bg-orange text-paper border-2 border-orange text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d transition-colors"
             >
               + Upload
             </button>
@@ -283,7 +304,7 @@ export function FilesPageClient({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
             {filtered.map((f) => {
               const badge = fileTypeBadge(f.mimeType, f.filename);
               return (
@@ -292,7 +313,7 @@ export function FilesPageClient({
                   href={f.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="bg-paper border-2 border-line p-3 hover:border-ink transition-colors group"
+                  className="bg-paper border-2 border-line p-2.5 md:p-3 hover:border-ink transition-colors group"
                 >
                   {/* File type icon (tinted square) */}
                   <div className={`w-full aspect-square ${badge.bg} flex items-center justify-center mb-3`}>

@@ -7,6 +7,7 @@ import { GanttChart, type GanttTask } from '@/components/workspace/GanttChart';
 import { NewDivisionForm } from './NewDivisionForm';
 import { GeneratePayAppButton } from './GeneratePayAppButton';
 import { AssignSubForm } from './AssignSubForm';
+import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 
 const SUB_STATUS_LABEL: Record<string, string> = {
   PROPOSED: 'Proposed',
@@ -52,14 +53,27 @@ export default async function ProjectDetailPage({
   const remaining = (project.contractValue ? Number(project.contractValue) : totalBudget) - totalBilled;
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-6xl">
+      <MobilePageHeader
+        title={project.name}
+        subtitle={`${project.code ?? 'PROJECT'} · ${project.client?.name ?? 'No client'}`}
+        backHref={`/w/${params.workspace}/projects`}
+        actionLabel="+ Pay app"
+        actionHref={
+          project.divisions.length > 0
+            ? `/w/${params.workspace}/projects/${project.id}/pay-apps/new`
+            : `/w/${params.workspace}/projects/${project.id}`
+        }
+        actionVariant="copper"
+      />
+
       {/* Header */}
-      <div className="flex justify-between items-start gap-4 flex-wrap pb-7 border-b border-line bg-paper p-7 -m-7 mb-7">
-        <div>
-          <div className="text-[10px] font-mono tracking-[0.12em] uppercase text-ink-50 mb-1">
+      <div className="flex justify-between items-start gap-4 flex-wrap pb-5 md:pb-7 border-b border-line bg-paper p-4 md:p-7 -mx-4 md:-m-7 mb-5 md:mb-7">
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-mono tracking-[0.12em] uppercase text-ink-50 mb-1 truncate">
             {project.code ?? 'PROJECT'} · {project.client?.name ?? 'NO CLIENT'}
           </div>
-          <h2 className="text-3xl font-black tracking-tight leading-tight">{project.name}</h2>
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">{project.name}</h2>
           {project.description ? (
             <p className="text-[13px] text-ink-70 mt-2 max-w-2xl">{project.description}</p>
           ) : null}
@@ -69,34 +83,34 @@ export default async function ProjectDetailPage({
             {project.status}
           </span>
           {project.contractValue ? (
-            <div className="font-black text-2xl">${Number(project.contractValue).toLocaleString()}</div>
+            <div className="font-black text-xl md:text-2xl">${Number(project.contractValue).toLocaleString()}</div>
           ) : null}
         </div>
       </div>
 
-      {/* 4-cell KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 border border-line bg-paper mb-6">
-        <div className="p-5 border-r border-line">
+      {/* 4-cell KPIs (2x2 on mobile, 1x4 on desktop) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 border border-line bg-paper mb-6">
+        <div className="p-4 md:p-5 border-r border-b md:border-b-0 border-line">
           <div className="label-mono">Contract</div>
-          <div className="font-black text-2xl">${(project.contractValue ? Number(project.contractValue) : 0).toLocaleString()}</div>
+          <div className="font-black text-xl md:text-2xl">${(project.contractValue ? Number(project.contractValue) : 0).toLocaleString()}</div>
         </div>
-        <div className="p-5 border-r border-line">
-          <div className="label-mono">Billed to date</div>
-          <div className="font-black text-2xl">${totalBilled.toLocaleString()}</div>
+        <div className="p-4 md:p-5 border-b md:border-b-0 border-line">
+          <div className="label-mono">Billed</div>
+          <div className="font-black text-xl md:text-2xl">${totalBilled.toLocaleString()}</div>
         </div>
-        <div className="p-5 border-r border-line">
+        <div className="p-4 md:p-5 border-r border-line">
           <div className="label-mono">Remaining</div>
-          <div className="font-black text-2xl text-orange-d">${remaining.toLocaleString()}</div>
+          <div className="font-black text-xl md:text-2xl text-orange-d">${remaining.toLocaleString()}</div>
         </div>
-        <div className="p-5">
+        <div className="p-4 md:p-5">
           <div className="label-mono">Pay apps</div>
-          <div className="font-black text-2xl">{project.payApps.length}</div>
+          <div className="font-black text-xl md:text-2xl">{project.payApps.length}</div>
         </div>
       </div>
 
       {/* SOV Section */}
       <div className="bg-paper border-2 border-line mb-6">
-        <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+        <div className="px-4 md:px-6 py-3 md:py-4 border-b border-line flex items-center justify-between">
           <div>
             <div className="label-eyebrow">{'// Schedule of values'}</div>
             <div className="text-[11px] text-ink-50 mt-0.5">
@@ -109,56 +123,58 @@ export default async function ProjectDetailPage({
             No divisions yet. Add your first line item below.
           </div>
         ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                {['Code', 'Trade', 'Subcontractor', 'Budget', 'Billed', 'Remaining'].map((h) => (
-                  <th key={h} className="text-left px-5 py-3 bg-cream-2 border-b border-line text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink-50">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {project.divisions.map((d) => {
-                const billed = project.payApps
-                  .flatMap((p) => p.divisions)
-                  .filter((line) => line.projectDivisionId === d.id)
-                  .reduce((acc, l) => acc + Number(l.thisDrawAmount), 0);
-                const rem = Number(d.budget) - billed;
-                // Find an assigned sub from the subLinks (preferred), else fall back to free-text
-                const linkedSub = d.subLinks?.[0]?.assignment?.subcontractor;
-                return (
-                  <tr key={d.id} className="hover:bg-cream-2">
-                    <td className="px-5 py-3 border-b border-line-soft font-mono text-[12px]">{d.code}</td>
-                    <td className="px-5 py-3 border-b border-line-soft font-extrabold text-[13px]">{d.trade}</td>
-                    <td className="px-5 py-3 border-b border-line-soft text-[12px]">
-                      {linkedSub ? (
-                        <Link href={`/w/${params.workspace}/subcontractors/${linkedSub.id}`} className="text-orange-d font-extrabold hover:underline">
-                          {linkedSub.name}
-                        </Link>
-                      ) : d.subcontractorName ? (
-                        <span className="text-ink-70">{d.subcontractorName}</span>
-                      ) : (
-                        <span className="text-ink-30">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 border-b border-line-soft font-black">${Number(d.budget).toLocaleString()}</td>
-                    <td className="px-5 py-3 border-b border-line-soft font-black text-success">${billed.toLocaleString()}</td>
-                    <td className="px-5 py-3 border-b border-line-soft font-black text-orange-d">${rem.toLocaleString()}</td>
-                  </tr>
-                );
-              })}
-              <tr className="bg-ink text-cream">
-                <td colSpan={3} className="px-5 py-3 font-extrabold uppercase text-[11px] tracking-[0.12em]">Totals</td>
-                <td className="px-5 py-3 font-black text-lg">${totalBudget.toLocaleString()}</td>
-                <td className="px-5 py-3 font-black text-lg">${totalBilled.toLocaleString()}</td>
-                <td className="px-5 py-3 font-black text-lg">${(totalBudget - totalBilled).toLocaleString()}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[640px]">
+              <thead>
+                <tr>
+                  {['Code', 'Trade', 'Subcontractor', 'Budget', 'Billed', 'Remaining'].map((h) => (
+                    <th key={h} className="text-left px-3 md:px-5 py-3 bg-cream-2 border-b border-line text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink-50">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {project.divisions.map((d) => {
+                  const billed = project.payApps
+                    .flatMap((p) => p.divisions)
+                    .filter((line) => line.projectDivisionId === d.id)
+                    .reduce((acc, l) => acc + Number(l.thisDrawAmount), 0);
+                  const rem = Number(d.budget) - billed;
+                  // Find an assigned sub from the subLinks (preferred), else fall back to free-text
+                  const linkedSub = d.subLinks?.[0]?.assignment?.subcontractor;
+                  return (
+                    <tr key={d.id} className="hover:bg-cream-2">
+                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-mono text-[12px]">{d.code}</td>
+                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-extrabold text-[13px]">{d.trade}</td>
+                      <td className="px-3 md:px-5 py-3 border-b border-line-soft text-[12px]">
+                        {linkedSub ? (
+                          <Link href={`/w/${params.workspace}/subcontractors/${linkedSub.id}`} className="text-orange-d font-extrabold hover:underline">
+                            {linkedSub.name}
+                          </Link>
+                        ) : d.subcontractorName ? (
+                          <span className="text-ink-70">{d.subcontractorName}</span>
+                        ) : (
+                          <span className="text-ink-30">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-black">${Number(d.budget).toLocaleString()}</td>
+                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-black text-success">${billed.toLocaleString()}</td>
+                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-black text-orange-d">${rem.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-ink text-cream">
+                  <td colSpan={3} className="px-3 md:px-5 py-3 font-extrabold uppercase text-[11px] tracking-[0.12em]">Totals</td>
+                  <td className="px-3 md:px-5 py-3 font-black text-lg">${totalBudget.toLocaleString()}</td>
+                  <td className="px-3 md:px-5 py-3 font-black text-lg">${totalBilled.toLocaleString()}</td>
+                  <td className="px-3 md:px-5 py-3 font-black text-lg">${(totalBudget - totalBilled).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         )}
-        <div className="p-6 border-t border-line">
+        <div className="p-4 md:p-6 border-t border-line">
           <NewDivisionForm workspaceSlug={params.workspace} projectId={project.id} />
         </div>
       </div>

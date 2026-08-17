@@ -35,7 +35,7 @@ export default async function FilesPage({
   }
 
   return (
-    <div className="p-8 max-w-7xl">
+    <div className="p-4 md:p-8 max-w-7xl">
       <FilesPageClient
         workspaceSlug={params.workspace}
         initialFiles={files.map((f) => ({

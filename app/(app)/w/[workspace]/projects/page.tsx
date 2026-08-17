@@ -28,22 +28,33 @@ export default async function ProjectsPage({
   ]);
 
   return (
-    <div className="p-8">
-      <div className="text-xs font-mono font-bold tracking-[0.2em] text-orange-d uppercase mb-5 flex items-center gap-3">
+    <div className="p-4 md:p-8">
+      <div className="hidden md:flex text-xs font-mono font-bold tracking-[0.2em] text-orange-d uppercase mb-5 items-center gap-3">
         <span className="w-8 h-8 bg-orange text-white rounded-full inline-flex items-center justify-center font-black text-sm">
           5
         </span>
         Projects
       </div>
-      <h1 className="text-display-lg mb-4">
+      <h1 className="hidden md:block text-display-lg mb-4">
         The <span className="font-serif italic text-orange-d">build,</span> end to end.
       </h1>
-      <p className="text-base text-ink-70 max-w-xl mb-7">
+      <p className="hidden md:block text-base text-ink-70 max-w-xl mb-7">
         Each project is a budget, a schedule, and a series of pay apps. Click a project to manage
         its schedule of values and generate the next draw.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Mobile header bar with title + new project button */}
+      <div className="md:hidden flex items-center justify-between mb-4">
+        <h1 className="font-extrabold text-[18px]">Projects</h1>
+        <Link
+          href={`/w/${params.workspace}/projects/new`}
+          className="px-3 h-9 inline-flex items-center bg-orange text-paper border-2 border-orange text-[10px] font-extrabold uppercase tracking-[0.1em]"
+        >
+          + New
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {projects.length === 0 ? (
           <div className="md:col-span-3 bg-paper border-2 border-dashed border-line p-12 text-center">
             <p className="text-ink-50 mb-4">No projects yet.</p>
@@ -59,28 +70,28 @@ export default async function ProjectsPage({
             <Link
               key={p.id}
               href={`/w/${params.workspace}/projects/${p.id}`}
-              className="bg-paper border-2 border-line p-5 hover:border-ink transition-colors"
+              className="bg-paper border-2 border-line p-4 md:p-5 hover:border-ink active:bg-cream-2 transition-colors"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="text-[9px] font-mono text-ink-50 tracking-[0.1em] uppercase mb-1">
+              <div className="flex items-start justify-between mb-3 gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] font-mono text-ink-50 tracking-[0.1em] uppercase mb-1 truncate">
                     {p.code ?? p.id.slice(0, 6).toUpperCase()}
                   </div>
                   <div className="font-extrabold text-base leading-tight">{p.name}</div>
                 </div>
                 <span
-                  className={`px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.12em] ${
+                  className={`px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.12em] flex-shrink-0 ${
                     STATUS_COLOR[p.status] ?? 'bg-cream-2 text-ink-50'
                   }`}
                 >
                   {STATUS_LABELS[p.status]}
                 </span>
               </div>
-              <div className="text-[12px] text-ink-50 mb-3">
+              <div className="text-[12px] text-ink-50 mb-3 truncate">
                 {p.client?.name ?? 'No client'}
               </div>
               {p.contractValue ? (
-                <div className="font-black text-2xl mb-3">
+                <div className="font-black text-xl md:text-2xl mb-3">
                   ${Number(p.contractValue).toLocaleString()}
                 </div>
               ) : null}

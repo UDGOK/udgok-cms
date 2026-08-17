@@ -15,7 +15,13 @@ interface WorkspaceOption {
   role: string;
 }
 
-export function Topbar({ allWorkspaces = [] }: { allWorkspaces?: WorkspaceOption[] }) {
+export function Topbar({
+  allWorkspaces = [],
+  onOpenMobileDrawer,
+}: {
+  allWorkspaces?: WorkspaceOption[];
+  onOpenMobileDrawer?: () => void;
+}) {
   const { name, slug, role, id } = useWorkspace();
   const pathname = usePathname();
   const { members } = usePresence();
@@ -30,12 +36,34 @@ export function Topbar({ allWorkspaces = [] }: { allWorkspaces?: WorkspaceOption
   const totalCount = members.length;
 
   return (
-    <header className="bg-paper border-b border-line flex items-center gap-4 px-6 py-3.5">
-      <div className="text-[12px] font-semibold text-ink-50 flex items-center gap-2">
-        <WorkspaceSwitcher current={{ id, slug, name, role }} workspaces={allWorkspaces} />
-        {crumb ? <span className="text-ink-30">/</span> : null}
+    <header className="bg-paper border-b border-line flex items-center gap-4 px-4 md:px-6 py-3 md:py-3.5">
+      {/* Mobile: hamburger */}
+      <button
+        type="button"
+        onClick={onOpenMobileDrawer}
+        aria-label="Open menu"
+        className="md:hidden w-10 h-10 -ml-2 flex items-center justify-center text-ink"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      <div className="text-[12px] font-semibold text-ink-50 flex items-center gap-2 min-w-0">
+        <span className="hidden md:inline">
+          <WorkspaceSwitcher current={{ id, slug, name, role }} workspaces={allWorkspaces} />
+        </span>
+        {/* Mobile: just show workspace name (truncated) */}
+        <span className="md:hidden font-bold uppercase text-ink truncate text-[13px]">
+          {name}
+        </span>
+        {crumb ? <span className="text-ink-30 hidden md:inline">/</span> : null}
         {crumb ? (
-          <span className="font-extrabold uppercase tracking-tight text-ink">{crumb}</span>
+          <span className="font-extrabold uppercase tracking-tight text-ink hidden md:inline truncate">
+            {crumb}
+          </span>
         ) : null}
       </div>
 
@@ -54,6 +82,18 @@ export function Topbar({ allWorkspaces = [] }: { allWorkspaces?: WorkspaceOption
             <span>{totalCount}</span>
           </span>
           <span className="text-ink-50 uppercase tracking-[0.05em] text-[10px] font-mono">online</span>
+        </Link>
+
+        {/* Mobile: compact online count chip */}
+        <Link
+          href={`/w/${slug}/team`}
+          className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-cream border border-line text-[11px]"
+          title="Team presence"
+        >
+          <PresenceDot status={onlineCount > 0 ? 'online' : 'offline'} />
+          <span className="font-extrabold text-ink">
+            <span className="text-success">{onlineCount}</span>
+          </span>
         </Link>
 
         <button
