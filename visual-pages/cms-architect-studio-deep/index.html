@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UDGOK Bold — Handoff CMS Design Deep Dive (v1 expanded)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<style>
+  :root {
+    /* UDGOK Bold palette — extracted from UDGOK-2026-0148 pay app */
+    --ink: #1e2a3a;
+    --ink-2: #2a3a4e;
+    --ink-70: rgba(30,42,58,0.7);
+    --ink-50: rgba(30,42,58,0.5);
+    --ink-30: rgba(30,42,58,0.3);
+    --ink-15: rgba(30,42,58,0.15);
+    --ink-08: rgba(30,42,58,0.08);
+    --orange: #f06a2d;
+    --orange-d: #d44a1a;
+    --orange-l: #ff8a5a;
+    --orange-bg: rgba(240,106,45,0.08);
+    --paper: #ffffff;
+    --cream: #f5f1ea;
+    --cream-2: #ede7d9;
+    --line: var(--ink-15);
+    --line-strong: var(--ink-50);
+    --line-soft: var(--ink-08);
+    --success: #2d6a4f;
+    --warn: #b08900;
+    --error: #9d2c2c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--cream);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    font-weight: 500;
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(240,106,45,0.05), transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(30,42,58,0.04), transparent 40%);
+    background-attachment: fixed;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .serif { font-family: 'DM Serif Display', Georgia, serif; }
+  .container { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+  @media (max-width: 640px) { .container { padding: 0 20px; } }
+
+  /* ============ TOP BAR ============ */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(245,241,234,0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 18px 32px; }
+  .logo { font-family: 'DM Serif Display', serif; font-style: italic; font-size: 22px; color: var(--ink); }
+  .logo::after { content: "·"; margin-left: 4px; color: var(--orange); }
+  .nav { display: flex; gap: 28px; font-size: 13px; color: var(--ink-70); }
+  .nav a { color: inherit; text-decoration: none; padding-bottom: 2px; border-bottom: 1px solid transparent; transition: all 0.2s; }
+  .nav a:hover { color: var(--ink); border-bottom-color: var(--orange); }
+  .topbar-cta { font-size: 12px; padding: 8px 18px; border: 1px solid var(--ink); color: var(--ink); background: transparent; cursor: pointer; transition: all 0.2s; letter-spacing: 0.08em; }
+  .topbar-cta:hover { background: var(--ink); color: var(--cream); }
+
+  /* ============ HERO ============ */
+  .hero { padding: 80px 0 100px; position: relative; }
+  .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+  .eyebrow { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: var(--orange-d); margin-bottom: 20px; }
+  .eyebrow::before { content: ""; display: inline-block; width: 28px; height: 3px; background: var(--orange); vertical-align: middle; margin-right: 12px; }
+  h1 { font-family: 'Inter', sans-serif; font-weight: 900; font-size: clamp(52px, 7vw, 104px); line-height: 0.92; letter-spacing: -0.04em; color: var(--ink); margin-bottom: 28px; text-transform: none; }
+  h1 em { font-style: italic; color: var(--orange-d); }
+  .lede { font-size: 19px; line-height: 1.55; color: var(--ink-70); max-width: 480px; margin-bottom: 36px; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .hero-cta { display: flex; gap: 14px; }
+  .btn { font-family: 'Inter', sans-serif; font-size: 13px; padding: 14px 28px; border: 1px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer; letter-spacing: 0.08em; transition: all 0.2s; text-transform: uppercase; font-weight: 500; }
+  .btn:hover { background: var(--ink); color: var(--cream); }
+  .btn-primary { background: var(--ink); color: var(--cream); }
+  .btn-primary:hover { background: var(--orange); border-color: var(--orange); }
+
+  /* 3D scene */
+  .scene-wrap { aspect-ratio: 1; position: relative; background: var(--paper); border: 1px solid var(--line); overflow: hidden; }
+  .scene-wrap::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(var(--ink-08) 1px, transparent 1px), linear-gradient(90deg, var(--ink-08) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; }
+  .scene-wrap canvas { display: block; position: relative; z-index: 1; }
+  .scene-corner { position: absolute; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-50); letter-spacing: 0.15em; z-index: 2; }
+  .scene-corner.tl { top: 14px; left: 14px; }
+  .scene-corner.tr { top: 14px; right: 14px; }
+  .scene-corner.bl { bottom: 14px; left: 14px; }
+  .scene-corner.br { bottom: 14px; right: 14px; }
+
+  /* ============ SECTION ============ */
+  section { padding: 100px 0; border-top: 1px solid var(--line); }
+  .section-head { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-bottom: 64px; align-items: end; }
+  @media (max-width: 800px) { .section-head { grid-template-columns: 1fr; gap: 24px; } }
+  .section-num { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 800; color: var(--ink); letter-spacing: 0.2em; margin-bottom: 16px; display: flex; align-items: center; gap: 14px; }
+  .section-num::before { content: attr(data-num); display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: var(--orange); color: white; font-weight: 900; border-radius: 50%; font-size: 14px; }
+  h2 { font-family: 'Inter', sans-serif; font-weight: 900; font-size: clamp(36px, 4.5vw, 60px); line-height: 1.0; letter-spacing: -0.03em; color: var(--ink); text-transform: uppercase; }
+  h2 em { font-style: italic; color: var(--orange-d); }
+  .section-desc { font-size: 16px; color: var(--ink-70); line-height: 1.6; }
+
+  /* ============ TOKENS ============ */
+  .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); }
+  @media (max-width: 700px) { .palette { grid-template-columns: repeat(2, 1fr); } }
+  .swatch { padding: 32px 24px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); position: relative; }
+  .swatch:nth-child(4n) { border-right: none; }
+  @media (max-width: 700px) { .swatch { border-right: 1px solid var(--line); } .swatch:nth-child(2n) { border-right: none; } }
+  .swatch .chip { width: 100%; height: 80px; border: 1px solid var(--line); margin-bottom: 16px; }
+  .swatch .name { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink); margin-bottom: 4px; }
+  .swatch .hex { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-50); }
+  .swatch .role { font-size: 11px; color: var(--ink-70); margin-top: 8px; }
+
+  /* Type scale */
+  .type-scale { display: grid; grid-template-columns: 100px 1fr; gap: 24px 40px; align-items: baseline; padding: 32px 0; }
+  .type-scale .lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--orange); letter-spacing: 0.15em; text-transform: uppercase; padding-top: 8px; }
+  .type-spec { font-size: 11px; color: var(--ink-50); font-family: 'JetBrains Mono', monospace; margin-top: 6px; }
+
+  /* Spacing scale */
+  .spacing { display: flex; align-items: flex-end; gap: 16px; padding: 32px 0; }
+  .sp-item { text-align: center; }
+  .sp-bar { background: var(--orange); width: 24px; margin: 0 auto 8px; }
+  .sp-val { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink); }
+
+  /* ============ COMPONENTS ============ */
+  .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  @media (max-width: 800px) { .comp-grid { grid-template-columns: 1fr; } }
+  .comp-card { background: var(--paper); border: 1px solid var(--line); padding: 40px; }
+  .comp-card .comp-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--orange); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
+  .comp-card h4 { font-family: 'DM Serif Display', serif; font-weight: 400; font-size: 22px; color: var(--ink); margin-bottom: 24px; }
+  .comp-row { padding: 20px 0; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .comp-row:first-of-type { border-top: none; padding-top: 0; }
+
+  /* Button variants */
+  .btn-c { font-family: 'Inter', sans-serif; font-size: 12px; padding: 12px 24px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; cursor: pointer; border: 1px solid var(--ink); transition: all 0.2s; }
+  .btn-c.primary { background: var(--ink); color: var(--cream); }
+  .btn-c.primary:hover { background: var(--orange); border-color: var(--orange); }
+  .btn-c.secondary { background: transparent; color: var(--ink); }
+  .btn-c.secondary:hover { background: var(--ink); color: var(--cream); }
+  .btn-c.copper { background: var(--orange); color: var(--paper); border-color: var(--orange); }
+  .btn-c.copper:hover { background: var(--orange-d); border-color: var(--orange-d); }
+  .btn-c.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn-c.ghost:hover { border-color: var(--ink); }
+
+  /* Badges */
+  .badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 10px; border: 1px solid; display: inline-block; }
+  .badge.navy { color: var(--ink); border-color: var(--ink); }
+  .badge.copper { color: var(--orange-d); border-color: var(--orange); background: rgba(184,115,51,0.08); }
+  .badge.success { color: #2d6a4f; border-color: #2d6a4f; background: rgba(45,106,79,0.08); }
+  .badge.warn { color: #b08900; border-color: #b08900; background: rgba(176,137,0,0.08); }
+  .badge.neutral { color: var(--ink-50); border-color: var(--line); }
+
+  /* Form inputs */
+  .inp { display: block; width: 100%; padding: 12px 14px; background: transparent; border: 1px solid var(--line); color: var(--ink); font-family: 'Inter', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .inp:focus { border-color: var(--ink); }
+  .inp::placeholder { color: var(--ink-30); }
+  .inp-lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-70); letter-spacing: 0.15em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+
+  /* ============ SCREEN MOCKUPS ============ */
+  .screen { background: var(--paper); border: 1px solid var(--line); overflow: hidden; box-shadow: 0 24px 80px -30px rgba(26,42,74,0.18); }
+  .screen-bar { background: var(--cream-2); border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; align-items: center; gap: 8px; }
+  .screen-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--ink-15); }
+  .screen-url { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-50); margin-left: 12px; letter-spacing: 0.05em; }
+  .screen-body { padding: 0; }
+
+  /* LOGIN SCREEN */
+  .login { display: grid; grid-template-columns: 1fr 1fr; min-height: 560px; }
+  @media (max-width: 700px) { .login { grid-template-columns: 1fr; } .login-art { display: none; } }
+  .login-art { background: var(--ink); color: var(--cream); padding: 48px; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
+  .login-art .logo { color: var(--cream); }
+  .login-art .logo::after { color: var(--orange-l); }
+  .login-art .quote { font-family: 'DM Serif Display', serif; font-size: 32px; line-height: 1.2; font-style: italic; font-weight: 400; }
+  .login-art .quote::before { content: """ "; color: var(--orange-l); }
+  .login-art .quote::after { content: """ "; color: var(--orange-l); }
+  .login-art .author { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--orange-l); letter-spacing: 0.2em; text-transform: uppercase; margin-top: 16px; }
+  .login-art .grid-bg { position: absolute; inset: 0; background-image: linear-gradient(rgba(212,165,116,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(212,165,116,0.08) 1px, transparent 1px); background-size: 32px 32px; pointer-events: none; }
+  .login-form { padding: 48px; display: flex; flex-direction: column; justify-content: center; }
+  .login-form h3 { font-family: 'Inter', sans-serif; font-weight: 900; font-size: 36px; margin-bottom: 8px; letter-spacing: -0.02em; }
+  .login-form .sub { color: var(--ink-70); font-size: 14px; margin-bottom: 32px; }
+  .login-form .field { margin-bottom: 18px; }
+  .login-form .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .login-form .meta-link { font-size: 12px; color: var(--ink-70); }
+  .login-form .meta-link a { color: var(--orange-d); text-decoration: none; border-bottom: 1px solid var(--orange); padding-bottom: 1px; }
+  .login-form .divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; color: var(--ink-30); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.2em; }
+  .login-form .divider::before, .login-form .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .login-form .sso { width: 100%; padding: 12px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .login-form .sso:hover { border-color: var(--ink); }
+
+  /* WORKSPACE SWITCHER */
+  .ws { padding: 32px; }
+  .ws-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 600px) { .ws-grid { grid-template-columns: 1fr; } }
+  .ws-tile { background: var(--paper); border: 1px solid var(--line); padding: 24px; cursor: pointer; transition: all 0.2s; position: relative; }
+  .ws-tile:hover { border-color: var(--ink); }
+  .ws-tile.active { border: 2px solid var(--ink); padding: 23px; }
+  .ws-tile.active::before { content: "ACTIVE"; position: absolute; top: 12px; right: 12px; font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: var(--orange); }
+  .ws-tile .glyph { font-family: 'DM Serif Display', serif; font-size: 40px; line-height: 1; color: var(--ink); margin-bottom: 16px; font-style: italic; }
+  .ws-tile .name { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--ink); margin-bottom: 4px; }
+  .ws-tile .meta { font-size: 12px; color: var(--ink-50); }
+  .ws-tile .stats { display: flex; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+  .ws-tile .stat .l { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-50); letter-spacing: 0.15em; }
+  .ws-tile .stat .v { font-size: 14px; color: var(--ink); font-weight: 500; }
+  .ws-new { background: transparent; border: 1px dashed var(--line); display: flex; align-items: center; justify-content: center; min-height: 180px; cursor: pointer; transition: all 0.2s; }
+  .ws-new:hover { border-color: var(--orange); }
+  .ws-new .plus { font-size: 24px; color: var(--ink-50); }
+  .ws-new .lbl { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-50); letter-spacing: 0.15em; margin-left: 8px; }
+
+  /* DASHBOARD */
+  .dash { display: grid; grid-template-columns: 220px 1fr; min-height: 600px; }
+  @media (max-width: 800px) { .dash { grid-template-columns: 1fr; } .dash-side { display: none; } }
+  .dash-side { background: var(--cream-2); border-right: 1px solid var(--line); padding: 24px 16px; }
+  .dash-side .logo { padding: 0 8px 24px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .nav-section { margin-bottom: 24px; }
+  .nav-section .lbl { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-50); letter-spacing: 0.2em; text-transform: uppercase; padding: 0 8px 8px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 8px; font-size: 13px; color: var(--ink-70); cursor: pointer; transition: all 0.15s; border-left: 2px solid transparent; }
+  .nav-item:hover { color: var(--ink); }
+  .nav-item.active { color: var(--ink); background: var(--paper); border-left-color: var(--orange); }
+  .nav-item svg { width: 14px; height: 14px; }
+  .dash-main { padding: 28px 32px; }
+  .dash-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+  .crumb { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-50); letter-spacing: 0.15em; text-transform: uppercase; }
+  .crumb b { color: var(--ink); font-weight: 500; }
+  .user-chip { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; border: 1px solid var(--line); }
+  .user-chip .av { width: 26px; height: 26px; border-radius: 13px; background: var(--orange); color: var(--paper); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+  .user-chip .nm { font-size: 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); margin-bottom: 24px; background: var(--paper); }
+  @media (max-width: 800px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { padding: 20px; border-right: 1px solid var(--line); position: relative; }
+  .kpi:last-child { border-right: none; }
+  @media (max-width: 800px) { .kpi:nth-child(2n) { border-right: none; } }
+  .kpi .l { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-50); letter-spacing: 0.2em; text-transform: uppercase; }
+  .kpi .v { font-family: 'DM Serif Display', serif; font-size: 32px; line-height: 1.1; color: var(--ink); margin: 4px 0; }
+  .kpi .d { font-size: 11px; }
+  .kpi .d.up { color: #2d6a4f; }
+  .kpi .d.down { color: #9d2c2c; }
+  .kpi .d.neutral { color: var(--ink-50); }
+  .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+  @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+  .panel { background: var(--paper); border: 1px solid var(--line); padding: 24px; }
+  .panel-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
+  .panel-h h4 { font-family: 'DM Serif Display', serif; font-weight: 400; font-size: 20px; }
+  .panel-h .link { font-size: 12px; color: var(--orange-d); }
+  /* Pipeline chart */
+  .pipe { display: flex; align-items: flex-end; gap: 8px; height: 160px; padding-top: 12px; }
+  .pipe .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .pipe .bar { width: 100%; background: var(--ink); position: relative; }
+  .pipe .bar.cu { background: var(--orange); }
+  .pipe .col .vl { font-family: 'DM Serif Display', serif; font-size: 12px; color: var(--ink); }
+  .pipe .col .lb { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-50); letter-spacing: 0.1em; text-transform: uppercase; }
+  /* Deal list */
+  .deal { padding: 14px 0; border-top: 1px solid var(--line-soft); display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; }
+  .deal:first-of-type { border-top: none; padding-top: 0; }
+  .deal .nm { font-size: 13px; color: var(--ink); }
+  .deal .cl { font-size: 11px; color: var(--ink-50); margin-top: 2px; }
+  .deal .vl { font-family: 'DM Serif Display', serif; font-size: 16px; color: var(--ink); }
+  .deal .st { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* CLIENT DETAIL */
+  .client { padding: 28px 32px; }
+  .client-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+  .client-name { display: flex; align-items: center; gap: 20px; }
+  .client-avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--orange); color: var(--paper); display: flex; align-items: center; justify-content: center; font-family: 'DM Serif Display', serif; font-size: 28px; font-style: italic; }
+  .client-name h2 { font-size: 32px; }
+  .client-name .meta { font-size: 12px; color: var(--ink-50); margin-top: 4px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em; }
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); margin-bottom: 24px; background: var(--paper); }
+  @media (max-width: 700px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+  .stat-row .kpi { border-right: 1px solid var(--line); }
+  .stat-row .kpi:last-child { border-right: none; }
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ""; position: absolute; left: 7px; top: 6px; bottom: 6px; width: 1px; background: var(--line); }
+  .tl-item { position: relative; padding-bottom: 20px; }
+  .tl-item::before { content: ""; position: absolute; left: -24px; top: 4px; width: 9px; height: 9px; border: 1px solid var(--ink); background: var(--paper); }
+  .tl-item.cu::before { background: var(--orange); border-color: var(--orange); }
+  .tl-item .when { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-50); letter-spacing: 0.12em; }
+  .tl-item .what { font-size: 14px; color: var(--ink); margin: 2px 0; }
+  .tl-item .who { font-size: 12px; color: var(--ink-50); }
+
+  /* ============ FOOTER ============ */
+  .endcard { background: var(--ink); color: var(--cream); padding: 80px 40px; border-radius: 0; margin-top: 0; }
+  .endcard .container { display: grid; grid-template-columns: 1fr auto; gap: 60px; align-items: end; }
+  @media (max-width: 700px) { .endcard .container { grid-template-columns: 1fr; } }
+  .endcard .eyebrow { color: var(--orange-l); }
+  .endcard .eyebrow::before { background: var(--orange-l); }
+  .endcard h2 { color: var(--cream); font-size: clamp(36px, 5vw, 64px); }
+  .endcard h2 em { color: var(--orange-l); }
+  .endcard .next { font-size: 16px; color: rgba(245,241,234,0.7); max-width: 480px; margin-top: 16px; }
+  .endcard .btn-c { background: var(--orange); color: var(--paper); border-color: var(--orange); }
+  .endcard .btn-c:hover { background: var(--orange-l); border-color: var(--orange-l); }
+
+  /* helpers */
+  .div { height: 1px; background: var(--line); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ TOP BAR ============ -->
+<nav class="topbar">
+  <div class="topbar-inner container" style="padding-left:0;padding-right:0;max-width:1280px;">
+    <div class="logo" style="font-family:'Inter',sans-serif;font-weight:900;font-style:normal;font-size:24px;letter-spacing:-0.02em">UDG<span style="color:var(--orange)">OK</span></div>
+    <div class="nav">
+      <a href="#tokens">Tokens</a>
+      <a href="#components">Components</a>
+      <a href="#login">Login</a>
+      <a href="#workspace">Workspaces</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#client">Clients</a>
+    </div>
+    <button class="topbar-cta">Lock this direction →</button>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">UDGOK Bold · Updated Direction</div>
+        <h1>Built right.<br>Run <em>bold.</em></h1>
+        <p class="lede">The CMS for construction teams who care about craft. <strong>Blueprint elegance</strong> — cream paper, deep navy ink, copper details, hairline rules. A wireframe building rotates slowly in the hero. Every screen earns its whitespace.</p>
+        <div class="hero-cta">
+          <button class="btn btn-primary">Lock this direction</button>
+          <button class="btn">See it on screens ↓</button>
+        </div>
+      </div>
+      <div class="scene-wrap">
+        <span class="scene-corner tl">FIG.01 — HERO BUILDING</span>
+        <span class="scene-corner tr">N 37°51' W 122°16'</span>
+        <span class="scene-corner bl">SCALE 1:1</span>
+        <span class="scene-corner br">VIEW · ISOMETRIC</span>
+        <canvas id="hero3d"></canvas>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOKENS ============ -->
+<section id="tokens">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="section-num" data-num="1">01 / TOKENS</div>
+        <h2>The design <em>language.</em></h2>
+      </div>
+      <p class="section-desc">Six foundation tokens. Everything else flows from them. Cream is paper, navy is ink, copper is the welder's torch. Hairline rules, generous whitespace, isometric line drawings as accents.</p>
+    </div>
+
+    <div class="eyebrow" style="margin-bottom:16px">Color</div>
+    <div class="palette">
+      <div class="swatch">
+        <div class="chip" style="background:#f5f1ea"></div>
+        <div class="name">Cream</div>
+        <div class="hex">#F5F1EA</div>
+        <div class="role">Canvas · paper</div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#1a2a4a"></div>
+        <div class="name">Navy</div>
+        <div class="hex">#1A2A4A</div>
+        <div class="role">Ink · primary</div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#b87333"></div>
+        <div class="name">Copper</div>
+        <div class="hex">#B87333</div>
+        <div class="role">Accent · action</div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#ffffff"></div>
+        <div class="name">Paper</div>
+        <div class="hex">#FFFFFF</div>
+        <div class="role">Surface · card</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:80px">
+      <div>
+        <div class="eyebrow" style="margin-bottom:16px">Typography</div>
+        <div class="type-scale">
+          <div class="lbl">Display</div>
+          <div>
+            <div class="serif" style="font-size:48px;line-height:1;color:var(--ink)">West Berkeley</div>
+            <div class="type-spec">DM Serif Display · 48px / 1.0 / Regular</div>
+          </div>
+          <div class="lbl">H2</div>
+          <div>
+            <div class="serif" style="font-size:32px;line-height:1.1;color:var(--ink)">Kitchen remodel</div>
+            <div class="type-spec">DM Serif Display · 32px / 1.1 / Regular</div>
+          </div>
+          <div class="lbl">H3</div>
+          <div>
+            <div class="serif" style="font-size:22px;line-height:1.2;color:var(--ink)">Project 047</div>
+            <div class="type-spec">DM Serif Display · 22px / 1.2 / Regular</div>
+          </div>
+          <div class="lbl">Body</div>
+          <div>
+            <div style="font-size:15px;line-height:1.55;color:var(--ink-70)">A 1920s Craftsman in the heart of West Berkeley, gutted to the studs and rebuilt around a new kitchen island. Open shelving, unlacquered brass, white oak floors.</div>
+            <div class="type-spec">Outfit · 15px / 1.55 / 400</div>
+          </div>
+          <div class="lbl">Label</div>
+          <div>
+            <div class="mono" style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--orange)">▮ ESTIMATE · 90 DAYS</div>
+            <div class="type-spec">JetBrains Mono · 10px / 0.2em / 500</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:16px">Spacing</div>
+        <div class="spacing">
+          <div class="sp-item"><div class="sp-bar" style="height:4px"></div><div class="sp-val">4</div></div>
+          <div class="sp-item"><div class="sp-bar" style="height:8px"></div><div class="sp-val">8</div></div>
+          <div class="sp-item"><div class="sp-bar" style="height:12px"></div><div class="sp-val">12</div></div>
+          <div class="sp-item"><div class="sp-bar" style="height:20px"></div><div class="sp-val">20</div></div>
+          <div class="sp-item"><div class="sp-bar" style="height:32px"></div><div class="sp-val">32</div></div>
+          <div class="sp-item"><div class="sp-bar" style="height:48px"></div><div class="sp-val">48</div></div>
+          <div class="sp-item"><div class="sp-bar" style="height:64px"></div><div class="sp-val">64</div></div>
+        </div>
+        <div class="eyebrow" style="margin-bottom:16px;margin-top:48px">Radius & Lines</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div style="background:var(--paper);border:1px solid var(--line);padding:24px;text-align:center;border-radius:0"><div class="mono" style="font-size:10px;color:var(--ink-50)">0px</div><div style="font-family:'DM Serif Display',serif;font-size:14px;margin-top:6px">Sharp</div></div>
+          <div style="background:var(--paper);border:1px solid var(--line);padding:24px;text-align:center;border-radius:4px"><div class="mono" style="font-size:10px;color:var(--ink-50)">4px</div><div style="font-family:'DM Serif Display',serif;font-size:14px;margin-top:6px">Soft</div></div>
+          <div style="background:var(--paper);border:1px solid var(--line);padding:24px;text-align:center;border-radius:12px"><div class="mono" style="font-size:10px;color:var(--ink-50)">12px</div><div style="font-family:'DM Serif Display',serif;font-size:14px;margin-top:6px">Pill</div></div>
+        </div>
+        <p style="font-size:12px;color:var(--ink-50);margin-top:16px;line-height:1.5">Borders are 1px hairlines in <code class="mono" style="color:var(--ink)">rgba(26,42,74,0.15)</code>. Generous whitespace, no shadow stacks.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPONENTS ============ -->
+<section id="components">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="section-num" data-num="2">02 / COMPONENTS</div>
+        <h2>Built to be <em>quiet.</em></h2>
+      </div>
+      <p class="section-desc">Every component earns its place. No drop shadows, no gradients, no animations that distract. Hairline rules separate. Whitespace guides. The data is the hero.</p>
+    </div>
+
+    <div class="comp-grid">
+      <div class="comp-card">
+        <div class="comp-label">// Buttons</div>
+        <h4>Four weights, one rule.</h4>
+        <div class="comp-row"><button class="btn-c primary">Primary action</button><button class="btn-c copper">Copper</button><button class="btn-c secondary">Secondary</button><button class="btn-c ghost">Ghost</button></div>
+        <div class="comp-row"><button class="btn-c primary">Save estimate →</button><button class="btn-c secondary">Cancel</button></div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-label">// Badges</div>
+        <h4>States, condensed.</h4>
+        <div class="comp-row"><span class="badge navy">Draft</span><span class="badge copper">Pending</span><span class="badge success">Approved</span><span class="badge warn">In review</span><span class="badge neutral">Archived</span></div>
+        <div class="comp-row"><span class="badge copper">High priority</span><span class="badge navy">Q3 2026</span></div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-label">// Form fields</div>
+        <h4>Transparent until focus.</h4>
+        <div class="comp-row" style="flex-direction:column;align-items:stretch">
+          <div><label class="inp-lbl">Project name</label><input class="inp" value="1247 Oak St · Kitchen"></div>
+          <div><label class="inp-lbl">Client</label><input class="inp" placeholder="Search clients…"></div>
+        </div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-label">// Icons</div>
+        <h4>Hairline, 1.25px.</h4>
+        <div class="comp-row" style="gap:24px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" style="color:var(--ink)"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" style="color:var(--ink)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" style="color:var(--ink)"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" style="color:var(--ink)"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" style="color:var(--orange)"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="mono" style="font-size:10px;color:var(--ink-50);margin-top:16px">1.25px stroke · currentColor · 20px box</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<section id="login">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="section-num" data-num="3">03 / LOGIN</div>
+        <h2>First <em>impression.</em></h2>
+      </div>
+      <p class="section-desc">Split layout — the brand on the left (with a quote that grounds the team), the form on the right. SSO-first because contractors are usually on Google Workspace. Grid paper background, copper accent on the quote marks.</p>
+    </div>
+
+    <div class="screen">
+      <div class="screen-bar"><div class="screen-dot"></div><div class="screen-dot"></div><div class="screen-dot"></div><span class="screen-url">atelier.handoff.app/login</span></div>
+      <div class="screen-body">
+        <div class="login">
+          <div class="login-art">
+            <div class="grid-bg"></div>
+            <div style="position:relative;z-index:1">
+              <div class="logo serif">Atelier</div>
+            </div>
+            <div style="position:relative;z-index:1">
+              <div class="quote">We don't build websites. We build the thing that gets out of your way so you can build the house.</div>
+              <div class="author">— MAVIS, FOUNDING</div>
+            </div>
+          </div>
+          <div class="login-form">
+            <h3>Welcome back.</h3>
+            <div class="sub">Sign in to your workspace.</div>
+            <button class="sso">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" opacity="0.7"/></svg>
+              Continue with Google
+            </button>
+            <div class="divider">OR</div>
+            <div class="field"><label class="inp-lbl">Email</label><input class="inp" value="james@buildco.com"></div>
+            <div class="field"><label class="inp-lbl">Password</label><input class="inp" type="password" value="············"></div>
+            <div class="actions">
+              <span class="meta-link"><a href="#">Forgot?</a></span>
+              <button class="btn-c primary">Sign in →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WORKSPACE SWITCHER ============ -->
+<section id="workspace">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="section-num" data-num="4">04 / WORKSPACE</div>
+        <h2>One person, <em>many jobs.</em></h2>
+      </div>
+      <p class="section-desc">Contractors often run multiple companies or project sets. The switcher is a 2-up grid of tiles, each with a serif "glyph" (A, B, C), name, and a tiny stat row. New workspace is a dashed outline. Active state has a copper corner label.</p>
+    </div>
+
+    <div class="screen">
+      <div class="screen-bar"><div class="screen-dot"></div><div class="screen-dot"></div><div class="screen-dot"></div><span class="screen-url">atelier.handoff.app/workspaces</span></div>
+      <div class="screen-body">
+        <div class="ws">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+            <div>
+              <div class="eyebrow" style="margin-bottom:4px">Choose your workspace</div>
+              <h3 class="serif" style="font-size:28px">Good morning, James.</h3>
+            </div>
+            <div class="mono" style="font-size:10px;color:var(--ink-50);letter-spacing:0.15em">3 WORKSPACES · 1 INVITE</div>
+          </div>
+          <div class="ws-grid">
+            <div class="ws-tile active">
+              <div class="glyph">B</div>
+              <div class="name">Build Co.</div>
+              <div class="meta">Remodels · Bay Area · 4 active</div>
+              <div class="stats">
+                <div class="stat"><div class="l">REVENUE</div><div class="v">$284K</div></div>
+                <div class="stat"><div class="l">PIPELINE</div><div class="v">$1.2M</div></div>
+                <div class="stat"><div class="l">TEAM</div><div class="v">6</div></div>
+              </div>
+            </div>
+            <div class="ws-tile">
+              <div class="glyph">A</div>
+              <div class="name">Atelier · Side Practice</div>
+              <div class="meta">Design consults · solo</div>
+              <div class="stats">
+                <div class="stat"><div class="l">REVENUE</div><div class="v">$12K</div></div>
+                <div class="stat"><div class="l">PIPELINE</div><div class="v">$28K</div></div>
+                <div class="stat"><div class="l">TEAM</div><div class="v">1</div></div>
+              </div>
+            </div>
+            <div class="ws-tile">
+              <div class="glyph">N</div>
+              <div class="name">North Bay Builds</div>
+              <div class="meta">New construction · 8 active</div>
+              <div class="stats">
+                <div class="stat"><div class="l">REVENUE</div><div class="v">$610K</div></div>
+                <div class="stat"><div class="l">PIPELINE</div><div class="v">$2.4M</div></div>
+                <div class="stat"><div class="l">TEAM</div><div class="v">12</div></div>
+              </div>
+            </div>
+            <div class="ws-tile ws-new"><span class="plus">+</span><span class="lbl">NEW WORKSPACE</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<section id="dashboard">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="section-num" data-num="5">05 / CRM DASHBOARD</div>
+        <h2>The money <em>view.</em></h2>
+      </div>
+      <p class="section-desc">Sidebar nav with hairline sections. Four KPI cards separated by vertical rules (no boxes within boxes). Pipeline chart uses serif labels for the months. Deal list on the right shows what's about to close.</p>
+    </div>
+
+    <div class="screen">
+      <div class="screen-bar"><div class="screen-dot"></div><div class="screen-dot"></div><div class="screen-dot"></div><span class="screen-url">atelier.handoff.app/dashboard</span></div>
+      <div class="screen-body">
+        <div class="dash">
+          <aside class="dash-side">
+            <div class="logo serif">Build Co.</div>
+            <div class="nav-section">
+              <div class="lbl">// Workspace</div>
+              <div class="nav-item active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Dashboard
+              </div>
+              <div class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Clients
+              </div>
+              <div class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Projects
+              </div>
+              <div class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Estimates
+              </div>
+            </div>
+            <div class="nav-section">
+              <div class="lbl">// Coming</div>
+              <div class="nav-item" style="color:var(--ink-30)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                AI Teammate
+              </div>
+              <div class="nav-item" style="color:var(--ink-30)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Inbox
+              </div>
+            </div>
+          </aside>
+          <main class="dash-main">
+            <div class="dash-topbar">
+              <div class="crumb">BUILD CO. · <b>DASHBOARD</b></div>
+              <div class="user-chip"><div class="av">JM</div><div class="nm">James M.</div></div>
+            </div>
+
+            <div class="kpis">
+              <div class="kpi"><div class="l">Revenue Q3</div><div class="v">$284K</div><div class="d up">▲ +18% MoM</div></div>
+              <div class="kpi"><div class="l">Pipeline</div><div class="v">$1.2M</div><div class="d up">▲ +24%</div></div>
+              <div class="kpi"><div class="l">Active Jobs</div><div class="v">12</div><div class="d neutral">— 3 need review</div></div>
+              <div class="kpi"><div class="l">Margin</div><div class="v">32%</div><div class="d down">▼ −2 pts</div></div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-h"><h4>Pipeline · 12 months</h4><span class="link">View report →</span></div>
+                <div class="pipe">
+                  <div class="col"><div class="bar" style="height:35%"></div><div class="vl">$18k</div><div class="lb">Oct</div></div>
+                  <div class="col"><div class="bar" style="height:52%"></div><div class="vl">$26k</div><div class="lb">Nov</div></div>
+                  <div class="col"><div class="bar" style="height:28%"></div><div class="vl">$14k</div><div class="lb">Dec</div></div>
+                  <div class="col"><div class="bar" style="height:65%"></div><div class="vl">$32k</div><div class="lb">Jan</div></div>
+                  <div class="col"><div class="bar" style="height:48%"></div><div class="vl">$24k</div><div class="lb">Feb</div></div>
+                  <div class="col"><div class="bar cu" style="height:88%"></div><div class="vl">$44k</div><div class="lb">Mar</div></div>
+                  <div class="col"><div class="bar" style="height:72%"></div><div class="vl">$36k</div><div class="lb">Apr</div></div>
+                  <div class="col"><div class="bar" style="height:58%"></div><div class="vl">$29k</div><div class="lb">May</div></div>
+                  <div class="col"><div class="bar" style="height:80%"></div><div class="vl">$40k</div><div class="lb">Jun</div></div>
+                  <div class="col"><div class="bar" style="height:62%"></div><div class="vl">$31k</div><div class="lb">Jul</div></div>
+                  <div class="col"><div class="bar cu" style="height:100%"></div><div class="vl">$50k</div><div class="lb">Aug</div></div>
+                  <div class="col"><div class="bar" style="height:42%"></div><div class="vl">$21k</div><div class="lb">Sep</div></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-h"><h4>Closing this week</h4><span class="link">All →</span></div>
+                <div class="deal"><div><div class="nm">Kitchen · Berkeley</div><div class="cl">The Hendersons</div></div><div class="vl">$48,200</div><div class="st badge copper" style="font-size:9px;padding:3px 8px">HOT</div></div>
+                <div class="deal"><div><div class="nm">Bathroom · Oakland</div><div class="cl">Rivera family</div></div><div class="vl">$22,400</div><div class="st badge warn" style="font-size:9px;padding:3px 8px">REVIEW</div></div>
+                <div class="deal"><div><div class="nm">ADU · Albany</div><div class="cl">Park Residence</div></div><div class="vl">$96,800</div><div class="st badge success" style="font-size:9px;padding:3px 8px">SIGNED</div></div>
+                <div class="deal"><div><div class="nm">Deck · El Cerrito</div><div class="cl">Akinyemi</div></div><div class="vl">$18,600</div><div class="st badge neutral" style="font-size:9px;padding:3px 8px">DRAFT</div></div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CLIENT DETAIL ============ -->
+<section id="client">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="section-num" data-num="6">06 / CLIENT DETAIL</div>
+        <h2>The <em>relationship,</em> not the row.</h2>
+      </div>
+      <p class="section-desc">A client isn't a row in a table. It's a project with a face, an address, a history. Avatar + name + a four-cell stat row, then a hairline-separated timeline of every touchpoint. No "Activity feed" — a real narrative.</p>
+    </div>
+
+    <div class="screen">
+      <div class="screen-bar"><div class="screen-dot"></div><div class="screen-dot"></div><div class="screen-dot"></div><span class="screen-url">atelier.handoff.app/clients/henderson</span></div>
+      <div class="screen-body">
+        <div class="client">
+          <div class="client-head">
+            <div class="client-name">
+              <div class="client-avatar">H</div>
+              <div>
+                <h2 class="serif">The Hendersons</h2>
+                <div class="meta">1247 OAK ST · BERKELEY · SINCE MAR 2024</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-c secondary">Send message</button>
+              <button class="btn-c primary">New estimate →</button>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="kpi"><div class="l">Total Billed</div><div class="v">$84.2K</div><div class="d neutral">2 projects</div></div>
+            <div class="kpi"><div class="l">Active</div><div class="v">Kitchen</div><div class="d up">Day 12 of 30</div></div>
+            <div class="kpi"><div class="l">Lifetime Margin</div><div class="v">34%</div><div class="d up">▲ +3 pts</div></div>
+            <div class="kpi"><div class="l">NPS</div><div class="v">9.2</div><div class="d up">Promoter</div></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:32px">
+            <div>
+              <div class="eyebrow" style="margin-bottom:16px">// History</div>
+              <div class="timeline">
+                <div class="tl-item cu">
+                  <div class="when">TODAY · 10:42</div>
+                  <div class="what">Estimate v3 sent — Kitchen remodel</div>
+                  <div class="who">$48,200 · Awaiting approval</div>
+                </div>
+                <div class="tl-item">
+                  <div class="when">YESTERDAY · 16:18</div>
+                  <div class="what">Site walkthrough notes uploaded</div>
+                  <div class="who">3 photos · 1 floorplan</div>
+                </div>
+                <div class="tl-item">
+                  <div class="when">MAR 14</div>
+                  <div class="what">Bathroom project marked complete</div>
+                  <div class="who">$22,400 · Final invoice paid</div>
+                </div>
+                <div class="tl-item">
+                  <div class="when">MAR 02</div>
+                  <div class="what">Initial consultation</div>
+                  <div class="who">45 min · Scope: kitchen + ADU</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="eyebrow" style="margin-bottom:16px">// Properties</div>
+              <div style="background:var(--paper);border:1px solid var(--line);padding:20px;margin-bottom:12px">
+                <div class="serif" style="font-size:18px;color:var(--ink)">1247 Oak St</div>
+                <div class="mono" style="font-size:10px;color:var(--ink-50);letter-spacing:0.1em;margin:4px 0 12px">BERKELEY · 1924 CRAFTSMAN · 2,140 SQFT</div>
+                <div style="font-size:12px;color:var(--ink-70)">Kitchen (active) · Bathroom (done)</div>
+              </div>
+              <div style="background:var(--paper);border:1px solid var(--line);padding:20px;border-style:dashed">
+                <div class="serif" style="font-size:16px;color:var(--ink-50)">+ Add property</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ END CARD ============ -->
+<section style="padding:0;border-top:none">
+  <div class="endcard">
+    <div class="container">
+      <div>
+        <div class="eyebrow">Next step</div>
+        <h2>Lock this direction <em>together.</em></h2>
+        <p class="next">If Architect Studio feels right, I'll write the full design spec, lock tokens, and we start building. If you want to push further (more 3D, different accent, a specific motif) — tell me what to bend.</p>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn-c">Lock it →</button>
+        <button class="btn-c" style="background:transparent;color:var(--orange-l);border-color:var(--orange-l)">Push further</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="container" style="padding-top:32px;padding-bottom:64px">
+  <div class="mono" style="font-size:10px;color:var(--ink-50);letter-spacing:0.15em;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <span>ATELIER · DIRECTION 02 DEEP DIVE</span>
+    <span>HANDOFF CMS · SLICE B</span>
+  </div>
+</div>
+
+<!-- ============ THREE.JS HERO ============ -->
+<script>
+  (function() {
+    const canvas = document.getElementById('hero3d');
+    const scene = new THREE.Scene();
+    scene.background = null;
+    const w = canvas.parentElement.clientWidth;
+    const h = canvas.parentElement.clientHeight;
+    const camera = new THREE.PerspectiveCamera(35, w/h, 0.1, 1000);
+    camera.position.set(7, 5, 9);
+    camera.lookAt(0, 1, 0);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(w, h, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(5, 8, 5);
+    scene.add(dir);
+
+    const navy = 0x1a2a4a;
+    const copper = 0xb87333;
+    const wireMat = new THREE.LineBasicMaterial({ color: navy, transparent: true, opacity: 0.7 });
+    const copperMat = new THREE.LineBasicMaterial({ color: copper, transparent: true, opacity: 0.9 });
+    const ghostMat = new THREE.MeshBasicMaterial({ color: navy, transparent: true, opacity: 0.03 });
+
+    // Building group
+    const building = new THREE.Group();
+
+    function addBox(w, h, d, x, y, z, mat) {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      const edges = new THREE.EdgesGeometry(geo);
+      const lines = new THREE.LineSegments(edges, mat);
+      const fill = new THREE.Mesh(geo, ghostMat);
+      lines.position.set(x, y, z);
+      fill.position.set(x, y, z);
+      building.add(lines);
+      building.add(fill);
+    }
+
+    // Stacked building — base, middle, tower, roof
+    addBox(3.2, 1.2, 2.4, 0, 0.6, 0, wireMat);
+    addBox(2.4, 1.4, 1.8, 0, 1.9, 0, wireMat);
+    addBox(1.6, 2.0, 1.4, 0, 3.6, 0, copperMat);
+    addBox(0.9, 1.2, 0.9, 0, 5.2, 0, wireMat);
+
+    // Roof — pyramid
+    const roofGeo = new THREE.ConeGeometry(0.8, 0.7, 4);
+    const roofEdges = new THREE.EdgesGeometry(roofGeo);
+    const roof = new THREE.LineSegments(roofEdges, copperMat);
+    roof.position.set(0, 6.15, 0);
+    roof.rotation.y = Math.PI / 4;
+    building.add(roof);
+
+    // Floor grid (subtle, paper-like)
+    const grid = new THREE.GridHelper(12, 12, navy, navy);
+    grid.material.transparent = true;
+    grid.material.opacity = 0.08;
+    grid.position.y = 0;
+    building.add(grid);
+
+    // Foundation slab
+    const slabGeo = new THREE.BoxGeometry(5, 0.05, 4);
+    const slabEdges = new THREE.EdgesGeometry(slabGeo);
+    const slab = new THREE.LineSegments(slabEdges, new THREE.LineBasicMaterial({ color: navy, transparent: true, opacity: 0.3 }));
+    slab.position.y = 0.025;
+    building.add(slab);
+
+    scene.add(building);
+
+    // Mouse drag rotation
+    let isDrag = false, prevX = 0, prevY = 0;
+    let rotY = 0.4, rotX = 0.2;
+    canvas.addEventListener('mousedown', e => { isDrag = true; prevX = e.clientX; prevY = e.clientY; });
+    window.addEventListener('mouseup', () => isDrag = false);
+    window.addEventListener('mousemove', e => {
+      if (!isDrag) return;
+      const dx = e.clientX - prevX;
+      const dy = e.clientY - prevY;
+      rotY += dx * 0.005;
+      rotX += dy * 0.005;
+      rotX = Math.max(-0.5, Math.min(0.5, rotX));
+      prevX = e.clientX; prevY = e.clientY;
+    });
+    // Touch
+    canvas.addEventListener('touchstart', e => { isDrag = true; prevX = e.touches[0].clientX; prevY = e.touches[0].clientY; });
+    canvas.addEventListener('touchend', () => isDrag = false);
+    canvas.addEventListener('touchmove', e => {
+      if (!isDrag) return;
+      const dx = e.touches[0].clientX - prevX;
+      const dy = e.touches[0].clientY - prevY;
+      rotY += dx * 0.005;
+      rotX += dy * 0.005;
+      rotX = Math.max(-0.5, Math.min(0.5, rotX));
+      prevX = e.touches[0].clientX; prevY = e.touches[0].clientY;
+    });
+
+    // Animation
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!isDrag) rotY += 0.003;
+      building.rotation.y = rotY;
+      building.rotation.x = rotX;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Resize
+    const ro = new ResizeObserver(() => {
+      const nw = canvas.parentElement.clientWidth;
+      const nh = canvas.parentElement.clientHeight;
+      camera.aspect = nw/nh;
+      camera.updateProjectionMatrix();
+      renderer.setSize(nw, nh, false);
+    });
+    ro.observe(canvas.parentElement);
+  })();
+</script>
+
+</body>
+</html>
