@@ -51,7 +51,16 @@ const FEATURE_MIN_TIER: Partial<Record<FeatureKey, Plan>> = {
   custom_branding: 'ENTERPRISE',
 };
 
-export function hasFeature(plan: Plan | null | undefined, feature: FeatureKey): boolean {
+export function hasFeature(
+  plan: Plan | null | undefined,
+  feature: FeatureKey,
+  isMasterAdmin = false,
+): boolean {
+  // Master admins always have access to every feature, regardless of
+  // plan. This lets the platform owner test what Starter looks like
+  // (by switching a workspace to Starter) without losing their own
+  // access to Pro/Enterprise features.
+  if (isMasterAdmin) return true;
   if (!plan) return false;
   const required = FEATURE_MIN_TIER[feature];
   if (!required) return true; // No gating = free for all

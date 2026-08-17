@@ -10,6 +10,7 @@ interface DrawerProps {
   open: boolean;
   onClose: () => void;
   allWorkspaces: Array<{ id: string; slug: string; name: string; role: string }>;
+  isMasterAdmin?: boolean;
 }
 
 interface DrawerLink {
@@ -95,7 +96,7 @@ const ICON_SCAN = (
   </svg>
 );
 
-export function MobileDrawer({ open, onClose, allWorkspaces }: DrawerProps) {
+export function MobileDrawer({ open, onClose, allWorkspaces, isMasterAdmin }: DrawerProps) {
   const { slug, name, role } = useWorkspace();
   const pathname = usePathname();
   const router = useRouter();
@@ -131,6 +132,10 @@ export function MobileDrawer({ open, onClose, allWorkspaces }: DrawerProps) {
     { label: 'Subcontractors', href: `/w/${slug}/subcontractors`, icon: ICON_SUBS },
     { label: 'Settings', href: `/w/${slug}/settings`, icon: ICON_SETTINGS },
   ];
+
+  if (isMasterAdmin) {
+    links.push({ label: '👑 Master admin', href: '/admin', icon: ICON_SETTINGS });
+  }
 
   const others = allWorkspaces.filter((w) => w.slug !== slug);
 

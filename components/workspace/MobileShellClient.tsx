@@ -29,10 +29,12 @@ export function MobileShellClient({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   workspaceId,
   allWorkspaces,
+  isMasterAdmin,
   children,
 }: {
   workspaceId: string;
   allWorkspaces: WorkspaceOption[];
+  isMasterAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -51,6 +53,7 @@ export function MobileShellClient({
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         allWorkspaces={allWorkspaces}
+        isMasterAdmin={isMasterAdmin}
       />
     </DrawerContext.Provider>
   );

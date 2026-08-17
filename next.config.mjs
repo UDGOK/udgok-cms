@@ -28,6 +28,8 @@ const aliases = {
   DATABASE_URL: ['UDGOK_CMS_DATABASE_URL', 'UDGOK_CMS_POSTGRES_URL', 'UDGOK_CMS_POSTGRES_PRISMA_URL'],
   // App
   NEXT_PUBLIC_APP_URL: ['UDGOK_CMS_APP_URL'],
+  // Master admin emails (JSON array, optional — yasir@udgok.com is always master)
+  UDGOK_CMS_MASTERS: ['MASTERS'],
 };
 
 for (const [target, sources] of Object.entries(aliases)) {

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { auth } from '@clerk/nextjs/server';
 import { getUserWorkspaces } from '@/lib/auth/get-user-workspaces';
 import { WorkspaceTile } from '@/components/workspace/WorkspaceTile';
+import { isMasterAdmin } from '@/lib/admin/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,11 +11,34 @@ export default async function WorkspacesPage() {
   const { userId } = await auth();
   if (!userId) redirect('/sign-in');
 
-  const workspaces = await getUserWorkspaces(userId);
+  const [workspaces, master] = await Promise.all([
+    getUserWorkspaces(userId),
+    isMasterAdmin(userId),
+  ]);
 
   return (
     <div className="min-h-screen bg-cream">
       <div className="max-w-5xl mx-auto px-8 py-16">
+        {master ? (
+          <div className="mb-8 bg-ink text-cream border-2 border-orange p-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">👑</span>
+              <div>
+                <div className="font-extrabold text-[14px]">You are a master admin</div>
+                <div className="text-[11px] text-cream/70 mt-0.5">
+                  Platform owner. Manage all workspaces, plans, and users.
+                </div>
+              </div>
+            </div>
+            <Link
+              href="/admin"
+              className="px-4 py-2.5 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.15em] hover:bg-orange-d"
+            >
+              Open admin →
+            </Link>
+          </div>
+        ) : null}
+
         <div className="label-eyebrow mb-4">{'// Choose your workspace'}</div>
         <h1 className="text-display-lg">
           Good <span className="font-serif italic text-orange-d">morning.</span>

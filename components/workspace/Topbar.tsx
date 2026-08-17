@@ -18,9 +18,11 @@ interface WorkspaceOption {
 export function Topbar({
   allWorkspaces = [],
   onOpenMobileDrawer,
+  isMasterAdmin = false,
 }: {
   allWorkspaces?: WorkspaceOption[];
   onOpenMobileDrawer?: () => void;
+  isMasterAdmin?: boolean;
 }) {
   const { name, slug, role, id } = useWorkspace();
   const pathname = usePathname();
@@ -110,6 +112,17 @@ export function Topbar({
             <line x1="3" y1="12" x2="21" y2="12" />
           </svg>
         </Link>
+
+        {isMasterAdmin ? (
+          <Link
+            href="/admin"
+            className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.15em] hover:bg-orange-d"
+            title="Master admin"
+          >
+            <span>👑</span>
+            <span>Admin</span>
+          </Link>
+        ) : null}
 
         <button
           className="w-[34px] h-[34px] flex items-center justify-center bg-paper border border-line text-ink-70 hover:border-ink hover:text-ink relative"

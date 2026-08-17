@@ -2,6 +2,7 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { prisma } from '@/lib/db/client';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ScanPageClient } from './ScanPageClient';
+import { isMasterAdmin } from '@/lib/admin/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +13,8 @@ export default async function ScanPage({
   params: { workspace: string };
   searchParams: { code?: string };
 }) {
-  const workspace = await prisma.workspace.findUnique({ where: { slug: params.workspace } });
-  if (!workspace) throw new Error('Workspace not found');
-  await requireMembership(workspace.id);
+  const { workspace, userId } = await requireMembership(params.workspace);
+  const master = await isMasterAdmin(userId);
 
   // If a code was passed, look it up in the workspace
   let lookup: { type: 'sub' | 'project' | 'client' | 'file' | 'none'; label: string; href: string } = {
@@ -92,6 +92,7 @@ export default async function ScanPage({
       <ScanPageClient
         workspaceSlug={workspace.slug}
         plan={workspace.plan}
+        isMasterAdmin={master}
       />
     </div>
   );

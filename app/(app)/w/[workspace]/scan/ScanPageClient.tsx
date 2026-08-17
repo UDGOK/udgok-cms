@@ -10,14 +10,15 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 interface ScanPageClientProps {
   workspaceSlug: string;
   plan: Plan;
+  isMasterAdmin: boolean;
 }
 
-export function ScanPageClient({ workspaceSlug, plan }: ScanPageClientProps) {
+export function ScanPageClient({ workspaceSlug, plan, isMasterAdmin }: ScanPageClientProps) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(true);
 
   return (
-    <FeatureGate plan={plan} feature="barcode_scan">
+    <FeatureGate plan={plan} feature="barcode_scan" isMasterAdmin={isMasterAdmin}>
       <div className="md:hidden">
         <BottomSheet
           open={sheetOpen}

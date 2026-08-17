@@ -6,6 +6,7 @@ import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { TierBadge } from '@/components/ui/TierBadge';
 import { PLAN_INFO } from '@/lib/workspace/tier';
 import { Plan } from '@prisma/client';
+import { isMasterAdmin } from '@/lib/admin/permissions';
 import { WorkspaceSettingsForm, InviteMemberForm, DeleteWorkspaceSection, BackupSection } from './SettingsClient';
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -29,7 +30,8 @@ export default async function SettingsPage({
 }: {
   params: { workspace: string };
 }) {
-  const { workspace } = await requireMembership(params.workspace);
+  const { workspace, userId } = await requireMembership(params.workspace);
+  const master = await isMasterAdmin(userId);
 
   // Check the user's role for permissioned actions
   let isAdmin = false;
@@ -70,6 +72,26 @@ export default async function SettingsPage({
       <h1 className="text-display-lg mb-7">
         <span className="font-serif italic text-orange-d">Workspace</span> & team
       </h1>
+
+      {master ? (
+        <div className="bg-ink text-cream border-2 border-orange p-4 mb-6 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">👑</div>
+            <div>
+              <div className="font-extrabold text-[13px]">You are a master admin</div>
+              <div className="text-[11px] text-cream/70 mt-0.5">
+                You can view and modify any workspace, any plan, any user. Bypass all plan gates.
+              </div>
+            </div>
+          </div>
+          <a
+            href="/admin"
+            className="px-3 py-2 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.15em] hover:bg-orange-d"
+          >
+            Open admin →
+          </a>
+        </div>
+      ) : null}
 
       {/* Workspace info */}
       <div className="bg-paper border-2 border-line p-6 mb-6">

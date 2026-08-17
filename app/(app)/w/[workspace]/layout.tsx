@@ -6,6 +6,7 @@ import { TopbarWithDrawer } from '@/components/workspace/TopbarWithDrawer';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceContext';
 import { PresenceShell } from '@/components/workspace/PresenceShell';
 import { MobileShellClient } from '@/components/workspace/MobileShellClient';
+import { isMasterAdmin } from '@/lib/admin/permissions';
 
 export default async function WorkspaceLayout({
   children,
@@ -44,6 +45,10 @@ export default async function WorkspaceLayout({
     role: m.role,
   }));
 
+  // Master admin check — the platform owner (yasir@udgok.com) gets
+  // an "Admin" button in the topbar and bypasses all plan gates.
+  const master = await isMasterAdmin(userId);
+
   return (
     <WorkspaceProvider
       value={{
@@ -57,6 +62,7 @@ export default async function WorkspaceLayout({
         <MobileShellClient
           workspaceId={workspace.id}
           allWorkspaces={allWorkspaces}
+          isMasterAdmin={master}
         >
           <div className="flex min-h-screen bg-cream">
             {/* Desktop sidebar — hidden on mobile (md:flex) */}
@@ -64,7 +70,7 @@ export default async function WorkspaceLayout({
               <Sidebar />
             </div>
             <div className="flex-1 flex flex-col min-w-0">
-              <TopbarWithDrawer allWorkspaces={allWorkspaces} />
+              <TopbarWithDrawer allWorkspaces={allWorkspaces} isMasterAdmin={master} />
               {/* pb-16 on mobile to leave room for the bottom tab bar */}
               <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
             </div>

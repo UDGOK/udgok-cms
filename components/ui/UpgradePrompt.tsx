@@ -11,13 +11,15 @@ export function FeatureGate({
   feature,
   children,
   showCurrentPlan = true,
+  isMasterAdmin = false,
 }: {
   plan: Plan;
   feature: FeatureKey;
   children: React.ReactNode;
   showCurrentPlan?: boolean;
+  isMasterAdmin?: boolean;
 }) {
-  if (hasFeature(plan, feature)) {
+  if (hasFeature(plan, feature, isMasterAdmin)) {
     return <>{children}</>;
   }
 
