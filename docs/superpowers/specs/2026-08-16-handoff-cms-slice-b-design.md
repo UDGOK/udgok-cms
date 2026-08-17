@@ -33,11 +33,13 @@ bold sans, the hairline rules, the uppercase small caps, the section number circ
 - **Tasks** (assigned to team members, linked to clients/deals/projects)
 - **Documents library** (organized per workspace/client/project, blob-backed)
 - **Projects (core)** — project list, project dashboard, financial summary, Gantt scheduling, project members
-- **PDF generation** — pay app template (v1 light), project summary, client summary, deal summary, tasks summary
+- **Pay Apps (full workflow)** — schedule of values per project, auto-numbered draws, editable this-draw amounts, cumulative tracking per division/subcategory, send-to-customer with email + signed share link, view tracking (who viewed, when, how often)
+- **PDF generation** — pay app template, project summary, client summary, deal summary, tasks summary
+- **Email service** — Resend for transactional pay app sends + view notifications
 
 **v2 — next 4-6 weeks (separate spec):**
-- Full Pay App module (AIA G702/G703, division budgets, subcontractor backup, retainage, lien waivers)
-- Subcontractor management (sub list, contacts, sub needs, sub tasks)
+- AIA G702/G703 compliance refinements (retainage rules, lien waivers, sworn statements, conditional/unconditional waivers)
+- Subcontractor management (sub list, contacts, sub needs, sub tasks, sub insurance tracking)
 - Internal messages (in-app chat tied to clients/deals/projects)
 
 **v3 — later (separate spec):**
@@ -371,8 +373,8 @@ model Project {
   tasks     Task[]
   files     File[]
   notes     Note[]
-  // v2 stub: divisions ProjectDivision[]
-  // v2 stub: draws PayApp[]
+  divisions ProjectDivision[]
+  payApps   PayApp[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
@@ -467,11 +469,93 @@ model File {
 enum FileKind { DOCUMENT  PHOTO  FLOORPLAN  CONTRACT  INVOICE  OTHER }
 
 // =========================================
+// PAY APPS (full workflow in v1)
+// =========================================
+
+model ProjectDivision {
+  id                 String   @id @default(cuid())
+  projectId          String
+  code               String                       // "DIV 01", "DIV 26", "DIV 09 30 00"
+  trade              String                       // "General Conditions", "Electrical", "Tile"
+  subcontractorName  String?                      // "BM Quality", "Louis & Company"
+  budget             Decimal  @db.Decimal(12, 2)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payAppLines PayAppDivision[]
+
+  @@index([projectId, sortOrder])
+}
+
+model PayApp {
+  id            String      @id @default(cuid())
+  projectId     String
+  drawNumber    Int                            // 1, 2, 3, ...
+  periodStart   DateTime
+  periodEnd     DateTime
+  status        PayAppStatus @default(DRAFT)
+  totalContract Decimal     @db.Decimal(12, 2)  // snapshot
+  totalPrevious Decimal     @db.Decimal(12, 2)  // sum of all prior draws
+  totalThisDraw Decimal     @db.Decimal(12, 2)
+  totalBalance  Decimal     @db.Decimal(12, 2)  // totalContract - totalPrevious - totalThisDraw
+  notes         String?
+  pdfUrl        String?                         // Vercel Blob URL of generated PDF
+  shareToken    String      @unique            // signed token for public share link
+  sentAt        DateTime?
+  sentToEmail   String?
+  acknowledgedAt DateTime?                     // when customer clicks "Acknowledge receipt"
+  firstViewedAt DateTime?
+  viewCount     Int         @default(0)
+  createdById   String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  divisions  PayAppDivision[]
+  viewEvents PayAppViewEvent[]
+
+  @@unique([projectId, drawNumber])
+  @@index([projectId, status])
+  @@index([shareToken])
+}
+
+enum PayAppStatus { DRAFT  SENT  VIEWED  ACKNOWLEDGED  PAID  DISPUTED  SUPERSEDED }
+
+model PayAppDivision {
+  id                String   @id @default(cuid())
+  payAppId          String
+  projectDivisionId String
+  previousAmount    Decimal  @db.Decimal(12, 2)   // snapshot: sum of all prior draws for this division
+  thisDrawAmount    Decimal  @db.Decimal(12, 2)   // user-editable
+  balanceAfter      Decimal  @db.Decimal(12, 2)   // snapshot: budget - previous - thisDraw
+  sortOrder         Int
+
+  payApp          PayApp          @relation(fields: [payAppId], references: [id], onDelete: Cascade)
+  projectDivision ProjectDivision @relation(fields: [projectDivisionId], references: [id])
+
+  @@index([payAppId])
+}
+
+model PayAppViewEvent {
+  id          String   @id @default(cuid())
+  payAppId    String
+  viewedAt    DateTime @default(now())
+  viewerEmail String?     // parsed from ?email= param if present
+  ipAddress   String?
+  userAgent   String?
+  referrer    String?
+
+  payApp PayApp @relation(fields: [payAppId], references: [id], onDelete: Cascade)
+
+  @@index([payAppId, viewedAt])
+}
+
+// =========================================
 // v2 STUBS (do not implement in v1, just reserved names)
-// model ProjectDivision { ... }  // AIA divisions
-// model Subcontractor   { ... }
-// model PayApp          { ... }
-// model PayAppLineItem  { ... }
+// model Subcontractor { ... }       // proper sub management w/ contacts, insurance, etc.
+// model LienWaiver   { ... }       // conditional/unconditional waiver tracking
 // =========================================
 ```
 
@@ -481,7 +565,10 @@ enum FileKind { DOCUMENT  PHOTO  FLOORPLAN  CONTRACT  INVOICE  OTHER }
 - `Task` is a polymorphic-ish link — can attach to Client OR Deal OR Project (any combination; nullable foreign keys)
 - `Task.startDate` / `endDate` power the Gantt
 - `File.category` is free text in v1 (brochures, marketing, floorplans, etc.) — keeps schema simple, can be enum in v2
-- v2 modules (divisions, subs, pay app) are documented in comments, NOT created yet
+- **Pay App cumulative magic:** when a new draw is generated, the server queries all prior `PayAppDivision` rows for the same `projectDivisionId` and sums `thisDrawAmount` to fill the `previousAmount` snapshot. Users can never get the cumulative math wrong.
+- **`PayApp.shareToken` is the only public attack surface** — a long random token (32+ bytes), no auth required to view, but the page is read-only and logs every view. Tokens can be regenerated (which invalidates the old link).
+- **`PayAppViewEvent` is append-only** — every page load = one row. We never aggregate on read; we aggregate on the fly when displaying "view count" and "first viewed". This gives us the full audit trail for free.
+- v2 modules (sub management, lien waivers) are still stubbed.
 
 ---
 
@@ -557,10 +644,14 @@ source of truth: `/w/[slug]/...`.
 | `/deals/[id]` | Detail (client, value, margin, fit score, notes, files, tasks) | ✅ |
 | `/projects` | List (status, dates, contract value) | — |
 | `/projects/[id]` | Project dashboard (overview, status, contract value, % complete, key dates) | ✅ |
-| `/projects/[id]/financials` | Financial summary (contract value, invoiced, collected, by-division stub for v2) | ✅ |
+| `/projects/[id]/financials` | Financial summary (contract value, drawn, balance, by-division breakdown) | ✅ |
 | `/projects/[id]/schedule` | Gantt chart of project tasks | ✅ |
+| `/projects/[id]/payapps` | Pay Apps list (all draws for project, status, views) | ✅ |
+| `/projects/[id]/payapps/new` | Generate next draw (auto-fills previous amounts per division) | — |
+| `/projects/[id]/payapps/[drawId]` | Pay App detail (edit this-draw amounts, send to customer, view tracking) | ✅ |
 | `/projects/[id]/files` | Project-scoped files | — |
 | `/projects/[id]/team` | Project members + their roles | — |
+| `/share/payapp/[token]` | **Public read-only customer view** (no auth, logs view event) | ✅ |
 | `/tasks` | All tasks in workspace, filterable by assignee/status/due date | ✅ |
 | `/tasks/[id]` | Task detail | — |
 | `/documents` | Document library (workspace-wide, organized by category) | — |
@@ -582,6 +673,15 @@ source of truth: `/w/[slug]/...`.
 | `uploadFile` / `deleteFile` / `updateFileCategory` | Documents |
 | `scoreDeal` | AI scoring (auto on `createDeal`) |
 | `renderPDF` | Server-side PDF generation for any printable view |
+| `createProjectDivision` / `updateProjectDivision` / `deleteProjectDivision` / `reorderDivisions` | Schedule of Values |
+| `createPayApp` | Auto-generate next draw (cumulative math pre-filled) |
+| `updatePayAppLine` / `updatePayAppNotes` | Edit this-draw amounts per division |
+| `sendPayAppToCustomer` | Generate PDF, create share token, send Resend email, set status=SENT |
+| `resendPayApp` | Re-send email with existing share link |
+| `regenerateShareToken` | Invalidate old link, create new one (security) |
+| `markPayAppPaid` | Mark draw as PAID, optionally record payment reference |
+| `acknowledgePayApp` | Customer-facing action (called from public page) |
+| `logPayAppView` | Called from public page on mount |
 
 ### Webhooks
 
@@ -702,6 +802,81 @@ Every PDF embeds UDGOK branding:
 
 ---
 
+## 8.5. Email Service & Customer Share (Resend + View Tracking)
+
+The pay app workflow needs three things the rest of the app doesn't: a transactional email service, a public share URL, and view tracking. All three are scoped narrowly to the pay app feature — we don't need email anywhere else in v1.
+
+### Provider
+
+**Resend** (https://resend.com) — the best DX in the transactional email space, generous free tier (100 emails/day, 3,000/month), React Email templates, great deliverability. Configurable via:
+- `RESEND_API_KEY` (required)
+- `RESEND_FROM_ADDRESS` (e.g. `payapps@udgok.app`, verified domain required)
+
+### Email template (React Email)
+
+`/components/emails/PayAppEmail.tsx`:
+- Renders with the same UDGOK Bold styling as the app
+- Subject: `Draw No. {N} — {Project Name} · ${amount} due {date}`
+- Body: short message (user-provided or template default) + the secure link CTA
+- "View secure pay application" button → opens the share URL
+- Footer: "Sent via UDGOK CMS · unsubscribe / preferences"
+
+### Public share URL
+
+**Format:** `https://atelier.app/share/payapp/{token}`
+
+- `token` = `crypto.randomBytes(32).toString('base64url')` — 256 bits of entropy, unguessable
+- Stored as `PayApp.shareToken` (unique index)
+- No auth required to view
+- The page is **read-only** — no editing, no JS that mutates state (except the view-logging beacon)
+- Token expiration: **90 days from creation**, configurable per workspace
+- Workspace owners can **regenerate** the token (which invalidates the old link) via the pay app detail page
+
+### Public page behavior
+
+- Server Component renders the pay app (same UDGOK Bold template, no app chrome)
+- On mount, a tiny client-side `<img>` beacon fires `POST /api/payapp/{token}/view` with the page metadata
+- The endpoint:
+  - Inserts a `PayAppViewEvent` row (id, payAppId, viewedAt, viewerEmail, ipAddress, userAgent, referrer)
+  - If `firstViewedAt IS NULL` on the pay app, sets it + bumps `viewCount` to 1
+  - Else, just bumps `viewCount` by 1
+  - Returns 204 No Content (the beacon doesn't care about the response)
+- The email optional `?email=` query param (e.g. when the link is `?email=james@...` from the email body) is parsed and recorded as `viewerEmail` — that's how we identify "james@coldstone-tulsa.com viewed it"
+
+### View tracking UI (in our app)
+
+On the pay app detail page, when status is `SENT` or later:
+- **First viewed** timestamp + relative time ("2h ago")
+- **Total views** count
+- **Unique viewers** count (distinct viewerEmail)
+- **View log:** timestamp · viewer (email or "Unknown") · device (parsed from userAgent) · IP (for audit, not displayed by default)
+- Resend button: re-sends the email
+- Copy share link button: puts the URL on the clipboard
+
+### What we don't do in v1
+
+- No email open tracking pixel (Resend supports it, but it's noisy and often blocked)
+- No link click heatmap
+- No "customer spent 3 min on the page" analytics
+- No in-app notification when customer views (could add to v2 if useful)
+
+### What we explicitly do
+
+- **Append-only audit trail** — every view is a row, never deleted
+- **IP + user agent recorded** for security (so GC can spot suspicious views on a share link that's been forwarded)
+- **Token regeneration** invalidates the old link cleanly
+- **No PII in URLs** beyond the optional `?email=` (which the customer already gave us)
+
+### Implementation files
+
+- `lib/email/resend.ts` — Resend client wrapper
+- `components/emails/PayAppEmail.tsx` — React Email template
+- `app/share/payapp/[token]/page.tsx` — public read-only page
+- `app/api/payapp/[token]/view/route.ts` — view-logging endpoint
+- `lib/payapp/cumulative.ts` — `computePreviousAmounts(projectId, upToDraw)` helper
+
+---
+
 ## 9. Testing Approach
 
 Pragmatic, not paranoid. Test what breaks.
@@ -757,8 +932,11 @@ No coverage threshold (vanity metric for v1).
 2. **AI provider env vars:** `ANTHROPIC_API_KEY` (primary), `OPENAI_API_KEY` (fallback). Confirmed in plan.
 3. **`Workspace.industry` is free-text** in v1 — defer enum to v2.
 4. **`ProjectMember.role` is free-text** in v1 — defer enum to v2 (or until we have a clear list of project roles from user).
-5. **PDF pay app v1 light** — what's the minimum acceptable? My take: a single draw summary + division table (manually entered for v1) + cert block. Full automation of retainage / division tracking is v2.
-6. **Brand name in app** — currently calling the app "Atelier" internally. User's actual brand is "UDGOK Construction". Should the app's wordmark say "Atelier" (as a design system name) or "UDGOK" (as the user's brand)? Default to "UDGOK Bold" / "UDGOK" wordmark, with the design system internally called "Atelier". User to confirm.
+5. ~~PDF pay app v1 light~~ **RESOLVED** — moved full Pay App workflow to v1 (auto-numbered draws, schedule of values, cumulative tracking per division, send-to-customer with email + share link, view tracking). See section 8.5.
+6. **Brand name in app** — currently calling the app "Atelier" internally. User's actual brand is "UDGOK Construction". Default: "UDGOK" wordmark in the app, "Atelier" as the internal design system name. User to confirm at sign-off.
+7. **Email service:** Resend (proposed, see section 8.5). Free tier is 100/day, 3,000/month. Easy to swap for Postmark/SendGrid later if needed. User to confirm.
+8. **Share link expiration:** 90 days from creation (proposed). User can regenerate tokens manually. Confirm.
+9. **Viewer identification:** the customer's email is captured from the `?email=` query param appended to the share link in the email body. If customer forwards the link to someone else, that second viewer shows as "Unknown" (no email). Acceptable for v1?
 
 ---
 
