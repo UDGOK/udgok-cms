@@ -60,7 +60,7 @@ export function Sidebar() {
         </ul>
 
         <div className="text-[9px] font-mono font-bold tracking-[0.2em] text-cream/40 uppercase px-2.5 pb-2 pt-6">
-          {'// Workspace'}
+          {'// Settings'}
         </div>
         <ul>
           {settings.map((item) => {
