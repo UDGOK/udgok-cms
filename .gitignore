@@ -1,0 +1,13 @@
+.superpowers/
+node_modules/
+.next/
+.env
+.env.local
+.DS_Store
+*.log
+.vercel
+prisma/migrations/dev/
+.turbo/
+out/
+build/
+dist/
