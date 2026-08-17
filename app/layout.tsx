@@ -36,12 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      signInFallbackRedirectUrl="/workspaces"
-      signUpFallbackRedirectUrl="/onboarding"
-    >
+    <ClerkProvider>
       <html
         lang="en"
         className={`${inter.variable} ${jetbrainsMono.variable} ${dmSerif.variable}`}
