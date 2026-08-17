@@ -10,7 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "postinstall": "prisma generate",
-    "prebuild": "prisma generate",
+    "prebuild": "rm -rf node_modules/.prisma && prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
