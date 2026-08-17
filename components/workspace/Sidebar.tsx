@@ -4,13 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
 import { navItems } from '@/lib/nav/items';
+import { useWorkspace } from './WorkspaceContext';
 
-interface SidebarProps {
-  workspaceSlug: string;
-  workspaceName: string;
-}
-
-export function Sidebar({ workspaceSlug, workspaceName }: SidebarProps) {
+export function Sidebar() {
+  const { slug, name, role } = useWorkspace();
   const pathname = usePathname();
   const items = navItems.filter((i) => i.section === 'workspace');
   const settings = navItems.filter((i) => i.section === 'settings');
@@ -22,15 +19,15 @@ export function Sidebar({ workspaceSlug, workspaceName }: SidebarProps) {
       {/* Brand mark */}
       <div className="px-4 pt-6 pb-5 border-b border-cream/10">
         <div className="flex items-baseline justify-between gap-2">
-          <Link href={`/w/${workspaceSlug}/dashboard`} className="font-sans font-black text-lg tracking-tight">
+          <Link href={`/w/${slug}/dashboard`} className="font-sans font-black text-lg tracking-tight">
             UDG<span className="text-orange">OK</span>
           </Link>
           <span className="font-mono text-[8px] font-bold tracking-[0.15em] text-cream/40 px-1.5 py-0.5 border border-cream/15">
-            {workspaceSlug.slice(0, 8).toUpperCase()}
+            {slug.slice(0, 8).toUpperCase()}
           </span>
         </div>
-        <div className="mt-2 text-[11px] font-bold truncate text-cream/80" title={workspaceName}>
-          {workspaceName}
+        <div className="mt-2 text-[11px] font-bold truncate text-cream/80" title={name}>
+          {name}
         </div>
       </div>
 
@@ -41,7 +38,7 @@ export function Sidebar({ workspaceSlug, workspaceName }: SidebarProps) {
         </div>
         <ul>
           {items.map((item) => {
-            const href = item.href(workspaceSlug);
+            const href = item.href(slug);
             const active = isActive(href);
             return (
               <li key={item.label}>
@@ -67,7 +64,7 @@ export function Sidebar({ workspaceSlug, workspaceName }: SidebarProps) {
         </div>
         <ul>
           {settings.map((item) => {
-            const href = item.href(workspaceSlug);
+            const href = item.href(slug);
             const active = isActive(href);
             return (
               <li key={item.label}>
@@ -89,7 +86,7 @@ export function Sidebar({ workspaceSlug, workspaceName }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* User chip + sign out */}
+      {/* User chip + role */}
       <div className="px-3 pt-3 pb-4 border-t border-cream/10 flex items-center gap-2.5">
         <UserButton
           appearance={{
@@ -98,7 +95,9 @@ export function Sidebar({ workspaceSlug, workspaceName }: SidebarProps) {
             },
           }}
         />
-        <div className="text-[10px] font-mono text-cream/40 tracking-[0.1em] uppercase">OWNER</div>
+        <div className="text-[10px] font-mono text-cream/40 tracking-[0.1em] uppercase">
+          {role}
+        </div>
       </div>
     </aside>
   );

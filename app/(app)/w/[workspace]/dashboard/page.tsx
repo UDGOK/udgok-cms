@@ -11,9 +11,9 @@ export default function DashboardPage() {
         Welcome <span className="font-serif italic text-orange-d">back.</span>
       </h1>
       <p className="text-base text-ink-70 max-w-xl">
-        This is your workspace. Build out the rest of the screens from here — clients, deals,
-        projects, pay apps, tasks, documents. The full UDGOK Bold design system is in the sidebar&apos;s
-        dark navy chrome and the cream canvas you are looking at.
+        This is your workspace. From here you&apos;ll see KPIs, closing-this-week deals, active
+        projects, and your tasks today. The rest of the screens get built in Phase 2 (CRM),
+        Phase 3 (Tasks + Docs), and Phase 4 (Projects + Pay Apps).
       </p>
     </div>
   );

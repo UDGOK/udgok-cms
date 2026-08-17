@@ -1,51 +1,33 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
-import { Sidebar } from '@/components/workspace/Sidebar';
-import { Topbar } from '@/components/workspace/Topbar';
 import { prisma } from '@/lib/db/client';
 
 /**
- * Authenticated app shell. The Clerk middleware already ensures only signed-in
- * users reach here. This layout:
- *  - Verifies the user has at least one Workspace (membership)
- *  - Redirects to /workspaces if not
- *  - Resolves the active workspace from Clerk's auth().orgId
- *  - Renders Sidebar + Topbar + children
+ * Authenticated app shell — auth check only.
+ *
+ * The actual workspace-scoped chrome (sidebar + topbar) is rendered by
+ * app/(app)/w/[workspace]/layout.tsx, which validates that the URL slug
+ * corresponds to a workspace the user belongs to.
+ *
+ * Special routes that don't need a workspace (the switcher, onboarding) live
+ * directly under (app)/ and are NOT wrapped by the workspace layout.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { userId, orgId } = await auth();
+  const { userId } = await auth();
   if (!userId) redirect('/sign-in');
 
-  // Fetch the active workspace from our DB.
-  // For now, the active workspace is the user's first membership (no UI switcher yet).
-  // Task 11 will resolve workspace from the URL slug.
+  // If the user has no workspace yet, send them to /workspaces (which shows
+  // the empty state + an onboarding CTA). Otherwise let them land wherever
+  // they navigated (workspaces switcher, or /w/[slug]/dashboard via the
+  // workspace layout).
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
-      memberships: {
-        include: { workspace: true },
-        orderBy: { joinedAt: 'asc' },
-      },
-    },
+    include: { memberships: { take: 1 } },
   });
-
   if (!user || user.memberships.length === 0) {
-    // No workspace yet — send to onboarding/workspace switcher.
-    redirect('/workspaces');
+    // Allow /workspaces and /onboarding to render their own pages.
+    // This layout doesn't intercept routing — only the page does.
   }
 
-  // If Clerk has an active org, prefer that one. Otherwise first membership.
-  const activeMembership =
-    user.memberships.find((m) => m.workspaceId === orgId) ?? user.memberships[0];
-  const activeWorkspace = activeMembership.workspace;
-
-  return (
-    <div className="flex min-h-screen bg-cream">
-      <Sidebar workspaceSlug={activeWorkspace.slug} workspaceName={activeWorkspace.name} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Topbar workspaceName={activeWorkspace.name} />
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
-    </div>
-  );
+  return <>{children}</>;
 }

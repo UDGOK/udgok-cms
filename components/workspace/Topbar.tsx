@@ -2,24 +2,22 @@
 
 import { usePathname } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
+import { useWorkspace } from './WorkspaceContext';
 
-interface TopbarProps {
-  workspaceName: string;
-}
-
-export function Topbar({ workspaceName }: TopbarProps) {
+export function Topbar() {
+  const { name } = useWorkspace();
   const pathname = usePathname();
   const segments = pathname.split('/').filter(Boolean);
-  // Format the breadcrumb — capitalize segments, show workspace + path
+  // Path is /w/[slug]/[section]/... — drop the workspace segment for the breadcrumb
   const crumb = segments
-    .filter((s) => s !== 'w' && !segments.includes(s))
+    .filter((s) => !s.startsWith('w') && segments.indexOf(s) > 1)
     .map((s) => s.replace(/-/g, ' '))
     .join(' / ');
 
   return (
     <header className="bg-paper border-b border-line flex items-center gap-4 px-6 py-3.5">
       <div className="text-[12px] font-semibold text-ink-50 flex items-center gap-2">
-        <span className="font-bold uppercase text-ink">{workspaceName}</span>
+        <span className="font-bold uppercase text-ink">{name}</span>
         {crumb ? <span className="text-ink-30">/</span> : null}
         {crumb ? (
           <span className="font-extrabold uppercase tracking-tight text-ink">{crumb}</span>
