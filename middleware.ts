@@ -10,11 +10,28 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks/(.*)', // Clerk webhook (verified via Svix signature)
 ]);
 
+// Routes we want to redirect signed-in users away from (e.g., the marketing
+// landing page → their workspace).
+const isRoot = (path: string) => path === '/' || path === '';
+
 export default clerkMiddleware(async (auth, req) => {
+  const { pathname } = req.nextUrl;
+
+  // Public routes pass through.
   if (isPublicRoute(req)) {
     return NextResponse.next();
   }
-  // Everything else requires a signed-in user.
+
+  // Root: if signed in, push to workspace switcher (which decides onboarding vs dashboard).
+  if (isRoot(pathname)) {
+    const { userId } = await auth();
+    if (userId) {
+      return NextResponse.redirect(new URL('/workspaces', req.url));
+    }
+    return NextResponse.next();
+  }
+
+  // Everything else requires sign-in.
   await auth.protect();
 });
 

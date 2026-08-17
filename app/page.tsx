@@ -1,36 +1,6 @@
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { prisma } from '@/lib/db/client';
 
-export const dynamic = 'force-dynamic';
-
-export default async function HomePage() {
-  // Best-effort: if auth or DB is broken, we still render the landing page.
-  let userId: string | null = null;
-  try {
-    const a = await auth();
-    userId = a.userId;
-  } catch {
-    // ignore — fall through to public landing
-  }
-
-  if (userId) {
-    try {
-      const membership = await prisma.membership.findFirst({
-        where: { userId },
-        orderBy: { joinedAt: 'asc' },
-        include: { workspace: true },
-      });
-      if (membership) {
-        redirect(`/w/${membership.workspace.slug}/dashboard`);
-      }
-      redirect('/onboarding');
-    } catch {
-      // fall through to landing
-    }
-  }
-
+export default function HomePage() {
   return (
     <div className="min-h-screen bg-cream">
       <header className="border-b border-line bg-paper">
@@ -84,6 +54,12 @@ export default async function HomePage() {
             className="px-6 py-4 bg-paper border-2 border-ink text-ink text-sm font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-cream transition-colors"
           >
             Sign in
+          </Link>
+          <Link
+            href="/onboarding"
+            className="px-6 py-4 text-ink text-sm font-extrabold uppercase tracking-[0.12em] hover:text-orange-d transition-colors"
+          >
+            Onboarding →
           </Link>
         </div>
 
