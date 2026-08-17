@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db/client';
 import { getClient } from '@/lib/clients/queries';
+import { requireMembership } from '@/lib/auth/require-membership';
 import { StatusBadge, Button } from '@/components/ui';
 
 function initials(name: string) {
@@ -20,16 +19,7 @@ export default async function ClientDetailPage({
 }: {
   params: { workspace: string; id: string };
 }) {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const workspace = await prisma.workspace.findUnique({ where: { slug: params.workspace } });
-  if (!workspace) notFound();
-  const membership = await prisma.membership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
-  });
-  if (!membership) notFound();
-
+  const { workspace } = await requireMembership(params.workspace);
   const client = await getClient(workspace.id, params.id);
   if (!client) notFound();
 

@@ -1,6 +1,5 @@
-import { notFound } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/client';
+import { requireMembership } from '@/lib/auth/require-membership';
 import { NewProjectForm } from './NewProjectForm';
 
 export default async function NewProjectPage({
@@ -8,15 +7,7 @@ export default async function NewProjectPage({
 }: {
   params: { workspace: string };
 }) {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const workspace = await prisma.workspace.findUnique({ where: { slug: params.workspace } });
-  if (!workspace) notFound();
-  const membership = await prisma.membership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
-  });
-  if (!membership) notFound();
+  const { workspace } = await requireMembership(params.workspace);
 
   const clients = await prisma.client.findMany({
     where: { workspaceId: workspace.id, status: 'ACTIVE' },

@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db/client';
 import { getDeal } from '@/lib/deals/queries';
 import { DEAL_STAGE_LABELS, DEAL_STAGES, type DealStage } from '@/lib/deals/queries';
+import { requireMembership } from '@/lib/auth/require-membership';
 import { Button, StatusBadge } from '@/components/ui';
 
 export default async function DealDetailPage({
@@ -10,15 +9,7 @@ export default async function DealDetailPage({
 }: {
   params: { workspace: string; id: string };
 }) {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const workspace = await prisma.workspace.findUnique({ where: { slug: params.workspace } });
-  if (!workspace) notFound();
-  const membership = await prisma.membership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
-  });
-  if (!membership) notFound();
+  const { workspace } = await requireMembership(params.workspace);
 
   const deal = await getDeal(workspace.id, params.id);
   if (!deal) notFound();

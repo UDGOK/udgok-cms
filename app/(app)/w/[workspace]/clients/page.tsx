@@ -1,5 +1,5 @@
-import { notFound } from 'next/navigation';
 import { listClients } from '@/lib/clients/queries';
+import { requireMembership } from '@/lib/auth/require-membership';
 import { ClientsList } from './ClientsList';
 
 export default async function ClientsPage({
@@ -9,19 +9,7 @@ export default async function ClientsPage({
   params: { workspace: string };
   searchParams: { q?: string; status?: string; type?: string };
 }) {
-  // Verify workspace + membership
-  const { auth } = await import('@clerk/nextjs/server');
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const { prisma } = await import('@/lib/db/client');
-  const workspace = await prisma.workspace.findUnique({ where: { slug: params.workspace } });
-  if (!workspace) notFound();
-
-  const membership = await prisma.membership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
-  });
-  if (!membership) notFound();
+  const { workspace } = await requireMembership(params.workspace);
 
   const { items, total } = await listClients(
     workspace.id,

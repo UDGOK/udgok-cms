@@ -25,7 +25,6 @@ export async function createClientNoteAction(
 ): Promise<CreateNoteState> {
   const { userId } = await auth();
   if (!userId) return { error: 'Not signed in' };
-  const { prisma } = await import('@/lib/db/client');
   const workspace = await prisma.workspace.findUnique({ where: { slug: workspaceSlug } });
   if (!workspace) return { error: 'Workspace not found' };
   await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR', 'FIELD']);

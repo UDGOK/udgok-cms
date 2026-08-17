@@ -1,7 +1,5 @@
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db/client';
+import { requireMembership } from '@/lib/auth/require-membership';
 import { workspaceDashboard, recentActivity } from '@/lib/dashboard/queries';
 
 export default async function DashboardPage({
@@ -9,15 +7,7 @@ export default async function DashboardPage({
 }: {
   params: { workspace: string };
 }) {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const workspace = await prisma.workspace.findUnique({ where: { slug: params.workspace } });
-  if (!workspace) notFound();
-  const membership = await prisma.membership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
-  });
-  if (!membership) notFound();
+  const { workspace } = await requireMembership(params.workspace);
 
   const [stats, activity] = await Promise.all([
     workspaceDashboard(workspace.id),
