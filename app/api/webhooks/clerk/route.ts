@@ -8,6 +8,8 @@ import {
   upsertMembershipFromClerk,
   deleteMembershipFromClerk,
 } from '@/lib/auth/sync';
+import { prisma } from '@/lib/db/client';
+import { logActivity } from '@/lib/activity/log';
 
 // Force Node.js runtime (not Edge) because Prisma needs it.
 export const runtime = 'nodejs';
@@ -18,6 +20,68 @@ export async function POST(req: Request) {
     // Read raw body for Svix signature verification.
     const rawBody = await req.text();
     const event = verifyClerkWebhookBody(rawBody, req.headers);
+
+    // For diagnostics: log every Clerk webhook event to the activity
+    // log so the master admin's "Recent system events" panel shows
+    // real data. We try to find a workspace context if possible.
+    type LogPayload = {
+      workspaceId: string;
+      actorId: null;
+      action: 'created' | 'updated' | 'deleted' | 'joined';
+      entityType: 'member' | 'workspace' | 'user';
+      entityId: string;
+      entityName: string;
+      details: string;
+      metadata: Record<string, unknown>;
+    };
+    const eventLog: LogPayload | null = (() => {
+      const data = event.data as unknown as Record<string, unknown> | undefined;
+      const d = (data ?? {}) as Record<string, unknown>;
+      const get = (key: string) => d[key];
+      const getNested = (path: string) =>
+        path.split('.').reduce<unknown>((acc, k) => (acc as Record<string, unknown> | null)?.[k], d);
+      const eid: string = (get('id') as string) ?? (get('user_id') as string) ?? (getNested('organization.id') as string) ?? 'unknown';
+      const ts = new Date().toISOString();
+      if (event.type.startsWith('user.')) {
+        const emails = get('email_addresses') as Array<{ email_address?: string }> | undefined;
+        const email = emails?.[0]?.email_address ?? (get('id') as string) ?? 'unknown';
+        return {
+          workspaceId: 'clerk',
+          actorId: null,
+          action: event.type === 'user.created' ? 'created' : event.type === 'user.deleted' ? 'deleted' : 'updated',
+          entityType: 'user',
+          entityId: String(eid),
+          entityName: String(email),
+          details: `Clerk ${event.type} · ${email}`,
+          metadata: { clerkEvent: event.type, ts },
+        };
+      }
+      if (event.type.startsWith('organizationMembership.')) {
+        return {
+          workspaceId: (getNested('organization.id') as string) ?? 'clerk',
+          actorId: null,
+          action: event.type === 'organizationMembership.deleted' ? 'deleted' : 'joined',
+          entityType: 'member',
+          entityId: String((getNested('public_user_data.user_id') as string) ?? (get('user_id') as string) ?? eid),
+          entityName: String((getNested('public_user_data.identifier') as string) ?? (getNested('public_user_data.user_id') as string) ?? 'unknown'),
+          details: `Clerk ${event.type}`,
+          metadata: { clerkEvent: event.type, role: get('role'), ts },
+        };
+      }
+      if (event.type.startsWith('organization.')) {
+        return {
+          workspaceId: (get('id') as string) ?? 'clerk',
+          actorId: null,
+          action: event.type === 'organization.created' ? 'created' : event.type === 'organization.deleted' ? 'deleted' : 'updated',
+          entityType: 'workspace',
+          entityId: String((get('id') as string) ?? eid),
+          entityName: String((get('name') as string) ?? (get('id') as string) ?? 'unknown'),
+          details: `Clerk ${event.type}`,
+          metadata: { clerkEvent: event.type, ts },
+        };
+      }
+      return null;
+    })();
 
     switch (event.type) {
       // --- User events ---
@@ -54,6 +118,31 @@ export async function POST(req: Request) {
       default:
         // Unhandled event type — ignore.
         break;
+    }
+
+    // Best-effort: log the event to our activity log
+    if (eventLog) {
+      try {
+        // For user events that aren't tied to a workspace, use a special
+        // workspaceId. For org-scoped events, use the real workspace.
+        const wid = eventLog.workspaceId === 'clerk' ? '_system_' : eventLog.workspaceId;
+        // If the workspace doesn't exist, skip the log
+        const ws = await prisma.workspace.findUnique({ where: { id: wid }, select: { id: true } });
+        if (ws) {
+          await logActivity({
+            workspaceId: wid,
+            actorId: null,
+            action: eventLog.action,
+            entityType: eventLog.entityType,
+            entityId: eventLog.entityId,
+            entityName: eventLog.entityName,
+            details: eventLog.details,
+            metadata: eventLog.metadata,
+          });
+        }
+      } catch {
+        // noop
+      }
     }
 
     return NextResponse.json({ received: true });
