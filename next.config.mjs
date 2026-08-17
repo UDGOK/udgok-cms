@@ -1,4 +1,53 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+// Vercel "smart prefix" integration can rename env vars (UDGOK_CMS_*, UDGOK_BLOB_*, etc.)
+// but third-party SDKs (Clerk, Resend, Vercel Blob) read the standard unprefixed names.
+// This shim copies prefixed values into unprefixed keys at process start so every SDK
+// finds what it expects. Unprefixed values (set locally or directly) take precedence.
+const aliases = {
+  // Clerk
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: [
+    'NEXT_PUBLIC_UDGOKCMS_AUTHENTICATION_CLERK_PUBLISHABLE_KEY',
+    'NEXT_PUBLIC_AUTHENTICATION_CLERK_PUBLISHABLE_KEY',
+    'UDGOKCMS_AUTHENTICATION_CLERK_PUBLISHABLE_KEY',
+    'AUTHENTICATION_CLERK_PUBLISHABLE_KEY',
+  ],
+  CLERK_SECRET_KEY: [
+    'UDGOKCMS_AUTHENTICATION_CLERK_SECRET_KEY',
+    'AUTHENTICATION_CLERK_SECRET_KEY',
+  ],
+  CLERK_WEBHOOK_SECRET: [
+    'UDGOK_CMS_CLERK_WEBHOOK_SECRET',
+    'UDGOKCMS_AUTHENTICATION_CLERK_WEBHOOK_SECRET',
+    'AUTHENTICATION_CLERK_WEBHOOK_SECRET',
+  ],
+  // Vercel Blob
+  BLOB_READ_WRITE_TOKEN: ['UDGOK_BLOB_READ_WRITE_TOKEN'],
+  // Resend
+  RESEND_API_KEY: ['UDGOK_MESSAGING_RESEND_API_KEY'],
+  // Database
+  DATABASE_URL: ['UDGOK_CMS_DATABASE_URL', 'UDGOK_CMS_POSTGRES_URL', 'UDGOK_CMS_POSTGRES_PRISMA_URL'],
+  // App
+  NEXT_PUBLIC_APP_URL: ['UDGOK_CMS_APP_URL'],
+};
+
+for (const [target, sources] of Object.entries(aliases)) {
+  if (!process.env[target]) {
+    for (const src of sources) {
+      if (process.env[src]) {
+        process.env[target] = process.env[src];
+        break;
+      }
+    }
+  }
+}
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '25mb', // Vercel Blob upload size cap
+    },
+  },
+};
 
 export default nextConfig;
