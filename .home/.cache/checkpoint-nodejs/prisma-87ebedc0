@@ -29,14 +29,14 @@
   },
   "product": "prisma",
   "cli_install_type": "local",
-  "local_timestamp": "2026-08-17T08:07:56Z",
+  "local_timestamp": "2026-08-17T13:42:38Z",
   "project_hash": "f94dc9af",
   "cli_path_hash": "87ebedc0",
   "endpoint": "https://checkpoint.prisma.io",
   "arch": "x64",
   "os": "linux",
   "node_version": "v22.17.0",
-  "command": "db push --accept-data-loss",
+  "command": "db push",
   "schema_providers": [
     "postgresql"
   ],

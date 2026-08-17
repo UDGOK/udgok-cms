@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/db/client';
+import { requireRole } from '@/lib/auth/require-role';
 import { requireMembership } from '@/lib/auth/require-membership';
-import { Button } from '@/components/ui';
+import { listWorkspaceActivity } from '@/lib/activity/queries';
+import { ActivityFeed } from '@/components/activity/ActivityFeed';
+import { WorkspaceSettingsForm, InviteMemberForm, DeleteWorkspaceSection, BackupSection } from './SettingsClient';
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   OWNER: 'Full access including billing and member management.',
@@ -25,11 +28,31 @@ export default async function SettingsPage({
 }) {
   const { workspace } = await requireMembership(params.workspace);
 
-  const members = await prisma.membership.findMany({
-    where: { workspaceId: workspace.id },
-    orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
-    include: { user: true },
-  });
+  // Check the user's role for permissioned actions
+  let isAdmin = false;
+  let isOwner = false;
+  try {
+    await requireRole(workspace.id, ['OWNER', 'ADMIN']);
+    isAdmin = true;
+    isOwner = false;
+  } catch {
+    /* not admin */
+  }
+  try {
+    await requireRole(workspace.id, ['OWNER']);
+    isOwner = true;
+  } catch {
+    /* not owner */
+  }
+
+  const [members, activity] = await Promise.all([
+    prisma.membership.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
+      include: { user: true },
+    }),
+    listWorkspaceActivity(workspace.id, 25),
+  ]);
 
   return (
     <div className="p-8 max-w-4xl">
@@ -46,23 +69,35 @@ export default async function SettingsPage({
       {/* Workspace info */}
       <div className="bg-paper border-2 border-line p-6 mb-6">
         <div className="label-eyebrow mb-3">{'// Workspace'}</div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="label-mono">Name</div>
-            <div className="font-extrabold">{workspace.name}</div>
+        {isAdmin ? (
+          <WorkspaceSettingsForm
+            workspaceSlug={workspace.slug}
+            initialName={workspace.name}
+            initialIndustry={workspace.industry}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="label-mono">Name</div>
+              <div className="font-extrabold">{workspace.name}</div>
+            </div>
+            <div>
+              <div className="label-mono">Slug</div>
+              <div className="font-mono text-ink-70">{workspace.slug}</div>
+            </div>
+            <div>
+              <div className="label-mono">Industry</div>
+              <div className="text-ink-70">{workspace.industry ?? '—'}</div>
+            </div>
+            <div>
+              <div className="label-mono">Created</div>
+              <div className="text-ink-70">{workspace.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+            </div>
           </div>
-          <div>
-            <div className="label-mono">Slug</div>
-            <div className="font-mono text-ink-70">{workspace.slug}</div>
-          </div>
-          <div>
-            <div className="label-mono">Industry</div>
-            <div className="text-ink-70">{workspace.industry ?? '—'}</div>
-          </div>
-          <div>
-            <div className="label-mono">Created</div>
-            <div className="text-ink-70">{workspace.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
-          </div>
+        )}
+        <div className="mt-4 pt-4 border-t border-line-soft text-[11px] font-mono text-ink-50 flex items-center gap-4">
+          <span>slug: <span className="text-ink-70">{workspace.slug}</span></span>
+          <span>created: <span className="text-ink-70">{workspace.createdAt.toLocaleDateString('en-US')}</span></span>
         </div>
       </div>
 
@@ -73,8 +108,12 @@ export default async function SettingsPage({
             <h2 className="text-xl font-black">Team</h2>
             <p className="text-[11px] text-ink-50 mt-0.5">{members.length} member{members.length === 1 ? '' : 's'}</p>
           </div>
-          <Button variant="copper">+ Invite</Button>
         </div>
+        {isAdmin ? (
+          <div className="px-6 py-3 border-b border-line-soft bg-cream-2">
+            <InviteMemberForm workspaceSlug={workspace.slug} />
+          </div>
+        ) : null}
         <div>
           {members.map((m) => (
             <div
@@ -101,7 +140,7 @@ export default async function SettingsPage({
       </div>
 
       {/* Role legend */}
-      <div className="bg-paper border-2 border-line p-6">
+      <div className="bg-paper border-2 border-line p-6 mb-6">
         <div className="label-eyebrow mb-3">{'// Role permissions'}</div>
         <div className="space-y-2">
           {Object.entries(ROLE_DESCRIPTIONS).map(([role, desc]) => (
@@ -118,6 +157,20 @@ export default async function SettingsPage({
           ))}
         </div>
       </div>
+
+      {/* Workspace activity log */}
+      <div className="bg-paper border-2 border-line p-6 mb-6">
+        <div className="label-eyebrow mb-4">{'// Activity'}</div>
+        <ActivityFeed entries={activity} />
+      </div>
+
+      {/* Backup / Restore (owner only) */}
+      {isOwner ? <BackupSection workspaceSlug={workspace.slug} /> : null}
+
+      {/* Danger zone (owner only) */}
+      {isOwner ? (
+        <DeleteWorkspaceSection workspaceSlug={workspace.slug} workspaceName={workspace.name} />
+      ) : null}
     </div>
   );
 }

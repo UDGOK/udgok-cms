@@ -31,6 +31,7 @@ model Workspace {
   files    File[]
   teams    Team[]
   subs     Subcontractor[]
+  activity ActivityLog[]
 
   @@index([slug])
 }
@@ -50,6 +51,7 @@ model User {
   createdTasks   Task[]          @relation("creator")
   projectMembers ProjectMember[]
   teamMembers    TeamMember[]
+  activity       ActivityLog[]
 
   @@index([email])
 }
@@ -552,4 +554,30 @@ model ProjectDivisionAssignment {
 
   @@unique([assignmentId, divisionId])
   @@index([divisionId])
+}
+
+// =========================================
+// ACTIVITY LOG
+// Universal audit trail: who did what to which entity, when.
+// Used for the per-entity History tab AND the workspace-wide Activity page.
+// =========================================
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?  // null for system events (auto-views, etc.)
+  action      String   // 'created' | 'updated' | 'deleted' | 'sent' | 'viewed' | 'acknowledged' | 'paid' | 'disputed' | 'assigned' | 'unassigned' | 'invited' | 'joined'
+  entityType  String   // 'client' | 'project' | 'pay_app' | 'subcontractor' | 'task' | 'team' | 'workspace' | 'member' | 'note' | 'file' | 'division'
+  entityId    String
+  entityName  String?  // Human-readable name for display (denormalized for fast read)
+  details     String?  // One-line summary e.g. "Bob added $5,000 to Site prep"
+  metadata    Json?    // Optional structured data (changed fields, etc.)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, entityType, entityId])
+  @@index([actorId, createdAt])
 }

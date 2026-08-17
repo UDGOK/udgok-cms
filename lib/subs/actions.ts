@@ -201,3 +201,114 @@ export async function unassignSubcontractorAction(
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
   return { ok: true };
 }
+
+// =========================================
+// EDIT / DELETE a subcontractor in the library
+// =========================================
+
+export type EditSubState = { error?: string; fieldErrors?: Record<string, string>; ok?: boolean } | undefined;
+
+export async function updateSubcontractorAction(
+  workspaceSlug: string,
+  subId: string,
+  _prev: EditSubState,
+  formData: FormData,
+): Promise<EditSubState> {
+  const { userId } = await auth();
+  if (!userId) return { error: 'Not signed in' };
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const parsed = subSchema.safeParse({
+    name: formData.get('name'),
+    primaryTrade: formData.get('primaryTrade') || undefined,
+    contactName: formData.get('contactName') || undefined,
+    contactEmail: formData.get('contactEmail') || undefined,
+    contactPhone: formData.get('contactPhone') || undefined,
+    address: formData.get('address') || undefined,
+    licenseNumber: formData.get('licenseNumber') || undefined,
+    insuranceExpiry: formData.get('insuranceExpiry') || undefined,
+    hourlyRate: formData.get('hourlyRate') || undefined,
+    notes: formData.get('notes') || undefined,
+    w9OnFile: formData.get('w9OnFile') || undefined,
+    rating: formData.get('rating') || undefined,
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const k = String(issue.path[0]);
+      if (!fieldErrors[k]) fieldErrors[k] = issue.message;
+    }
+    return { error: 'Please fix the errors below', fieldErrors };
+  }
+
+  // Verify sub belongs to this workspace
+  const existing = await prisma.subcontractor.findFirst({
+    where: { id: subId, workspaceId: workspace.id },
+    select: { id: true, name: true },
+  });
+  if (!existing) return { error: 'Subcontractor not found' };
+
+  await prisma.subcontractor.update({
+    where: { id: subId },
+    data: {
+      name: parsed.data.name,
+      primaryTrade: parsed.data.primaryTrade,
+      contactName: parsed.data.contactName,
+      contactEmail: parsed.data.contactEmail || undefined,
+      contactPhone: parsed.data.contactPhone,
+      address: parsed.data.address,
+      licenseNumber: parsed.data.licenseNumber,
+      insuranceExpiry: parsed.data.insuranceExpiry ? new Date(parsed.data.insuranceExpiry) : null,
+      hourlyRate: parsed.data.hourlyRate,
+      notes: parsed.data.notes,
+      w9OnFile: !!parsed.data.w9OnFile,
+      rating: parsed.data.rating,
+    },
+  });
+
+  // Activity log
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'updated',
+    entityType: 'subcontractor',
+    entityId: subId,
+    entityName: parsed.data.name,
+    details: `Updated subcontractor details`,
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/subcontractors`);
+  revalidatePath(`/w/${workspaceSlug}/subcontractors/${subId}`);
+  return { ok: true };
+}
+
+export async function deleteSubcontractorAction(workspaceSlug: string, subId: string) {
+  const { userId } = await auth();
+  if (!userId) return { error: 'Not signed in' };
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN']);
+
+  const existing = await prisma.subcontractor.findFirst({
+    where: { id: subId, workspaceId: workspace.id },
+    select: { id: true, name: true },
+  });
+  if (!existing) return { error: 'Subcontractor not found' };
+
+  await prisma.subcontractor.delete({ where: { id: subId } });
+
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'deleted',
+    entityType: 'subcontractor',
+    entityId: subId,
+    entityName: existing.name,
+    details: `Removed from vendor library`,
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/subcontractors`);
+  return { ok: true };
+}

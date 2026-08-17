@@ -2,7 +2,9 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { getSubcontractor } from '@/lib/subs/queries';
+import { listEntityActivity } from '@/lib/activity/queries';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { CSI_MASTERFORMAT } from '@/lib/construction/csi-masterformat';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +34,8 @@ export default async function SubDetailPage({
   const sub = await getSubcontractor(ctx.workspace.id, params.id);
   if (!sub) notFound();
 
+  const activity = await listEntityActivity(ctx.workspace.id, 'subcontractor', sub.id);
+
   const csi = CSI_MASTERFORMAT.find((d) => d.number === sub.primaryTrade);
 
   return (
@@ -44,6 +48,18 @@ export default async function SubDetailPage({
           { label: 'Subcontractors', href: `/w/${ctx.workspace.slug}/subcontractors` },
           { label: sub.name },
         ]}
+        actions={
+          <Link
+            href={`/w/${ctx.workspace.slug}/subcontractors/${sub.id}/edit`}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-cream border-2 border-ink text-[12px] font-extrabold uppercase tracking-[0.1em] hover:bg-ink-2"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Edit
+          </Link>
+        }
       />
 
       <div className="mt-6 grid grid-cols-3 gap-6">
@@ -129,6 +145,12 @@ export default async function SubDetailPage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* History */}
+      <div className="mt-8 bg-paper border-2 border-line p-6">
+        <h2 className="label-eyebrow mb-4">{'// History'}</h2>
+        <ActivityFeed entries={activity} showEntityName={false} />
       </div>
     </div>
   );

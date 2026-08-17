@@ -1,7 +1,10 @@
 import { notFound } from 'next/navigation';
 import { getPayApp } from '@/lib/pay-apps/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
+import { listEntityActivity } from '@/lib/activity/queries';
 import { SendPayAppForm } from './SendPayAppForm';
+import { PayAppEditor, PayAppStatusActions } from './PayAppControls';
+import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import Link from 'next/link';
 
 const PAY_APP_STATUS_LABELS: Record<string, string> = {
@@ -33,6 +36,8 @@ export default async function PayAppDetailPage({
 
   const payApp = await getPayApp(workspace.id, params.payAppId);
   if (!payApp || payApp.projectId !== params.id) notFound();
+
+  const activity = await listEntityActivity(workspace.id, 'pay_app', payApp.id);
 
   const publicUrl = `${APP_URL}/pay-apps/${payApp.shareToken}`;
 
@@ -160,8 +165,38 @@ export default async function PayAppDetailPage({
 
       {/* Actions */}
       <div className="bg-paper border-2 border-line p-6">
-        <div className="label-eyebrow mb-3">{'// Actions'}</div>
-        {payApp.status === 'DRAFT' || payApp.status === 'SENT' ? (
+        <div className="flex items-center justify-between mb-3">
+          <div className="label-eyebrow">{'// Actions'}</div>
+          <PayAppStatusActions
+            workspaceSlug={params.workspace}
+            projectId={params.id}
+            payAppId={payApp.id}
+            drawNumber={payApp.drawNumber}
+            status={payApp.status}
+          />
+        </div>
+        {payApp.status === 'DRAFT' ? (
+          <div>
+            <p className="text-[11px] text-ink-50 mb-3">
+              Edit the this-draw amounts before sending. Once sent, the numbers are locked.
+            </p>
+            <PayAppEditor
+              workspaceSlug={params.workspace}
+              projectId={params.id}
+              payAppId={payApp.id}
+              initialNotes={payApp.notes ?? ''}
+              initialLines={payApp.divisions.map((d) => ({
+                id: d.id,
+                previousAmount: Number(d.previousAmount),
+                thisDrawAmount: Number(d.thisDrawAmount),
+                balanceAfter: Number(d.balanceAfter),
+                code: d.projectDivision.code,
+                trade: d.projectDivision.trade,
+                budget: 0, // not needed for editing
+              }))}
+            />
+          </div>
+        ) : payApp.status === 'SENT' || payApp.status === 'VIEWED' || payApp.status === 'ACKNOWLEDGED' ? (
           <SendPayAppForm
             workspaceSlug={params.workspace}
             projectId={params.id}
@@ -195,6 +230,12 @@ export default async function PayAppDetailPage({
         >
           ← Back to project
         </Link>
+      </div>
+
+      {/* History */}
+      <div className="mt-7 bg-paper border-2 border-line p-6">
+        <h2 className="label-eyebrow mb-4">{'// History'}</h2>
+        <ActivityFeed entries={activity} showEntityName={false} />
       </div>
     </div>
   );

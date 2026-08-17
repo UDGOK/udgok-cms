@@ -32,6 +32,19 @@ export default async function WorkspaceLayout({
     redirect('/workspaces');
   }
 
+  // Load all workspaces the user belongs to, for the topbar switcher
+  const allMemberships = await prisma.membership.findMany({
+    where: { userId },
+    include: { workspace: { select: { id: true, slug: true, name: true } } },
+    orderBy: { joinedAt: 'asc' },
+  });
+  const allWorkspaces = allMemberships.map((m) => ({
+    id: m.workspace.id,
+    slug: m.workspace.slug,
+    name: m.workspace.name,
+    role: m.role,
+  }));
+
   return (
     <WorkspaceProvider
       value={{
@@ -45,7 +58,7 @@ export default async function WorkspaceLayout({
         <div className="flex min-h-screen bg-cream">
           <Sidebar />
           <div className="flex-1 flex flex-col min-w-0">
-            <Topbar />
+            <Topbar allWorkspaces={allWorkspaces} />
             <main className="flex-1 overflow-y-auto">{children}</main>
           </div>
         </div>

@@ -114,11 +114,21 @@ export async function generatePayAppAction(
         create: lines,
       },
     },
-    select: { id: true, shareToken: true },
+    select: { id: true, shareToken: true, drawNumber: true, totalThisDraw: true },
   });
 
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${payApp.id}`);
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'created',
+    entityType: 'pay_app',
+    entityId: payApp.id,
+    entityName: `Draw #${payApp.drawNumber}`,
+    details: `Generated $${Number(payApp.totalThisDraw).toLocaleString()} for the period`,
+  });
   return { id: payApp.id };
 }
 
@@ -205,6 +215,17 @@ export async function sendPayAppAction(
     },
   });
 
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'sent',
+    entityType: 'pay_app',
+    entityId: payApp.id,
+    entityName: `Draw #${payApp.drawNumber}`,
+    details: `Sent to ${parsed.data.to}`,
+  });
+
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${payApp.id}`);
   return { ok: true };
 }
@@ -231,12 +252,170 @@ export async function markPayAppPaidAction(workspaceSlug: string, projectId: str
   const workspace = await getWorkspace(workspaceSlug);
   await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
 
-  const payApp = await prisma.payApp.findFirst({ where: { id: payAppId, projectId } });
+  const payApp = await prisma.payApp.findFirst({ where: { id: payAppId, projectId, project: { workspaceId: workspace.id } } });
   if (!payApp) return { error: 'Not found' };
   await prisma.payApp.update({
     where: { id: payAppId },
     data: { status: 'PAID' },
   });
+
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'paid',
+    entityType: 'pay_app',
+    entityId: payAppId,
+    entityName: `Draw #${payApp.drawNumber}`,
+    details: `Marked as paid — $${Number(payApp.totalThisDraw).toLocaleString()}`,
+  });
+
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${payAppId}`);
+  return { ok: true };
+}
+
+export async function markPayAppDisputedAction(workspaceSlug: string, projectId: string, payAppId: string) {
+  const { userId } = await auth();
+  if (!userId) return { error: 'Not signed in' };
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM']);
+
+  const payApp = await prisma.payApp.findFirst({ where: { id: payAppId, projectId, project: { workspaceId: workspace.id } } });
+  if (!payApp) return { error: 'Not found' };
+  await prisma.payApp.update({
+    where: { id: payAppId },
+    data: { status: 'DISPUTED' },
+  });
+
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'disputed',
+    entityType: 'pay_app',
+    entityId: payAppId,
+    entityName: `Draw #${payApp.drawNumber}`,
+    details: `Flagged as disputed`,
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${payAppId}`);
+  return { ok: true };
+}
+
+// =========================================
+// EDIT a DRAFT pay app
+// Allows changing this-draw amounts before the pay app is sent.
+// =========================================
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _editSchema = z.object({
+  thisDraws: z.record(z.string(), z.coerce.number().min(0)),
+  notes: z.string().max(4000).optional(),
+});
+
+export type EditPayAppState = { error?: string; fieldErrors?: Record<string, string>; ok?: boolean } | undefined;
+
+export async function updatePayAppAction(
+  workspaceSlug: string,
+  projectId: string,
+  payAppId: string,
+  _prev: EditPayAppState,
+  formData: FormData,
+): Promise<EditPayAppState> {
+  const { userId } = await auth();
+  if (!userId) return { error: 'Not signed in' };
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  // Only DRAFT pay apps can be edited
+  const payApp = await prisma.payApp.findFirst({
+    where: { id: payAppId, projectId, project: { workspaceId: workspace.id } },
+    include: { divisions: { include: { projectDivision: true } } },
+  });
+  if (!payApp) return { error: 'Not found' };
+  if (payApp.status !== 'DRAFT') {
+    return { error: 'Only DRAFT pay apps can be edited. Once sent, the numbers are locked.' };
+  }
+
+  // Parse thisDraws as a JSON map
+  const thisDrawsRaw = formData.get('thisDraws');
+  const thisDraws: Record<string, number> = {};
+  if (typeof thisDrawsRaw === 'string') {
+    try {
+      const obj = JSON.parse(thisDrawsRaw);
+      if (obj && typeof obj === 'object') {
+        for (const [k, v] of Object.entries(obj)) {
+          thisDraws[k] = Number(v) || 0;
+        }
+      }
+    } catch {
+      return { error: 'Invalid this-draw data' };
+    }
+  }
+
+  const notes = (formData.get('notes') as string) || null;
+
+  // Recompute every line + totals
+  let totalThisDraw = 0;
+  for (const line of payApp.divisions) {
+    const draw = Math.max(0, thisDraws[line.id] ?? Number(line.thisDrawAmount));
+    const balance = Math.max(0, Number(line.projectDivision.budget) - Number(line.previousAmount) - draw);
+    await prisma.payAppDivision.update({
+      where: { id: line.id },
+      data: { thisDrawAmount: draw, balanceAfter: balance },
+    });
+    totalThisDraw += draw;
+  }
+
+  const totalBalance = Math.max(0, Number(payApp.totalContract) - Number(payApp.totalPrevious) - totalThisDraw);
+
+  await prisma.payApp.update({
+    where: { id: payAppId },
+    data: {
+      totalThisDraw,
+      totalBalance,
+      notes,
+    },
+  });
+
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'updated',
+    entityType: 'pay_app',
+    entityId: payAppId,
+    entityName: `Draw #${payApp.drawNumber}`,
+    details: `Edited this-draw amounts (now $${totalThisDraw.toLocaleString()})`,
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${payAppId}`);
+  return { ok: true };
+}
+
+export async function deletePayAppAction(workspaceSlug: string, projectId: string, payAppId: string) {
+  const { userId } = await auth();
+  if (!userId) return { error: 'Not signed in' };
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM']);
+
+  const payApp = await prisma.payApp.findFirst({ where: { id: payAppId, projectId, project: { workspaceId: workspace.id } } });
+  if (!payApp) return { error: 'Not found' };
+  if (payApp.status !== 'DRAFT') return { error: 'Only DRAFT pay apps can be deleted.' };
+
+  await prisma.payApp.delete({ where: { id: payAppId } });
+
+  const { logActivity } = await import('@/lib/activity/log');
+  await logActivity({
+    workspaceId: workspace.id,
+    actorId: userId,
+    action: 'deleted',
+    entityType: 'pay_app',
+    entityId: payAppId,
+    entityName: `Draw #${payApp.drawNumber}`,
+    details: `Removed draft pay app`,
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
   return { ok: true };
 }

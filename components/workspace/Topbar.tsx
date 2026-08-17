@@ -5,10 +5,18 @@ import { UserButton } from '@clerk/nextjs';
 import { useWorkspace } from './WorkspaceContext';
 import { usePresence } from '@/components/presence/PresenceProvider';
 import { PresenceDot } from '@/components/presence/PresenceDot';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import Link from 'next/link';
 
-export function Topbar() {
-  const { name, slug } = useWorkspace();
+interface WorkspaceOption {
+  id: string;
+  slug: string;
+  name: string;
+  role: string;
+}
+
+export function Topbar({ allWorkspaces = [] }: { allWorkspaces?: WorkspaceOption[] }) {
+  const { name, slug, role, id } = useWorkspace();
   const pathname = usePathname();
   const { members } = usePresence();
   const segments = pathname.split('/').filter(Boolean);
@@ -24,7 +32,7 @@ export function Topbar() {
   return (
     <header className="bg-paper border-b border-line flex items-center gap-4 px-6 py-3.5">
       <div className="text-[12px] font-semibold text-ink-50 flex items-center gap-2">
-        <span className="font-bold uppercase text-ink">{name}</span>
+        <WorkspaceSwitcher current={{ id, slug, name, role }} workspaces={allWorkspaces} />
         {crumb ? <span className="text-ink-30">/</span> : null}
         {crumb ? (
           <span className="font-extrabold uppercase tracking-tight text-ink">{crumb}</span>
@@ -47,17 +55,6 @@ export function Topbar() {
           </span>
           <span className="text-ink-50 uppercase tracking-[0.05em] text-[10px] font-mono">online</span>
         </Link>
-
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-cream border border-line min-w-[240px] text-xs text-ink-50">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <span>Search clients, projects, tasks…</span>
-          <kbd className="font-mono text-[9px] px-1.5 py-0.5 bg-paper border border-line ml-auto">
-            ⌘K
-          </kbd>
-        </div>
 
         <button
           className="w-[34px] h-[34px] flex items-center justify-center bg-paper border border-line text-ink-70 hover:border-ink hover:text-ink relative"

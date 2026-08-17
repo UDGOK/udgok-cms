@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getClient } from '@/lib/clients/queries';
+import { listEntityActivity } from '@/lib/activity/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { StatusBadge, Button } from '@/components/ui';
+import { ActivityFeed } from '@/components/activity/ActivityFeed';
 
 function initials(name: string) {
   return name
@@ -22,6 +24,8 @@ export default async function ClientDetailPage({
   const { workspace } = await requireMembership(params.workspace);
   const client = await getClient(workspace.id, params.id);
   if (!client) notFound();
+
+  const activity = await listEntityActivity(workspace.id, 'client', client.id);
 
   // 4-cell stats
   const totalBilled = client.deals
@@ -47,7 +51,16 @@ export default async function ClientDetailPage({
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary">Send message</Button>
+          <Link
+            href={`/w/${workspace.slug}/clients/${client.id}/edit`}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-cream border-2 border-ink text-[12px] font-extrabold uppercase tracking-[0.1em] hover:bg-ink-2"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Edit
+          </Link>
           <Button variant="primary">+ NEW ESTIMATE</Button>
         </div>
       </div>
@@ -152,6 +165,12 @@ export default async function ClientDetailPage({
         >
           ← Back to all clients
         </Link>
+      </div>
+
+      {/* History */}
+      <div className="mt-7 bg-paper border-2 border-line p-6">
+        <h2 className="label-eyebrow mb-4">{'// History'}</h2>
+        <ActivityFeed entries={activity} showEntityName={false} />
       </div>
     </div>
   );
