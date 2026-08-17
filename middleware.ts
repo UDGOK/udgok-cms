@@ -10,8 +10,6 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks/(.*)', // Clerk webhook (verified via Svix signature)
 ]);
 
-// Routes we want to redirect signed-in users away from (e.g., the marketing
-// landing page → their workspace).
 const isRoot = (path: string) => path === '/' || path === '';
 
 export default clerkMiddleware(async (auth, req) => {
@@ -22,7 +20,7 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // Root: if signed in, push to workspace switcher (which decides onboarding vs dashboard).
+  // Root: if signed in, push to workspace switcher.
   if (isRoot(pathname)) {
     const { userId } = await auth();
     if (userId) {
@@ -31,10 +29,18 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // Everything else requires sign-in. Clerk reads the signInUrl from the
-  // ClerkProvider config in app/layout.tsx, so this just triggers the
-  // default behavior (302 to /sign-in for unauthenticated users).
-  await auth.protect();
+  // Everything else: manual sign-in check (avoids Clerk's default
+  // rewrite-to-404 behavior that auth.protect() does when signInUrl
+  // can't be auto-detected).
+  const { userId } = await auth();
+  if (!userId) {
+    const signInUrl = new URL('/sign-in', req.url);
+    signInUrl.searchParams.set('redirect_url', pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  // Authenticated — let the page handle the rest.
+  return NextResponse.next();
 });
 
 export const config = {
