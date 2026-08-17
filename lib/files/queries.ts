@@ -6,7 +6,7 @@ export async function listWorkspaceFiles(workspaceId: string, take = 100) {
     orderBy: { createdAt: 'desc' },
     take,
     include: {
-      uploader: { select: { id: true, name: true } },
+      uploader: { select: { id: true, name: true, email: true } },
       client: { select: { id: true, name: true } },
       project: { select: { id: true, name: true } },
     },

@@ -18,37 +18,49 @@ interface PublicPayAppViewProps {
     notes: string | null;
     project: {
       name: string;
+      code: string | null;
       client: { name: string } | null;
     };
+    // For the project completion bar
+    allDraws: Array<{
+      drawNumber: number;
+      totalThisDraw: number;
+    }>;
     divisions: Array<{
       id: string;
       previousAmount: number;
       thisDrawAmount: number;
       balanceAfter: number;
-      projectDivision: { code: string; trade: string };
+      budget: number; // computed below
+      projectDivision: {
+        code: string;
+        trade: string;
+        subcontractorName: string | null;
+        // Resolved at fetch time: the linked sub's name (priority over the free-text field)
+        linkedSubName: string | null;
+      };
     }>;
   };
 }
 
 const formatMoney = (n: number) =>
-  `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-const formatDate = (d: Date) =>
-  d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _formatDate = (d: Date) =>
+  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
 
-// Print-only styles. When the user hits "Save as PDF" (or Ctrl+P), the browser
-// prints only the document body — the top bar, acknowledge form, and footer
-// are hidden so the PDF is a clean one-page pay app.
+const formatDateShort = (d: Date) =>
+  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+
+// Print-only styles — preserves UDGOK palette when the user prints to PDF.
 const printStyles = `
   @media print {
     @page { size: Letter; margin: 0.5in; }
     body { background: white !important; }
     .no-print { display: none !important; }
     .print-break-inside { break-inside: avoid; }
-    .print-border { border: 2px solid #1e2a3a !important; }
-    main { padding: 0 !important; max-width: none !important; }
     .bg-ink { background: #1e2a3a !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .text-cream { color: #f5f1ea !important; }
     .bg-cream-2 { background: #ede7d9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .bg-orange { background: #f06a2d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .text-orange { color: #f06a2d !important; }
@@ -85,29 +97,27 @@ export function PublicPayAppView({ payApp }: PublicPayAppViewProps) {
   }
 
   function handleDownloadPdf() {
-    // Trigger the browser's print dialog — user picks "Save as PDF" destination.
     window.print();
   }
 
+  // Overall project completion — by contract value drawn
+  const totalDrawn = payApp.allDraws.reduce((acc, d) => acc + Number(d.totalThisDraw), 0);
+  const completionPct = payApp.totalContract > 0
+    ? Math.min(100, Math.round((totalDrawn / Number(payApp.totalContract)) * 100))
+    : 0;
+
   return (
-    <div className="min-h-screen bg-cream">
-      {/* Print-only CSS */}
+    <div className="min-h-screen bg-cream-2">
       <style dangerouslySetInnerHTML={{ __html: printStyles }} />
 
       {/* Top bar (hidden in print) */}
       <header className="no-print bg-ink text-cream px-8 py-5 flex items-center justify-between">
         <div className="flex items-baseline gap-3">
-          <span className="font-black text-2xl">
-            UDG<span className="text-orange">OK</span>
-          </span>
-          <span className="font-mono text-[10px] tracking-[0.15em] text-cream/40 uppercase">
-            Construction Management
-          </span>
+          <span className="font-black text-2xl">UDG<span className="text-orange">OK</span></span>
+          <span className="font-mono text-[10px] tracking-[0.15em] text-cream/40 uppercase">Construction Management</span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-cream/40 uppercase">
-            Pay Application · #{payApp.drawNumber}
-          </div>
+          <span className="font-mono text-[10px] tracking-[0.12em] text-cream/40 uppercase">Pay Application · #{payApp.drawNumber}</span>
           <button
             onClick={handleDownloadPdf}
             className="px-4 py-2 bg-orange text-paper font-extrabold uppercase tracking-[0.12em] text-[11px] hover:bg-orange-d transition-colors"
@@ -118,82 +128,185 @@ export function PublicPayAppView({ payApp }: PublicPayAppViewProps) {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-8">
-        {/* Title */}
-        <div className="text-center mb-10">
-          <div className="inline-block px-4 py-1 bg-orange text-paper font-extrabold uppercase tracking-[0.15em] text-xs mb-4 no-print">
-            Pay Application
+      <main className="max-w-[1100px] mx-auto p-6 md:p-8 print:p-0">
+        {/* Document header */}
+        <div className="bg-ink text-cream px-8 py-7 flex items-start justify-between border-b-[6px] border-orange">
+          <div>
+            <div className="text-[10px] font-mono tracking-[0.18em] uppercase text-cream/50 mb-2">
+              PROGRESS DRAW REQUEST · APPLICATION FOR PAYMENT
+            </div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-cream/70 mt-3">
+              {payApp.project.code ?? 'PROJECT'} · {payApp.project.client?.name?.toUpperCase() ?? 'NO CLIENT'} · {payApp.project.name.toUpperCase()}
+            </div>
           </div>
-          <h1 className="text-5xl font-black tracking-tighter mb-2">{payApp.project.name}</h1>
-          <p className="text-ink-50 text-base">
-            {payApp.project.client?.name ?? '—'} · Period {formatDate(payApp.periodStart)} – {formatDate(payApp.periodEnd)}
-          </p>
-        </div>
-
-        {/* Headline numbers */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-2 border-ink bg-paper mb-8 print-border">
-          <div className="p-6 border-r-2 border-b-2 md:border-b-0 border-ink last:border-b-0">
-            <div className="label-mono">Total contract</div>
-            <div className="font-black text-3xl">{formatMoney(payApp.totalContract)}</div>
-          </div>
-          <div className="p-6 border-r-2 border-b-2 md:border-b-0 border-ink last:border-b-0 bg-ink text-cream">
-            <div className="label-mono text-cream/60">This draw</div>
-            <div className="font-black text-4xl text-orange-l">{formatMoney(payApp.totalThisDraw)}</div>
-          </div>
-          <div className="p-6">
-            <div className="label-mono">Balance to finish</div>
-            <div className="font-black text-3xl">{formatMoney(payApp.totalBalance)}</div>
+          <div className="text-right">
+            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-cream/50">DRAW</div>
+            <div className="font-black text-6xl leading-none text-orange-l">No.{payApp.drawNumber}</div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-cream/70 mt-2">
+              PERIOD: {formatDateShort(payApp.periodStart)} – {formatDateShort(payApp.periodEnd)}
+            </div>
           </div>
         </div>
 
-        {/* Lines */}
-        <div className="bg-paper border-2 border-ink mb-8 print-border print-break-inside">
-          <div className="px-6 py-4 bg-ink text-cream">
-            <h2 className="font-extrabold uppercase tracking-[0.12em] text-sm">Schedule of values</h2>
+        {/* 4-cell headline numbers */}
+        <div className="grid grid-cols-2 md:grid-cols-4 border-b-2 border-ink bg-paper">
+          <div className="p-5 md:p-6 border-r-2 border-ink">
+            <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-ink-50 font-extrabold">Total Contract</div>
+            <div className="font-black text-2xl md:text-3xl mt-1.5">{formatMoney(payApp.totalContract)}</div>
           </div>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                {['Code', 'Description', 'Previously billed', 'This draw', 'Balance'].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left px-5 py-3 bg-cream-2 border-b-2 border-ink text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink-50"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {payApp.divisions.map((line) => (
-                <tr key={line.id}>
-                  <td className="px-5 py-3 border-b border-line-soft font-mono text-[12px]">{line.projectDivision.code}</td>
-                  <td className="px-5 py-3 border-b border-line-soft font-extrabold text-[14px]">{line.projectDivision.trade}</td>
-                  <td className="px-5 py-3 border-b border-line-soft text-right font-extrabold">{formatMoney(line.previousAmount)}</td>
-                  <td className="px-5 py-3 border-b border-line-soft text-right font-black text-orange-d">{formatMoney(line.thisDrawAmount)}</td>
-                  <td className="px-5 py-3 border-b border-line-soft text-right font-extrabold">{formatMoney(line.balanceAfter)}</td>
-                </tr>
-              ))}
-              <tr className="bg-cream-2">
-                <td colSpan={2} className="px-5 py-3 font-extrabold uppercase text-[11px] tracking-[0.12em] border-t-2 border-ink">Totals</td>
-                <td className="px-5 py-3 text-right font-extrabold text-lg border-t-2 border-ink">{formatMoney(payApp.totalPrevious)}</td>
-                <td className="px-5 py-3 text-right font-black text-2xl text-orange-d border-t-2 border-ink">{formatMoney(payApp.totalThisDraw)}</td>
-                <td className="px-5 py-3 text-right font-extrabold text-lg border-t-2 border-ink">{formatMoney(payApp.totalBalance)}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="p-5 md:p-6 border-r-2 border-ink">
+            <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-ink-50 font-extrabold">Previous Draws</div>
+            <div className="font-black text-2xl md:text-3xl mt-1.5">{formatMoney(payApp.totalPrevious)}</div>
+          </div>
+          <div className="p-5 md:p-6 border-r-2 border-ink bg-cream-2">
+            <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-ink-50 font-extrabold">Requested this Draw</div>
+            <div className="font-black text-2xl md:text-3xl mt-1.5 text-orange-d">{formatMoney(payApp.totalThisDraw)}</div>
+          </div>
+          <div className="p-5 md:p-6">
+            <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-ink-50 font-extrabold">Balance to Finish</div>
+            <div className="font-black text-2xl md:text-3xl mt-1.5">{formatMoney(payApp.totalBalance)}</div>
+          </div>
+        </div>
+
+        {/* Project completion bar */}
+        <div className="bg-paper border-b-2 border-ink px-6 py-5 print-break-inside">
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-ink-50 font-extrabold">
+              Overall Project Completion — by Contract Value Drawn
+            </div>
+            <div className="font-black text-2xl text-orange-d">{completionPct}%</div>
+          </div>
+          <div className="relative h-2 bg-cream-2">
+            <div
+              className="absolute left-0 top-0 h-full bg-orange"
+              style={{ width: `${completionPct}%` }}
+            />
+            {/* Draw markers */}
+            {payApp.allDraws.map((d) => {
+              const cumBefore = payApp.allDraws
+                .filter((x) => x.drawNumber < d.drawNumber)
+                .reduce((acc, x) => acc + Number(x.totalThisDraw), 0);
+              const left = payApp.totalContract > 0
+                ? Math.min(100, (cumBefore / Number(payApp.totalContract)) * 100)
+                : 0;
+              return (
+                <div
+                  key={d.drawNumber}
+                  className="absolute top-[-3px] bottom-[-3px] w-[2px] bg-ink"
+                  style={{ left: `${left}%` }}
+                  title={`Draw ${d.drawNumber}`}
+                />
+              );
+            })}
+          </div>
+          <div className="flex justify-between mt-2 text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50">
+            {payApp.allDraws.map((d) => (
+              <span key={d.drawNumber}>
+                DRAW {d.drawNumber} · {payApp.totalContract > 0
+                  ? Math.round((payApp.allDraws.filter((x) => x.drawNumber <= d.drawNumber).reduce((acc, x) => acc + Number(x.totalThisDraw), 0) / Number(payApp.totalContract)) * 100)
+                  : 0}%
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Line items */}
+        <div className="bg-paper print-break-inside">
+          {/* Header row */}
+          <div className="grid grid-cols-[2.2fr_1fr_1fr_1fr_1fr_1.4fr] gap-3 px-5 py-3 bg-cream-2 border-b-2 border-ink text-[9px] font-mono font-extrabold uppercase tracking-[0.15em] text-ink-50">
+            <div>Division / Trade / Subcontractor</div>
+            <div className="text-right">Budget</div>
+            <div className="text-right">Previous</div>
+            <div className="text-right">This Draw</div>
+            <div className="text-right">Balance</div>
+            <div className="text-right">% to Date</div>
+          </div>
+
+          {/* Rows */}
+          {payApp.divisions.map((line) => {
+            const budget = line.budget;
+            const pctToDate = budget > 0
+              ? Math.round(((Number(line.previousAmount) + Number(line.thisDrawAmount)) / budget) * 100)
+              : 0;
+            const subName = line.projectDivision.linkedSubName || line.projectDivision.subcontractorName;
+            return (
+              <div
+                key={line.id}
+                className="grid grid-cols-[2.2fr_1fr_1fr_1fr_1fr_1.4fr] gap-3 px-5 py-4 border-b border-line-soft last:border-0 items-center hover:bg-cream-2/50"
+              >
+                {/* Division / Trade / Sub */}
+                <div>
+                  <div className="inline-block bg-ink text-cream px-2 py-0.5 text-[10px] font-mono font-extrabold tracking-[0.05em] mb-1.5">
+                    DIV {line.projectDivision.code}
+                  </div>
+                  <div className="font-extrabold text-[14px] leading-tight">{line.projectDivision.trade}</div>
+                  {subName ? (
+                    <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d font-extrabold mt-1">
+                      {subName}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Budget */}
+                <div className="text-right font-extrabold text-[14px]">{formatMoney(budget)}</div>
+
+                {/* Previous */}
+                <div className="text-right font-extrabold text-[14px]">{formatMoney(line.previousAmount)}</div>
+
+                {/* This Draw */}
+                <div className="text-right font-black text-[15px] text-orange-d">
+                  {formatMoney(line.thisDrawAmount)}
+                </div>
+
+                {/* Balance */}
+                <div className="text-right font-extrabold text-[14px]">{formatMoney(line.balanceAfter)}</div>
+
+                {/* % to date with bar */}
+                <div>
+                  <div className="flex items-center justify-end gap-2">
+                    <div className="flex-1 h-1.5 bg-cream-2 max-w-[120px]">
+                      <div
+                        className="h-full bg-orange"
+                        style={{ width: `${Math.min(100, pctToDate)}%` }}
+                      />
+                    </div>
+                    <div className="font-extrabold text-[12px] w-10 text-right">{pctToDate}%</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Total row */}
+          <div className="grid grid-cols-[2.2fr_1fr_1fr_1fr_1fr_1.4fr] gap-3 px-5 py-5 bg-ink text-cream items-center print-break-inside">
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.18em]">
+              Total — Draw No.{payApp.drawNumber}
+            </div>
+            <div className="text-right font-black text-lg">{formatMoney(payApp.totalContract)}</div>
+            <div className="text-right font-black text-lg">{formatMoney(payApp.totalPrevious)}</div>
+            <div className="text-right font-black text-2xl text-orange-l">{formatMoney(payApp.totalThisDraw)}</div>
+            <div className="text-right font-black text-lg">{formatMoney(payApp.totalBalance)}</div>
+            <div>
+              <div className="flex items-center justify-end gap-2">
+                <div className="flex-1 h-1.5 bg-cream/20 max-w-[120px]">
+                  <div className="h-full bg-orange" style={{ width: `${completionPct}%` }} />
+                </div>
+                <div className="font-black text-[12px] w-10 text-right">{completionPct}%</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Notes */}
         {payApp.notes ? (
-          <div className="bg-paper border-2 border-ink p-6 mb-8 print-border print-break-inside">
-            <h2 className="label-eyebrow mb-3">{'// Notes'}</h2>
-            <p className="text-[14px] text-ink-70 whitespace-pre-wrap">{payApp.notes}</p>
+          <div className="bg-paper border-2 border-ink p-5 mt-6 print-break-inside">
+            <div className="text-[9px] font-mono font-extrabold uppercase tracking-[0.15em] text-ink-50 mb-2">{'// Notes'}</div>
+            <p className="text-[13px] text-ink-70 whitespace-pre-wrap leading-relaxed">{payApp.notes}</p>
           </div>
         ) : null}
 
         {/* Acknowledge (hidden in print) */}
-        <div className="no-print bg-paper border-2 border-ink p-8 text-center">
+        <div className="no-print bg-paper border-2 border-ink p-7 mt-6 text-center">
           {ackState === 'done' ? (
             <div>
               <h2 className="text-2xl font-black mb-2">Acknowledged.</h2>
@@ -224,8 +337,8 @@ export function PublicPayAppView({ payApp }: PublicPayAppViewProps) {
           )}
         </div>
 
-        <p className="no-print text-center text-[11px] text-ink-50 mt-8">
-          This is a private, secure pay application link. UDGOK Construction · Built with UDGOK CMS
+        <p className="no-print text-center text-[11px] text-ink-50 mt-8 font-mono uppercase tracking-[0.1em]">
+          Private, secure pay application link · UDGOK Construction · Built with UDGOK CMS
         </p>
       </main>
     </div>
