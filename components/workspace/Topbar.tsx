@@ -1,0 +1,64 @@
+'use client';
+
+import { usePathname } from 'next/navigation';
+import { UserButton } from '@clerk/nextjs';
+
+interface TopbarProps {
+  workspaceName: string;
+}
+
+export function Topbar({ workspaceName }: TopbarProps) {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  // Format the breadcrumb — capitalize segments, show workspace + path
+  const crumb = segments
+    .filter((s) => s !== 'w' && !segments.includes(s))
+    .map((s) => s.replace(/-/g, ' '))
+    .join(' / ');
+
+  return (
+    <header className="bg-paper border-b border-line flex items-center gap-4 px-6 py-3.5">
+      <div className="text-[12px] font-semibold text-ink-50 flex items-center gap-2">
+        <span className="font-bold uppercase text-ink">{workspaceName}</span>
+        {crumb ? <span className="text-ink-30">/</span> : null}
+        {crumb ? (
+          <span className="font-extrabold uppercase tracking-tight text-ink">{crumb}</span>
+        ) : null}
+      </div>
+
+      <div className="flex-1" />
+
+      <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-cream border border-line min-w-[240px] text-xs text-ink-50">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span>Search clients, projects, tasks…</span>
+          <kbd className="font-mono text-[9px] px-1.5 py-0.5 bg-paper border border-line ml-auto">
+            ⌘K
+          </kbd>
+        </div>
+
+        <button
+          className="w-[34px] h-[34px] flex items-center justify-center bg-paper border border-line text-ink-70 hover:border-ink hover:text-ink relative"
+          aria-label="Notifications"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-orange rounded-full border-2 border-paper" />
+        </button>
+
+        <UserButton
+          appearance={{
+            elements: {
+              avatarBox: 'w-[30px] h-[30px]',
+            },
+          }}
+        />
+      </div>
+    </header>
+  );
+}
