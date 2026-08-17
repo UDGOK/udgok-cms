@@ -1,0 +1,430 @@
+// UDGOK CMS v1 schema
+// See docs/superpowers/specs/2026-08-16-handoff-cms-slice-b-design.md section 2 for full spec.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================
+// AUTH-SYNCED FROM CLERK (via webhooks)
+// Never write to these directly.
+// =========================================
+
+model Workspace {
+  id        String   @id // == Clerk organization ID
+  name      String
+  slug      String   @unique
+  industry  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  Membership[]
+  clients  Client[]
+  deals    Deal[]
+  projects Project[]
+  tasks    Task[]
+  files    File[]
+
+  @@index([slug])
+}
+
+model User {
+  id        String   @id // == Clerk user ID
+  email     String   @unique
+  name      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships    Membership[]
+  notes          Note[]
+  uploads        File[]          @relation("uploader")
+  assignedTasks  Task[]          @relation("assignee")
+  createdTasks   Task[]          @relation("creator")
+  projectMembers ProjectMember[]
+
+  @@index([email])
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role     @default(MEMBER)
+  joinedAt    DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  PM
+  ESTIMATOR
+  FIELD
+  MEMBER
+}
+
+// =========================================
+// CRM
+// =========================================
+
+model Client {
+  id          String       @id @default(cuid())
+  workspaceId String
+  name        String
+  email       String?
+  phone       String?
+  type        ClientType   @default(RESIDENTIAL)
+  status      ClientStatus @default(ACTIVE)
+  source      String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  properties Property[]
+  deals      Deal[]
+  projects   Project[]
+  tasks      Task[]
+  notes      Note[]
+  files      File[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, name])
+}
+
+enum ClientType {
+  RESIDENTIAL
+  COMMERCIAL
+  PROPERTY_MANAGER
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model Property {
+  id        String  @id @default(cuid())
+  clientId  String
+  label     String
+  address   String
+  city      String
+  state     String
+  zip       String
+  yearBuilt Int?
+  sqft      Int?
+  notes     String?
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deals  Deal[]
+
+  @@index([clientId])
+}
+
+model Deal {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  clientId      String
+  propertyId    String?
+  title         String
+  description   String?
+  stage         DealStage @default(LEAD)
+  value         Decimal   @db.Decimal(12, 2)
+  margin        Float?
+  expectedClose DateTime?
+  closedAt      DateTime?
+  fitScore      Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id])
+  property  Property? @relation(fields: [propertyId], references: [id])
+  notes     Note[]
+  files     File[]
+  tasks     Task[]
+
+  @@index([workspaceId, stage])
+  @@index([workspaceId, clientId])
+}
+
+enum DealStage {
+  LEAD
+  CONTACTED
+  ESTIMATE_SENT
+  NEGOTIATING
+  WON
+  LOST
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  authorId  String
+  body      String
+  clientId  String?
+  dealId    String?
+  projectId String?
+  createdAt DateTime @default(now())
+
+  author  User     @relation(fields: [authorId], references: [id])
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([dealId])
+  @@index([projectId])
+}
+
+// =========================================
+// PROJECTS (core in v1; full pay app in v1 too)
+// =========================================
+
+model Project {
+  id            String        @id @default(cuid())
+  workspaceId   String
+  clientId      String?
+  name          String
+  code          String?
+  description   String?
+  status        ProjectStatus @default(ACTIVE)
+  startDate     DateTime?
+  endDate       DateTime?
+  contractValue Decimal?      @db.Decimal(12, 2)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?           @relation(fields: [clientId], references: [id])
+  members   ProjectMember[]
+  tasks     Task[]
+  files     File[]
+  notes     Note[]
+  divisions ProjectDivision[]
+  payApps   PayApp[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, clientId])
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      String?
+  joinedAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+}
+
+// =========================================
+// TASKS
+// =========================================
+
+model Task {
+  id          String       @id @default(cuid())
+  workspaceId String
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(NORMAL)
+  dueDate     DateTime?
+  startDate   DateTime?
+  endDate     DateTime?
+  assigneeId  String?
+  createdById String
+  clientId    String?
+  dealId      String?
+  projectId   String?
+  taskId      String? // for sub-tasks
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignee  User?     @relation("assignee", fields: [assigneeId], references: [id])
+  createdBy User      @relation("creator", fields: [createdById], references: [id])
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  deal      Deal?     @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  parent    Task?     @relation("subtasks", fields: [taskId], references: [id], onDelete: SetNull)
+  subtasks  Task[]    @relation("subtasks")
+  files     File[]    @relation("taskFiles")
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, assigneeId])
+  @@index([workspaceId, dueDate])
+  @@index([workspaceId, projectId])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// =========================================
+// FILES / DOCUMENTS
+// =========================================
+
+model File {
+  id          String   @id @default(cuid())
+  workspaceId String
+  uploaderId  String
+  url         String
+  filename    String
+  mimeType    String
+  size        Int
+  kind        FileKind @default(DOCUMENT)
+  category    String?
+  clientId    String?
+  dealId      String?
+  projectId   String?
+  taskId      String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploader  User      @relation("uploader", fields: [uploaderId], references: [id])
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deal      Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task      Task?     @relation("taskFiles", fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, kind])
+  @@index([workspaceId, category])
+  @@index([clientId])
+  @@index([dealId])
+  @@index([projectId])
+  @@index([taskId])
+}
+
+enum FileKind {
+  DOCUMENT
+  PHOTO
+  FLOORPLAN
+  CONTRACT
+  INVOICE
+  OTHER
+}
+
+// =========================================
+// PAY APPS (full workflow in v1)
+// =========================================
+
+model ProjectDivision {
+  id                String   @id @default(cuid())
+  projectId         String
+  code              String
+  trade             String
+  subcontractorName String?
+  budget            Decimal  @db.Decimal(12, 2)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payAppLines PayAppDivision[]
+
+  @@index([projectId, sortOrder])
+}
+
+model PayApp {
+  id             String       @id @default(cuid())
+  projectId      String
+  drawNumber     Int
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         PayAppStatus @default(DRAFT)
+  totalContract  Decimal      @db.Decimal(12, 2)
+  totalPrevious  Decimal      @db.Decimal(12, 2)
+  totalThisDraw  Decimal      @db.Decimal(12, 2)
+  totalBalance   Decimal      @db.Decimal(12, 2)
+  notes          String?
+  pdfUrl         String?
+  shareToken     String       @unique
+  sentAt         DateTime?
+  sentToEmail    String?
+  acknowledgedAt DateTime?
+  firstViewedAt  DateTime?
+  viewCount      Int          @default(0)
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  divisions  PayAppDivision[]
+  viewEvents PayAppViewEvent[]
+
+  @@unique([projectId, drawNumber])
+  @@index([projectId, status])
+  @@index([shareToken])
+}
+
+enum PayAppStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACKNOWLEDGED
+  PAID
+  DISPUTED
+  SUPERSEDED
+}
+
+model PayAppDivision {
+  id                String  @id @default(cuid())
+  payAppId          String
+  projectDivisionId String
+  previousAmount    Decimal @db.Decimal(12, 2)
+  thisDrawAmount    Decimal @db.Decimal(12, 2)
+  balanceAfter      Decimal @db.Decimal(12, 2)
+  sortOrder         Int
+
+  payApp          PayApp          @relation(fields: [payAppId], references: [id], onDelete: Cascade)
+  projectDivision ProjectDivision @relation(fields: [projectDivisionId], references: [id])
+
+  @@index([payAppId])
+}
+
+model PayAppViewEvent {
+  id          String   @id @default(cuid())
+  payAppId    String
+  viewedAt    DateTime @default(now())
+  viewerEmail String?
+  ipAddress   String?
+  userAgent   String?
+  referrer    String?
+
+  payApp PayApp @relation(fields: [payAppId], references: [id], onDelete: Cascade)
+
+  @@index([payAppId, viewedAt])
+}
