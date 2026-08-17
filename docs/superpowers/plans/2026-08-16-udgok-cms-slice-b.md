@@ -501,7 +501,7 @@ After this phase: users can manage clients, create deals, move them through the 
 - Sidebar with category list (All, Brochures, Marketing, Floorplans, Contracts, Site Photos, Submittals, Invoices, Drawings) — counts per category
 - Grid of file cards with type-specific icons
 - Drag-drop upload zone
-- `uploadFileAction({ file, kind, category?, clientId?, dealId?, projectId? })` — RBAC: all except FIELD (FIELD can upload photos)
+- `uploadFileAction({ file, kind, category?, clientId?, dealId?, projectId? })` — RBAC: all roles (FIELD can upload photos)
 
 **Steps:**
 - [ ] `pnpm add react-dropzone`
@@ -694,7 +694,7 @@ The heart of UDGOK's workflow. After this phase: full project + pay app loop wor
 **Interfaces:**
 - `sendPayAppAction({ payAppId, to, subject, message })`:
   1. Generate shareToken (32 bytes base64url) if not already set
-  2. Generate the PDF (Task 36 will build the proper PDF; for now generate a simple HTML-to-text version OR a placeholder PDF)
+  2. Generate the PDF (Task 37 will build the proper PDF; for now generate a simple HTML-to-text version OR a placeholder PDF)
   3. Upload PDF to Vercel Blob
   4. Send email via Resend with `PayAppEmail` template
   5. Set `status=SENT`, `sentAt`, `sentToEmail`
