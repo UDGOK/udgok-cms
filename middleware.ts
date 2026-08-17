@@ -1,18 +1,21 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
 // Public routes that don't require auth.
 const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/share/(.*)', // public pay app share links
-  '/api/payapp/(.*)/view', // view logging endpoint
-  '/api/webhooks/(.*)', // Clerk webhook (uses Svix signature)
+  '/pay-apps/(.*)', // public pay app share links (token-based, no auth)
+  '/api/pay-apps/(.*)/acknowledge', // public ack endpoint called from share page
+  '/api/webhooks/(.*)', // Clerk webhook (verified via Svix signature)
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
+  if (isPublicRoute(req)) {
+    return NextResponse.next();
   }
+  // Everything else requires a signed-in user.
+  await auth.protect();
 });
 
 export const config = {
