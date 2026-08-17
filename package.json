@@ -19,6 +19,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.7.6",
     "@prisma/client": "^6.19.3",
     "next": "14.2.35",
     "react": "^18",
