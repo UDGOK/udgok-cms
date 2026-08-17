@@ -77,7 +77,7 @@
   .pr-user .rl { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: rgba(245,241,234,0.4); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
 
   /* offset content for the rail */
-  .content-wrap { margin-left: 232px; }
+  .content-wrap { margin-left: 232px; transition: opacity 140ms ease; }
   @media (max-width: 900px) {
     .page-rail { transform: translateX(-100%); transition: transform 0.3s; }
     .page-rail.open { transform: translateX(0); }
@@ -1375,15 +1375,29 @@
     update();
   })();
 
-  // Smooth scroll accounting for fixed rail
+  // Smooth scroll accounting for fixed rail + page-transition feel
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
       const id = a.getAttribute('href').slice(1);
       const el = document.getElementById(id);
       if (!el) return;
       e.preventDefault();
-      const top = el.getBoundingClientRect().top + window.scrollY - 80;
-      window.scrollTo({ top, behavior: 'smooth' });
+
+      // Brief page-transition feel: fade content out, scroll, fade back in
+      const wrap = document.querySelector('.content-wrap');
+      if (wrap) {
+        wrap.style.transition = 'opacity 120ms ease';
+        wrap.style.opacity = '0.35';
+      }
+
+      setTimeout(() => {
+        const top = el.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top, behavior: 'instant' in window ? 'auto' : 'auto' });
+        window.scrollTo(0, top);
+        setTimeout(() => {
+          if (wrap) wrap.style.opacity = '1';
+        }, 80);
+      }, 120);
     });
   });
 </script>
