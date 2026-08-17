@@ -82,6 +82,7 @@ export async function createWorkspaceAction(
       // Create the workspace. The user becomes OWNER automatically.
       await tx.workspace.create({
         data: {
+          id: randomBytes(12).toString('hex'),
           name,
           slug,
           industry,
