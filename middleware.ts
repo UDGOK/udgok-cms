@@ -31,8 +31,10 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // Everything else requires sign-in.
-  await auth.protect();
+  // Everything else requires sign-in. We tell Clerk exactly where to send
+  // unauthenticated users (otherwise it defaults to a rewrite-to-404,
+  // which is what was making /workspaces, /onboarding, etc. return 404).
+  await auth.protect({ unauthenticatedUrl: '/sign-in' });
 });
 
 export const config = {
