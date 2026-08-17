@@ -1,100 +1,116 @@
-import Image from "next/image";
+import { auth } from '@clerk/nextjs/server';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { prisma } from '@/lib/db/client';
 
-export default function Home() {
+export const dynamic = 'force-dynamic';
+
+export default async function HomePage() {
+  const { userId } = await auth();
+
+  if (userId) {
+    // Find any workspace the user is a member of; if none, send to onboarding.
+    const membership = await prisma.membership.findFirst({
+      where: { userId },
+      orderBy: { joinedAt: 'asc' },
+      include: { workspace: true },
+    });
+    if (membership) {
+      redirect(`/w/${membership.workspace.slug}/dashboard`);
+    }
+    // No membership yet → first-time user, push them to onboarding.
+    redirect('/onboarding');
+  }
+
+  // Signed-out: show the public landing page.
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="min-h-screen bg-cream">
+      <header className="border-b border-line bg-paper">
+        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+          <div className="flex items-baseline gap-3">
+            <span className="font-sans font-black text-2xl text-ink tracking-tight">
+              UDG<span className="text-orange">OK</span>
+            </span>
+            <span className="font-mono text-[10px] font-bold tracking-[0.2em] text-ink-30 uppercase hidden sm:inline">
+              Construction Management
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/sign-in"
+              className="px-4 py-2 text-ink text-xs font-extrabold uppercase tracking-[0.12em] hover:text-orange-d transition-colors"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/sign-up"
+              className="px-4 py-2 bg-ink text-cream text-xs font-extrabold uppercase tracking-[0.12em] border-2 border-ink hover:bg-orange hover:border-orange transition-colors"
+            >
+              Sign up
+            </Link>
+          </div>
+        </div>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      <main className="max-w-6xl mx-auto px-8 py-20">
+        <div className="text-xs font-mono font-bold tracking-[0.2em] text-orange-d uppercase mb-6">
+          {'// For builders, not for spreadsheets'}
+        </div>
+        <h1 className="text-display-xl mb-6 max-w-3xl">
+          Run your <span className="font-serif italic text-orange-d">jobs,</span> not your software.
+        </h1>
+        <p className="text-lg text-ink-70 max-w-2xl mb-10">
+          The construction management system for contractors who want to know which draw
+          to send, who owes what, and where every project stands — without leaving the
+          app.
+        </p>
+        <div className="flex flex-wrap gap-3 mb-16">
+          <Link
+            href="/sign-up"
+            className="px-6 py-4 bg-orange text-paper border-2 border-orange text-sm font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d hover:border-orange-d transition-colors"
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Start your first workspace →
+          </Link>
+          <Link
+            href="/sign-in"
+            className="px-6 py-4 bg-paper border-2 border-ink text-ink text-sm font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-cream transition-colors"
           >
-            Read our docs
-          </a>
+            Sign in
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            {
+              n: '01',
+              t: 'Schedule of values',
+              d: 'Set the budget per line. The system tracks previous, this-draw, and balance to finish forever.',
+            },
+            {
+              n: '02',
+              t: 'Pay applications',
+              d: 'One click to generate the next draw from your SOV. Send a private link, track views, get paid faster.',
+            },
+            {
+              n: '03',
+              t: 'Pipeline + jobs',
+              d: 'Deals kanban to project handover. Tasks, files, notes, and a public share page for every draw.',
+            },
+          ].map((f) => (
+            <div key={f.n} className="bg-paper border-2 border-line p-6">
+              <div className="text-[10px] font-mono tracking-[0.12em] text-orange-d mb-2">{f.n}</div>
+              <div className="font-extrabold text-lg mb-2">{f.t}</div>
+              <p className="text-[13px] text-ink-70">{f.d}</p>
+            </div>
+          ))}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      <footer className="border-t border-line bg-paper">
+        <div className="max-w-6xl mx-auto px-8 py-6 flex justify-between items-center text-[11px] text-ink-50 font-mono uppercase tracking-[0.1em]">
+          <span>UDGOK Construction · v1</span>
+          <span>Built with UDGOK CMS</span>
+        </div>
       </footer>
     </div>
   );
