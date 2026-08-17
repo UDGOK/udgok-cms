@@ -37,19 +37,55 @@
     background-attachment: fixed;
   }
   .mono { font-family: 'JetBrains Mono', monospace; }
-  .container { max-width: 1480px; margin: 0 auto; padding: 0 32px; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 0 40px; }
   @media (max-width: 720px) { .container { padding: 0 20px; } }
 
   /* ===== TOPBAR ===== */
   .topbar { position: sticky; top: 0; z-index: 50; background: rgba(245,241,234,0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
-  .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px; max-width: 1480px; margin: 0 auto; gap: 24px; }
+  .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px 16px 264px; max-width: 1680px; margin: 0 auto; gap: 24px; }
   .wordmark { font-family: 'Inter', sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -0.025em; color: var(--ink); display: flex; align-items: baseline; gap: 8px; }
   .wordmark .ok { color: var(--orange); }
   .wordmark .sub { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.18em; color: var(--ink-50); text-transform: uppercase; padding: 3px 8px; border: 1px solid var(--line); }
-  .nav-top { display: flex; gap: 28px; }
-  .nav-top a { color: var(--ink-70); text-decoration: none; font-size: 13px; font-weight: 600; padding-bottom: 2px; border-bottom: 2px solid transparent; transition: all 0.2s; }
-  .nav-top a:hover { color: var(--ink); border-bottom-color: var(--orange); }
-  .nav-top a.cta { background: var(--ink); color: var(--cream); padding: 10px 18px; font-weight: 800; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .topbar-meta { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+  .progress-pill { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; padding: 6px 12px; background: var(--paper); border: 1px solid var(--line); color: var(--ink-70); display: flex; align-items: center; gap: 8px; }
+  .progress-pill .dot { width: 6px; height: 6px; background: var(--orange); border-radius: 50%; }
+  .nav-top { display: flex; gap: 12px; }
+  .nav-top a { color: var(--ink); text-decoration: none; font-size: 12px; font-weight: 800; padding: 10px 16px; background: var(--ink); letter-spacing: 0.12em; text-transform: uppercase; transition: all 0.2s; }
+  .nav-top a:hover { background: var(--orange); }
+
+  /* ===== PAGE LEFT SIDEBAR (persistent nav) ===== */
+  .page-rail { position: fixed; top: 0; left: 0; bottom: 0; width: 232px; background: var(--ink); color: var(--cream); z-index: 40; display: flex; flex-direction: column; overflow-y: auto; }
+  .page-rail::-webkit-scrollbar { width: 6px; }
+  .page-rail::-webkit-scrollbar-thumb { background: rgba(245,241,234,0.15); }
+  .pr-logo { padding: 22px 22px 20px; border-bottom: 1px solid rgba(245,241,234,0.1); display: flex; align-items: baseline; gap: 6px; }
+  .pr-logo .wm { font-family: 'Inter', sans-serif; font-weight: 900; font-size: 20px; letter-spacing: -0.02em; }
+  .pr-logo .wm .ok { color: var(--orange); }
+  .pr-logo .ctx { font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 700; letter-spacing: 0.15em; color: rgba(245,241,234,0.4); margin-left: auto; padding: 3px 6px; border: 1px solid rgba(245,241,234,0.15); }
+  .pr-section { padding: 18px 14px 8px; }
+  .pr-section .lbl { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: rgba(245,241,234,0.4); letter-spacing: 0.2em; text-transform: uppercase; padding: 0 10px 8px; }
+  .pr-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; color: rgba(245,241,234,0.6); cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s; text-decoration: none; }
+  .pr-item:hover { color: var(--cream); background: rgba(255,255,255,0.04); }
+  .pr-item.active { color: var(--cream); background: rgba(240,106,45,0.12); border-left-color: var(--orange); }
+  .pr-item svg { width: 14px; height: 14px; stroke-width: 2; flex-shrink: 0; }
+  .pr-item .num { font-family: 'JetBrains Mono', monospace; font-size: 9px; opacity: 0.5; margin-left: auto; }
+  .pr-item.active .num { opacity: 1; color: var(--orange-l); }
+  .pr-spacer { flex: 1; }
+  .pr-user { padding: 14px 18px; border-top: 1px solid rgba(245,241,234,0.1); display: flex; align-items: center; gap: 10px; }
+  .pr-user .av { width: 30px; height: 30px; border-radius: 50%; background: var(--orange); color: white; display: flex; align-items: center; justify-content: center; font-family: 'Inter', sans-serif; font-weight: 800; font-size: 11px; }
+  .pr-user .meta { flex: 1; min-width: 0; }
+  .pr-user .nm { font-size: 12px; font-weight: 700; color: var(--cream); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr-user .rl { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: rgba(245,241,234,0.4); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+
+  /* offset content for the rail */
+  .content-wrap { margin-left: 232px; }
+  @media (max-width: 900px) {
+    .page-rail { transform: translateX(-100%); transition: transform 0.3s; }
+    .page-rail.open { transform: translateX(0); }
+    .content-wrap { margin-left: 0; }
+    .topbar-inner { padding-left: 32px; }
+    .mobile-menu-btn { display: flex !important; }
+  }
+  .mobile-menu-btn { display: none; width: 36px; height: 36px; background: var(--paper); border: 1px solid var(--line); align-items: center; justify-content: center; cursor: pointer; }
 
   /* ===== HERO ===== */
   .hero { padding: 80px 0 100px; position: relative; }
@@ -434,24 +470,86 @@
 </head>
 <body>
 
+<!-- PAGE LEFT SIDEBAR (persistent nav) -->
+<aside class="page-rail" id="pageRail">
+  <div class="pr-logo">
+    <span class="wm">UDG<span class="ok">OK</span></span>
+    <span class="ctx">CMS</span>
+  </div>
+  <div class="pr-section">
+    <div class="lbl">// Workspace</div>
+    <a href="#shell" class="pr-item" data-section="shell">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Shell<span class="num">01</span>
+    </a>
+    <a href="#dashboard" class="pr-item" data-section="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      Dashboard<span class="num">02</span>
+    </a>
+    <a href="#clients" class="pr-item" data-section="clients">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+      Clients<span class="num">03</span>
+    </a>
+    <a href="#client-detail" class="pr-item" data-section="client-detail">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Client Detail<span class="num">04</span>
+    </a>
+    <a href="#deals" class="pr-item" data-section="deals">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Deals<span class="num">05</span>
+    </a>
+    <a href="#projects" class="pr-item" data-section="projects">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      Projects<span class="num">06</span>
+    </a>
+    <a href="#project-dash" class="pr-item" data-section="project-dash">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+      Project Detail<span class="num">07</span>
+    </a>
+    <a href="#financials" class="pr-item" data-section="financials">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Pay App<span class="num">08</span>
+    </a>
+    <a href="#gantt" class="pr-item" data-section="gantt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="6" y1="6" x2="14" y2="6"/><line x1="10" y1="10" x2="14" y2="10"/><line x1="4" y1="14" x2="14" y2="14"/><line x1="8" y1="18" x2="14" y2="18"/></svg>
+      Gantt<span class="num">09</span>
+    </a>
+    <a href="#tasks" class="pr-item" data-section="tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Tasks<span class="num">10</span>
+    </a>
+    <a href="#docs" class="pr-item" data-section="docs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Documents<span class="num">11</span>
+    </a>
+    <a href="#settings" class="pr-item" data-section="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings<span class="num">12</span>
+    </a>
+  </div>
+  <div class="pr-spacer"></div>
+  <div class="pr-user">
+    <div class="av">JM</div>
+    <div class="meta">
+      <div class="nm">James Mason</div>
+      <div class="rl">OWNER · UDGOK</div>
+    </div>
+  </div>
+</aside>
+
 <!-- TOPBAR -->
 <nav class="topbar">
   <div class="topbar-inner">
     <div class="wordmark">UDG<span class="ok">OK</span><span class="sub">CMS / BACKEND</span></div>
-    <div class="nav-top">
-      <a href="#shell">Shell</a>
-      <a href="#dashboard">Dashboard</a>
-      <a href="#clients">Clients</a>
-      <a href="#deals">Deals</a>
-      <a href="#projects">Projects</a>
-      <a href="#gantt">Gantt</a>
-      <a href="#tasks">Tasks</a>
-      <a href="#docs">Documents</a>
-      <a href="#settings">Settings</a>
-      <a href="#" class="cta">Sign off →</a>
+    <div class="topbar-meta">
+      <div class="progress-pill" id="progressPill"><div class="dot"></div><span id="progressText">01 / 12</span></div>
+      <div class="nav-top"><a href="#" id="signOffBtn">Sign off →</a></div>
     </div>
   </div>
 </nav>
+
+<!-- CONTENT WRAP -->
+<div class="content-wrap">
 
 <!-- HERO -->
 <header class="hero">
@@ -1249,6 +1347,46 @@
     <span>TELL MAVIS TO BUILD IT</span>
   </div>
 </div>
+
+</div><!-- /.content-wrap -->
+
+<script>
+  // Scroll-spy for the left sidebar
+  (function() {
+    const sections = document.querySelectorAll('section[id]');
+    const items = document.querySelectorAll('.pr-item');
+    const progressText = document.getElementById('progressText');
+    const order = ['shell','dashboard','clients','client-detail','deals','projects','project-dash','financials','gantt','tasks','docs','settings'];
+
+    function update() {
+      const scrollY = window.scrollY + 120;
+      let active = order[0];
+      for (const sec of sections) {
+        if (sec.offsetTop <= scrollY) active = sec.id;
+      }
+      let idx = order.indexOf(active) + 1;
+      if (idx < 1) idx = 1;
+      items.forEach(it => {
+        it.classList.toggle('active', it.dataset.section === active);
+      });
+      if (progressText) progressText.textContent = String(idx).padStart(2,'0') + ' / 12';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+
+  // Smooth scroll accounting for fixed rail
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const id = a.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (!el) return;
+      e.preventDefault();
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top, behavior: 'smooth' });
+    });
+  });
+</script>
 
 <script>
   (function() {
