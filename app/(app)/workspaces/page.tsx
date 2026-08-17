@@ -5,7 +5,7 @@ import { getUserWorkspaces } from '@/lib/auth/get-user-workspaces';
 import { WorkspaceTile } from '@/components/workspace/WorkspaceTile';
 
 export default async function WorkspacesPage() {
-  const { userId, orgId } = await auth();
+  const { userId } = await auth();
   if (!userId) redirect('/sign-in');
 
   const workspaces = await getUserWorkspaces(userId);
@@ -30,7 +30,6 @@ export default async function WorkspacesPage() {
               slug={ws.slug}
               name={ws.name}
               role={ws.role}
-              isActive={ws.id === orgId}
             />
           ))}
           <Link

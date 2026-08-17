@@ -12,7 +12,7 @@ export default async function WorkspaceLayout({
   children: React.ReactNode;
   params: { workspace: string };
 }) {
-  const { userId, orgId } = await auth();
+  const { userId } = await auth();
   if (!userId) redirect('/sign-in');
 
   // Find the workspace by slug.
@@ -29,12 +29,6 @@ export default async function WorkspaceLayout({
     // User is signed in but not a member of this workspace.
     // Send them to the switcher so they can pick one they belong to.
     redirect('/workspaces');
-  }
-
-  // Optionally sync Clerk's active org to this one (best-effort).
-  if (orgId && orgId !== workspace.id) {
-    // We don't have a server-side setActive here, so we just render the
-    // workspace they navigated to. setActive is done in the client switcher.
   }
 
   return (
