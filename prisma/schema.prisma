@@ -34,6 +34,7 @@ model Workspace {
   subs     Subcontractor[]
   activity ActivityLog[]
   messages Message[]
+  projectPhotos ProjectPhoto[]
 
   @@index([slug])
 }
@@ -52,6 +53,7 @@ model User {
   assignedTasks  Task[]          @relation("assignee")
   createdTasks   Task[]          @relation("creator")
   messages       Message[]
+  projectPhotos  ProjectPhoto[]
   projectMembers ProjectMember[]
   teamMembers    TeamMember[]
   activity       ActivityLog[]
@@ -252,9 +254,52 @@ model Project {
   divisions ProjectDivision[]
   payApps   PayApp[]
   subAssignments ProjectSubcontractorAssignment[]
+  photos    ProjectPhoto[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
+}
+
+// Per-construction-phase photos. Categorized by:
+//   - room (free text: "Kitchen", "Master Bath", "Lobby")
+//   - area (free text: "North wing", "Floor 2")
+//   - phase: ROUGH_IN (framing/electrical/plumbing before drywall)
+//          or FINAL (completed work, post-drywall/paint/finish)
+//
+// Foremen can snap a "rough-in" photo at the right phase and the
+// project owner sees it instantly. The "phase" toggle in the gallery
+// filters to just rough-in or just final photos, so you can compare
+// before/after.
+model ProjectPhoto {
+  id          String        @id @default(cuid())
+  workspaceId String
+  projectId   String
+  uploaderId  String
+  url         String        // Vercel Blob URL
+  filename    String
+  mimeType    String
+  size        Int
+  room        String?       // e.g. "Kitchen", "Master Bath"
+  area        String?       // e.g. "North wing", "Floor 2"
+  phase       PhotoPhase    @default(ROUGH_IN)
+  caption     String?
+  latitude    Float?
+  longitude   Float?
+  takenAt     DateTime?
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader  User      @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, phase, createdAt])
+  @@index([projectId, room])
+  @@index([workspaceId, createdAt])
+}
+
+enum PhotoPhase {
+  ROUGH_IN
+  FINAL
 }
 
 enum ProjectStatus {

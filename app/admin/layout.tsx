@@ -55,6 +55,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <AdminNavLink href="/admin" label="Overview" />
               <AdminNavLink href="/admin/workspaces" label="Workspaces" />
               <AdminNavLink href="/admin/users" label="Users" />
+              <AdminNavLink href="/admin/email-test" label="Email test" />
             </nav>
           </div>
           <div className="flex items-center gap-4 text-[11px] font-mono uppercase tracking-[0.1em]">
@@ -74,6 +75,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <AdminNavLink href="/admin" label="Overview" mobile />
           <AdminNavLink href="/admin/workspaces" label="Workspaces" mobile />
           <AdminNavLink href="/admin/users" label="Users" mobile />
+          <AdminNavLink href="/admin/email-test" label="Email test" mobile />
         </div>
       </header>
 

@@ -13,6 +13,7 @@ import { MessageThread } from '@/components/messages/MessageThread';
 import { listMessagesForEntity } from '@/lib/messages/queries';
 import { listEntityActivity } from '@/lib/activity/queries';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
+import { countProjectPhotosByPhase } from '@/lib/photos/queries';
 
 const SUB_STATUS_LABEL: Record<string, string> = {
   PROPOSED: 'Proposed',
@@ -38,7 +39,7 @@ export default async function ProjectDetailPage({
   const { workspace } = await requireMembership(params.workspace);
   const { userId } = await auth();
 
-  const [project, subs, messages, activity] = await Promise.all([
+  const [project, subs, messages, activity, photoCounts] = await Promise.all([
     getProject(workspace.id, params.id),
     prisma.subcontractor.findMany({
       where: { workspaceId: workspace.id },
@@ -47,7 +48,9 @@ export default async function ProjectDetailPage({
     }),
     listMessagesForEntity('PROJECT', params.id, 50),
     listEntityActivity(workspace.id, 'project', params.id, 20),
+    countProjectPhotosByPhase(params.id),
   ]);
+  const totalPhotos = photoCounts.ROUGH_IN + photoCounts.FINAL;
   if (!project) notFound();
 
   const isAdmin =
@@ -81,6 +84,17 @@ export default async function ProjectDetailPage({
         }
         actionVariant="copper"
       />
+
+      {/* Project nav tabs */}
+      <div className="mt-4 flex items-center gap-1 border-b-2 border-line overflow-x-auto">
+        <ProjectTab href={`/w/${params.workspace}/projects/${project.id}`} label="Overview" currentPath={`/w/${params.workspace}/projects/${project.id}`} />
+        <ProjectTab
+          href={`/w/${params.workspace}/projects/${project.id}/photos`}
+          label="Photos"
+          currentPath={`/w/${params.workspace}/projects/${project.id}`}
+          badge={totalPhotos > 0 ? String(totalPhotos) : undefined}
+        />
+      </div>
 
       {/* Header */}
       <div className="flex justify-between items-start gap-4 flex-wrap pb-5 md:pb-7 border-b border-line bg-paper p-4 md:p-7 -mx-4 md:-m-7 mb-5 md:mb-7">
@@ -122,6 +136,46 @@ export default async function ProjectDetailPage({
           <div className="font-black text-xl md:text-2xl">{project.payApps.length}</div>
         </div>
       </div>
+
+      {/* Photos summary — links to photos tab */}
+      <Link
+        href={`/w/${params.workspace}/projects/${project.id}/photos`}
+        className="block bg-paper border-2 border-line hover:border-ink p-4 mb-6 transition-colors"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+              {'// Photos'}
+            </div>
+            <div className="text-[13px] font-extrabold mt-1">
+              {totalPhotos} photo{totalPhotos === 1 ? '' : 's'} on file
+              {totalPhotos > 0 ? (
+                <span className="text-ink-50 font-normal ml-2">
+                  ({photoCounts.ROUGH_IN} rough-in · {photoCounts.FINAL} final)
+                </span>
+              ) : null}
+            </div>
+          </div>
+          {totalPhotos > 0 ? (
+            <div className="flex gap-1">
+              {photoCounts.ROUGH_IN > 0 ? (
+                <span className="px-2 py-1 bg-warning text-ink text-[9px] font-extrabold uppercase tracking-[0.1em]">
+                  {photoCounts.ROUGH_IN} R
+                </span>
+              ) : null}
+              {photoCounts.FINAL > 0 ? (
+                <span className="px-2 py-1 bg-success text-paper text-[9px] font-extrabold uppercase tracking-[0.1em]">
+                  {photoCounts.FINAL} F
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <span className="text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d">
+              + Add photos →
+            </span>
+          )}
+        </div>
+      </Link>
 
       {/* SOV Section */}
       <div className="bg-paper border-2 border-line mb-6">
@@ -390,5 +444,37 @@ export default async function ProjectDetailPage({
         </div>
       </div>
     </div>
+  );
+}
+
+function ProjectTab({
+  href,
+  label,
+  currentPath,
+  badge,
+}: {
+  href: string;
+  label: string;
+  currentPath: string;
+  badge?: string;
+}) {
+  // Active if href === currentPath (Overview) or currentPath ends with /photos
+  const isActive = href === currentPath;
+  return (
+    <Link
+      href={href}
+      className={`px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.1em] border-b-[3px] -mb-[2px] flex items-center gap-1.5 ${
+        isActive
+          ? 'border-orange text-ink'
+          : 'border-transparent text-ink-50 hover:text-ink'
+      }`}
+    >
+      {label}
+      {badge ? (
+        <span className="text-[9px] font-mono px-1.5 py-0.5 bg-orange text-paper">
+          {badge}
+        </span>
+      ) : null}
+    </Link>
   );
 }

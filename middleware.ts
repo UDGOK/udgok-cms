@@ -10,6 +10,10 @@ const isPublicRoute = createRouteMatcher([
   '/api/presence/(.*)', // presence API does its own auth check (returns 401 for unauthed)
   '/api/presence', // also match the bare /api/presence path
   '/api/webhooks/(.*)', // Clerk webhook (verified via Svix signature)
+  '/manifest.json', // PWA manifest
+  '/sw.js', // service worker
+  '/icon-192.svg',
+  '/icon-512.svg',
 ]);
 
 const isRoot = (path: string) => path === '/' || path === '';
@@ -47,8 +51,12 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Skip Next.js internals and all static files. We exclude .json so
+    // manifest.json and other JSON static files pass through without
+    // triggering the auth redirect. The previous regex `js(?!on)` left
+    // .json files in the matcher, which is why manifest.json was 307ing
+    // to the sign-in page.
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|json|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     // Always run for API routes
     '/(api|trpc)(.*)',
   ],
