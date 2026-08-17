@@ -1,6 +1,41 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function HomePage() {
+  const { isLoaded, isSignedIn } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.push('/workspaces');
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  // While Clerk is loading, show a minimal splash.
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="font-mono text-[10px] tracking-[0.2em] text-ink-50 uppercase">Loading…</div>
+      </div>
+    );
+  }
+
+  // Signed-in users get a brief loading state while the useEffect fires the redirect.
+  if (isSignedIn) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="font-mono text-[10px] tracking-[0.2em] text-ink-50 uppercase">
+          Taking you to your workspaces…
+        </div>
+      </div>
+    );
+  }
+
+  // Signed-out users see the landing.
   return (
     <div className="min-h-screen bg-cream">
       <header className="border-b border-line bg-paper">
@@ -54,12 +89,6 @@ export default function HomePage() {
             className="px-6 py-4 bg-paper border-2 border-ink text-ink text-sm font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-cream transition-colors"
           >
             Sign in
-          </Link>
-          <Link
-            href="/onboarding"
-            className="px-6 py-4 text-ink text-sm font-extrabold uppercase tracking-[0.12em] hover:text-orange-d transition-colors"
-          >
-            Onboarding →
           </Link>
         </div>
 
