@@ -12,7 +12,7 @@ import { prisma } from '@/lib/db/client';
  * The default list keeps yasir@udgok.com as the platform owner. Their
  * workspace is automatically UDGOK (created on first sign-in).
  */
-const DEFAULT_MASTER_EMAILS = ['yasir@udgok.com'];
+const DEFAULT_MASTER_EMAILS = ['yasir@udgok.com', 'yasir@futonix.com'];
 
 function getMasterEmails(): string[] {
   // Read from env shim
