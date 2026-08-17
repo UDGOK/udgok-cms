@@ -29,6 +29,8 @@ model Workspace {
   projects Project[]
   tasks    Task[]
   files    File[]
+  teams    Team[]
+  subs     Subcontractor[]
 
   @@index([slug])
 }
@@ -47,6 +49,7 @@ model User {
   assignedTasks  Task[]          @relation("assignee")
   createdTasks   Task[]          @relation("creator")
   projectMembers ProjectMember[]
+  teamMembers    TeamMember[]
 
   @@index([email])
 }
@@ -58,11 +61,18 @@ model Membership {
   role        Role     @default(MEMBER)
   joinedAt    DateTime @default(now())
 
+  // Presence tracking — updated by the /api/presence/heartbeat route.
+  // A member is "online" if lastSeenAt is within the past 5 minutes
+  // and "idle" if within 60 minutes. Anything older is offline.
+  lastSeenAt  DateTime?
+  isOnline    Boolean   @default(false)
+
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
   @@index([workspaceId])
+  @@index([workspaceId, isOnline])
 }
 
 enum Role {
@@ -213,6 +223,7 @@ model Project {
   notes     Note[]
   divisions ProjectDivision[]
   payApps   PayApp[]
+  subAssignments ProjectSubcontractorAssignment[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
@@ -354,6 +365,7 @@ model ProjectDivision {
 
   project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   payAppLines PayAppDivision[]
+  subLinks    ProjectDivisionAssignment[]
 
   @@index([projectId, sortOrder])
 }
@@ -427,4 +439,117 @@ model PayAppViewEvent {
   payApp PayApp @relation(fields: [payAppId], references: [id], onDelete: Cascade)
 
   @@index([payAppId, viewedAt])
+}
+
+// =========================================
+// TEAMS (sub-groups within a workspace)
+// "Field Crew", "Estimators", "Project Managers"
+// =========================================
+
+model Team {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String   @default("#f06a2d") // UDGOK orange default
+  icon        String   @default("👥")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   TeamMember[]
+
+  @@index([workspaceId])
+}
+
+model TeamMember {
+  id     String   @id @default(cuid())
+  teamId String
+  userId String
+  role   TeamRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+enum TeamRole {
+  LEAD
+  MEMBER
+}
+
+// =========================================
+// SUBCONTRACTORS
+// Library of subs (separate from Clients — subs are vendors).
+// Can be assigned to projects and to specific SOV divisions.
+// =========================================
+
+model Subcontractor {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  primaryTrade    String?   // primary CSI division (e.g. "06", "22", "23")
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  address         String?
+  licenseNumber   String?
+  insuranceExpiry DateTime?
+  w9OnFile        Boolean   @default(false)
+  hourlyRate      Decimal?  @db.Decimal(10, 2)
+  notes           String?
+  rating          Int?      // 1–5 self-rated quality
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments ProjectSubcontractorAssignment[]
+
+  @@index([workspaceId, name])
+  @@index([workspaceId, primaryTrade])
+}
+
+model ProjectSubcontractorAssignment {
+  id              String                 @id @default(cuid())
+  projectId       String
+  subcontractorId String
+  contractAmount  Decimal                @default(0) @db.Decimal(12, 2)
+  status          SubcontractorStatus    @default(PROPOSED)
+  notes           String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  project       Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor                 @relation(fields: [subcontractorId], references: [id])
+  divisionLinks ProjectDivisionAssignment[]
+
+  @@index([projectId])
+  @@index([subcontractorId])
+}
+
+enum SubcontractorStatus {
+  PROPOSED
+  CONTRACTED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// Links an assignment to specific SOV divisions.
+// One assignment can cover N divisions, and each division has a dollar amount
+// allocated to that sub (so the SOV can show "Site prep: $5,000 (Acme Concrete)").
+model ProjectDivisionAssignment {
+  id           String  @id @default(cuid())
+  assignmentId String
+  divisionId   String
+  amount       Decimal @default(0) @db.Decimal(12, 2)
+
+  assignment ProjectSubcontractorAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  division   ProjectDivision                @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, divisionId])
+  @@index([divisionId])
 }

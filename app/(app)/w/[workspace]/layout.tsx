@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db/client';
 import { Sidebar } from '@/components/workspace/Sidebar';
 import { Topbar } from '@/components/workspace/Topbar';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceContext';
+import { PresenceShell } from '@/components/workspace/PresenceShell';
 
 export default async function WorkspaceLayout({
   children,
@@ -40,13 +41,15 @@ export default async function WorkspaceLayout({
         role: membership.role,
       }}
     >
-      <div className="flex min-h-screen bg-cream">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          <Topbar />
-          <main className="flex-1 overflow-y-auto">{children}</main>
+      <PresenceShell workspaceId={workspace.id}>
+        <div className="flex min-h-screen bg-cream">
+          <Sidebar />
+          <div className="flex-1 flex flex-col min-w-0">
+            <Topbar />
+            <main className="flex-1 overflow-y-auto">{children}</main>
+          </div>
         </div>
-      </div>
+      </PresenceShell>
     </WorkspaceProvider>
   );
 }

@@ -18,10 +18,28 @@ export async function getProject(workspaceId: string, id: string) {
     include: {
       client: true,
       members: { include: { user: true } },
-      divisions: { orderBy: { sortOrder: 'asc' } },
+      divisions: {
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          subLinks: {
+            include: {
+              assignment: { include: { subcontractor: true } },
+            },
+          },
+        },
+      },
       payApps: {
         orderBy: { drawNumber: 'desc' },
         include: { divisions: true },
+      },
+      subAssignments: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          subcontractor: true,
+          divisionLinks: {
+            include: { division: { select: { id: true, code: true, trade: true } } },
+          },
+        },
       },
       // All tasks that have any kind of date — used for the Gantt chart.
       // Tasks with no date at all are excluded (can't be placed on a timeline).

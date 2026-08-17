@@ -1,10 +1,28 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getProject } from '@/lib/projects/queries';
+import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { GanttChart, type GanttTask } from '@/components/workspace/GanttChart';
 import { NewDivisionForm } from './NewDivisionForm';
 import { GeneratePayAppButton } from './GeneratePayAppButton';
+import { AssignSubForm } from './AssignSubForm';
+
+const SUB_STATUS_LABEL: Record<string, string> = {
+  PROPOSED: 'Proposed',
+  CONTRACTED: 'Contracted',
+  ACTIVE: 'Active',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
+
+const SUB_STATUS_COLOR: Record<string, string> = {
+  PROPOSED: 'bg-warning text-ink',
+  CONTRACTED: 'bg-ink text-paper',
+  ACTIVE: 'bg-success text-paper',
+  COMPLETED: 'bg-ink-30 text-ink',
+  CANCELLED: 'bg-line text-ink-50',
+};
 
 export default async function ProjectDetailPage({
   params,
@@ -13,7 +31,14 @@ export default async function ProjectDetailPage({
 }) {
   const { workspace } = await requireMembership(params.workspace);
 
-  const project = await getProject(workspace.id, params.id);
+  const [project, subs] = await Promise.all([
+    getProject(workspace.id, params.id),
+    prisma.subcontractor.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, primaryTrade: true },
+    }),
+  ]);
   if (!project) notFound();
 
   // Compute the SOV totals and remaining to bill
@@ -101,11 +126,23 @@ export default async function ProjectDetailPage({
                   .filter((line) => line.projectDivisionId === d.id)
                   .reduce((acc, l) => acc + Number(l.thisDrawAmount), 0);
                 const rem = Number(d.budget) - billed;
+                // Find an assigned sub from the subLinks (preferred), else fall back to free-text
+                const linkedSub = d.subLinks?.[0]?.assignment?.subcontractor;
                 return (
                   <tr key={d.id} className="hover:bg-cream-2">
                     <td className="px-5 py-3 border-b border-line-soft font-mono text-[12px]">{d.code}</td>
                     <td className="px-5 py-3 border-b border-line-soft font-extrabold text-[13px]">{d.trade}</td>
-                    <td className="px-5 py-3 border-b border-line-soft text-[12px] text-ink-70">{d.subcontractorName ?? '—'}</td>
+                    <td className="px-5 py-3 border-b border-line-soft text-[12px]">
+                      {linkedSub ? (
+                        <Link href={`/w/${params.workspace}/subcontractors/${linkedSub.id}`} className="text-orange-d font-extrabold hover:underline">
+                          {linkedSub.name}
+                        </Link>
+                      ) : d.subcontractorName ? (
+                        <span className="text-ink-70">{d.subcontractorName}</span>
+                      ) : (
+                        <span className="text-ink-30">—</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 border-b border-line-soft font-black">${Number(d.budget).toLocaleString()}</td>
                     <td className="px-5 py-3 border-b border-line-soft font-black text-success">${billed.toLocaleString()}</td>
                     <td className="px-5 py-3 border-b border-line-soft font-black text-orange-d">${rem.toLocaleString()}</td>
@@ -143,6 +180,94 @@ export default async function ProjectDetailPage({
             dueDate: t.dueDate,
           }))}
         />
+      </div>
+
+      {/* Subcontractors Section */}
+      <div className="bg-paper border-2 border-line mb-6">
+        <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+          <div>
+            <div className="label-eyebrow">{'// Subcontractors'}</div>
+            <div className="text-[11px] text-ink-50 mt-0.5">
+              {project.subAssignments.length} assignment{project.subAssignments.length === 1 ? '' : 's'}
+              {project.subAssignments.length > 0 ? (
+                <> · <b className="text-ink">
+                  ${project.subAssignments.reduce((acc, a) => acc + Number(a.contractAmount), 0).toLocaleString()}
+                </b> contracted</>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {project.subAssignments.length === 0 ? (
+          <div className="px-6 py-6">
+            <AssignSubForm
+              workspaceSlug={params.workspace}
+              projectId={project.id}
+              subs={subs}
+              divisions={project.divisions.map((d) => ({
+                id: d.id,
+                code: d.code,
+                trade: d.trade,
+                budget: Number(d.budget),
+              }))}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="divide-y divide-line-soft">
+              {project.subAssignments.map((a) => (
+                <div key={a.id} className="px-6 py-4 flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <Link
+                        href={`/w/${params.workspace}/subcontractors/${a.subcontractor.id}`}
+                        className="font-extrabold text-[14px] hover:text-orange-d"
+                      >
+                        {a.subcontractor.name}
+                      </Link>
+                      <span className={`px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-[0.05em] ${SUB_STATUS_COLOR[a.status] ?? 'bg-line text-ink'}`}>
+                        {SUB_STATUS_LABEL[a.status] ?? a.status}
+                      </span>
+                      {a.subcontractor.primaryTrade ? (
+                        <span className="text-[10px] font-mono text-ink-50">primary: {a.subcontractor.primaryTrade}</span>
+                      ) : null}
+                    </div>
+                    {a.divisionLinks.length > 0 ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {a.divisionLinks.map((dl) => (
+                          <span
+                            key={dl.id}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-cream-2 border border-line-soft text-[11px]"
+                          >
+                            <span className="font-mono text-orange-d font-extrabold">{dl.division.code}</span>
+                            <span>{dl.division.trade}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {a.notes ? <p className="text-[11px] text-ink-50 mt-1.5">{a.notes}</p> : null}
+                  </div>
+                  <div className="text-right">
+                    <div className="font-black text-[15px]">${Number(a.contractAmount).toLocaleString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4 border-t border-line">
+              <AssignSubForm
+                workspaceSlug={params.workspace}
+                projectId={project.id}
+                subs={subs}
+                divisions={project.divisions.map((d) => ({
+                  id: d.id,
+                  code: d.code,
+                  trade: d.trade,
+                  budget: Number(d.budget),
+                }))}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Pay Apps Section */}
