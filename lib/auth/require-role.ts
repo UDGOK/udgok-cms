@@ -19,12 +19,26 @@ export interface AuthContext {
 }
 
 /**
- * Wraps Clerk's auth() + DB membership lookup with error handling.
- * Throws AuthError(401) if not signed in, AuthError(403) if not in workspace.
- * Wrapped in try/catch so a misconfigured Clerk setup doesn't 500 every page —
- * we propagate a clean 401 that callers (or layouts) can convert to a redirect.
+ * Look up a workspace by either its slug OR its id. Most callers already have
+ * the workspace row from getWorkspace(slug), so passing the id is fine — but
+ * we make the API forgiving either way so call sites don't have to think.
  */
-export async function getAuthContext(workspaceSlug: string): Promise<AuthContext> {
+async function findWorkspace(idOrSlug: string) {
+  // Try by id first (catches Clerk org_*, our hex ids, and cuids).
+  const byId = await prisma.workspace.findUnique({ where: { id: idOrSlug } });
+  if (byId) return byId;
+  // Fall back to slug.
+  return prisma.workspace.findUnique({ where: { slug: idOrSlug } });
+}
+
+/**
+ * Resolve the signed-in user + their membership in the given workspace.
+ *
+ * Wrapped in try/catch so a misconfigured Clerk setup doesn't 500 every page —
+ * we propagate a clean AuthError that callers (or error boundaries) can convert
+ * to a redirect.
+ */
+export async function getAuthContext(workspaceIdOrSlug: string): Promise<AuthContext> {
   let userId: string | null = null;
   let email: string | null = null;
   let name: string | null = null;
@@ -71,7 +85,7 @@ export async function getAuthContext(workspaceSlug: string): Promise<AuthContext
     // Don't fail the whole request — they might still be in a workspace
   }
 
-  const workspace = await prisma.workspace.findUnique({ where: { slug: workspaceSlug } });
+  const workspace = await findWorkspace(workspaceIdOrSlug);
   if (!workspace) {
     throw new AuthError('Workspace not found', 404);
   }
@@ -95,27 +109,20 @@ export async function getAuthContext(workspaceSlug: string): Promise<AuthContext
 export type Role = AuthContext['role'];
 
 /**
- * Wrapped version of requireRole that uses getAuthContext.
+ * Require a signed-in user with one of the given roles in the workspace.
+ * Accepts either a workspace id OR a slug — resolved by findWorkspace.
  * Throws AuthError on failure.
  */
 export async function requireRole(
   workspaceIdOrSlug: string,
   allowed: Role[],
 ): Promise<AuthContext> {
-  // workspaceIdOrSlug can be either an ID (org_* from Clerk) or a slug.
-  // We resolve to slug first for getAuthContext.
-  let slug = workspaceIdOrSlug;
-  // If it looks like a Clerk org ID (starts with 'org_'), we can't resolve
-  // a slug from it without an extra query — caller should pass a slug.
-  if (slug.startsWith('org_')) {
-    const ws = await prisma.workspace.findUnique({ where: { id: slug } });
-    if (!ws) throw new AuthError('Workspace not found', 404);
-    slug = ws.slug;
-  }
-
-  const ctx = await getAuthContext(slug);
+  const ctx = await getAuthContext(workspaceIdOrSlug);
   if (!allowed.includes(ctx.role)) {
-    throw new AuthError(`Role ${ctx.role} not allowed (need one of: ${allowed.join(', ')})`, 403);
+    throw new AuthError(
+      `Role ${ctx.role} not allowed (need one of: ${allowed.join(', ')})`,
+      403,
+    );
   }
   return ctx;
 }
@@ -130,13 +137,11 @@ export async function getCurrentUser() {
   }
 }
 
-export async function getWorkspaceRole(workspaceIdOrSlug: string): Promise<Role | null> {
+export async function getWorkspaceRole(
+  workspaceIdOrSlug: string,
+): Promise<Role | null> {
   try {
-    const ctx = await getAuthContext(
-      workspaceIdOrSlug.startsWith('org_')
-        ? (await prisma.workspace.findUnique({ where: { id: workspaceIdOrSlug } }))?.slug ?? workspaceIdOrSlug
-        : workspaceIdOrSlug,
-    );
+    const ctx = await getAuthContext(workspaceIdOrSlug);
     return ctx.role;
   } catch {
     return null;
