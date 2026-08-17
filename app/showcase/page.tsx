@@ -1,11 +1,13 @@
 import { Button, Card, CardHeader, CardTitle, CardBody, Input, Field, Badge, SectionNumber, StatusBadge } from '@/components/ui';
 
+// Force dynamic rendering — otherwise Next.js pre-renders this at build time
+// but the Clerk middleware is per-request, which causes a static-vs-dynamic
+// mismatch and the route returns 404.
+export const dynamic = 'force-dynamic';
+
 /**
  * Dev-only design system showcase. Renders every primitive so you can verify
  * the UDGOK Bold theme is wired correctly.
- *
- * Access at /showcase in dev. Will be removed before production (or guarded
- * behind NODE_ENV !== 'production' in a later task).
  */
 export default function ShowcasePage() {
   return (
