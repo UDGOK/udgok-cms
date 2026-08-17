@@ -17,10 +17,18 @@ const isRoot = (path: string) => path === '/' || path === '';
 export default clerkMiddleware(async (auth, req) => {
   const { pathname } = req.nextUrl;
 
+  // Debug signature so we can detect which middleware version is deployed
+  // from response headers. REMOVE BEFORE PRODUCTION.
+  const debugRes = NextResponse.next();
+  debugRes.headers.set('x-mw-version', 'e211f0a-presence-fix-v2');
+  debugRes.headers.set('x-mw-pathname', pathname);
+
   // Public routes pass through.
   if (isPublicRoute(req)) {
-    return NextResponse.next();
+    debugRes.headers.set('x-mw-public', '1');
+    return debugRes;
   }
+  debugRes.headers.set('x-mw-public', '0');
 
   // Root: if signed in, push to workspace switcher.
   if (isRoot(pathname)) {
@@ -42,7 +50,8 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   // Authenticated — let the page handle the rest.
-  return NextResponse.next();
+  debugRes.headers.set('x-mw-auth', 'ok');
+  return debugRes;
 });
 
 export const config = {
