@@ -12,6 +12,12 @@ const uploadSchema = z.object({
   projectId: z.string().optional(),
   dealId: z.string().optional(),
   category: z.string().max(40).optional(),
+  // GPS fields — captured at the moment the file was selected on the
+  // client. Lat/lng are passed as strings (form fields are strings) and
+  // coerced here.
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+  takenAt: z.coerce.date().optional(),
 });
 
 export type UploadState =
@@ -44,6 +50,9 @@ export async function uploadFileAction(
     projectId: formData.get('projectId') || undefined,
     dealId: formData.get('dealId') || undefined,
     category: formData.get('category') || undefined,
+    latitude: formData.get('latitude') || undefined,
+    longitude: formData.get('longitude') || undefined,
+    takenAt: formData.get('takenAt') || undefined,
   });
   if (!parsed.success) {
     return { error: 'Invalid metadata' };
@@ -70,6 +79,9 @@ export async function uploadFileAction(
       clientId: parsed.data.clientId,
       projectId: parsed.data.projectId,
       dealId: parsed.data.dealId,
+      latitude: parsed.data.latitude,
+      longitude: parsed.data.longitude,
+      takenAt: parsed.data.takenAt,
     },
     select: { id: true },
   });

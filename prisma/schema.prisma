@@ -20,6 +20,7 @@ model Workspace {
   name      String
   slug      String   @unique
   industry  String?
+  plan      Plan     @default(STARTER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -32,6 +33,7 @@ model Workspace {
   teams    Team[]
   subs     Subcontractor[]
   activity ActivityLog[]
+  messages Message[]
 
   @@index([slug])
 }
@@ -49,6 +51,7 @@ model User {
   uploads        File[]          @relation("uploader")
   assignedTasks  Task[]          @relation("assignee")
   createdTasks   Task[]          @relation("creator")
+  messages       Message[]
   projectMembers ProjectMember[]
   teamMembers    TeamMember[]
   activity       ActivityLog[]
@@ -84,6 +87,29 @@ enum Role {
   ESTIMATOR
   FIELD
   MEMBER
+}
+
+// Subscription tiers. Used to gate premium features across the app.
+// When you wire this to Clerk billing later, the `plan` field will be
+// synced from the Clerk subscription; the feature flag check
+// (lib/workspace/tier.ts) stays the same.
+enum Plan {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+// Entity types a Message can be attached to. We deliberately use a
+// small set (no file, no task — too many touch points) so the messages
+// UI stays simple. The polymorphic (entityType, entityId) pair points
+// at the relevant record; this avoids N junction tables.
+enum MessageEntityType {
+  PROJECT
+  CLIENT
+  DEAL
+  SUBCONTRACTOR
+  PAY_APP
+  WORKSPACE
 }
 
 // =========================================
@@ -324,6 +350,12 @@ model File {
   dealId      String?
   projectId   String?
   taskId      String?
+  // GPS coordinates captured at upload time. Used for "GPS-tagged site
+  // photos" feature — lets you see exactly where on the job site a
+  // photo was taken.
+  latitude   Float?
+  longitude  Float?
+  takenAt    DateTime?
   createdAt   DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -580,4 +612,30 @@ model ActivityLog {
   @@index([workspaceId, createdAt])
   @@index([workspaceId, entityType, entityId])
   @@index([actorId, createdAt])
+}
+
+// Per-entity comment threads. The (entityType, entityId) pair points at
+// the record the thread is attached to (project, client, deal, etc.).
+// threadId groups replies together — top-level messages have
+// threadId == id, replies have threadId pointing at the root.
+// This is the team's "internal messages" feature. Each entity gets its
+// own channel; no DM-style messaging for v1.
+model Message {
+  id          String            @id @default(cuid())
+  workspaceId String
+  authorId    String
+  body        String
+  entityType  MessageEntityType
+  entityId    String
+  threadId    String?           // null = top-level; otherwise = root message id
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  editedAt    DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+  @@index([threadId, createdAt])
+  @@index([authorId, createdAt])
 }

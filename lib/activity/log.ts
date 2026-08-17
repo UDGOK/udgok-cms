@@ -30,7 +30,8 @@ export type ActivityEntityType =
   | 'note'
   | 'file'
   | 'division'
-  | 'comment';
+  | 'comment'
+  | 'message';
 
 interface LogOptions {
   workspaceId: string;

@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { uploadFileAction } from '@/lib/files/actions';
 import { Button } from '@/components/ui';
+import { GeoPhotoCapture } from '@/components/files/GeoPhotoCapture';
 
 const CATEGORIES = [
   { id: 'brochures',   label: 'Brochures' },
@@ -37,6 +39,7 @@ export function UploadForm({
   defaultCategory?: string;
 }) {
   const [state, formAction] = useFormState(uploadFileAction.bind(null, workspaceSlug), undefined);
+  const [pendingFile, setPendingFile] = useState<{ file: File; meta: { latitude?: number; longitude?: number; takenAt?: Date } } | null>(null);
 
   return (
     <form action={formAction} className="bg-paper border-2 border-ink p-6">
@@ -54,6 +57,15 @@ export function UploadForm({
             name="file"
             required
             className="block w-full px-3 py-2 bg-paper border border-line text-ink text-sm file:mr-3 file:py-1.5 file:px-3 file:border-0 file:bg-ink file:text-cream file:font-extrabold file:uppercase file:tracking-[0.1em] file:text-[10px]"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-mono font-extrabold tracking-[0.12em] text-ink-50 uppercase mb-1.5">
+            Or take a GPS-tagged photo
+          </label>
+          <GeoPhotoCapture
+            onCapture={(file, meta) => setPendingFile({ file, meta })}
+            label="Open camera"
           />
         </div>
         <div>
@@ -94,6 +106,38 @@ export function UploadForm({
           </select>
         </div>
       </div>
+
+      {/* GPS fields — populated by GeoPhotoCapture */}
+      {pendingFile ? (
+        <div className="mb-3 p-3 bg-cream-2 border border-line">
+          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+            Photo ready to upload
+          </div>
+          <div className="text-[12px] font-semibold truncate">{pendingFile.file.name}</div>
+          {pendingFile.meta.latitude ? (
+            <div className="text-[10px] font-mono text-success mt-1">
+              📍 {pendingFile.meta.latitude.toFixed(5)}, {pendingFile.meta.longitude?.toFixed(5)}
+              {pendingFile.meta.takenAt ? ` · ${pendingFile.meta.takenAt.toLocaleTimeString()}` : ''}
+            </div>
+          ) : null}
+          {/* The actual file is set into a hidden input so it goes with the form submit */}
+          <input
+            type="file"
+            name="file"
+            className="hidden"
+            ref={(el) => {
+              if (el && pendingFile) {
+                const dt = new DataTransfer();
+                dt.items.add(pendingFile.file);
+                el.files = dt.files;
+              }
+            }}
+          />
+          <input type="hidden" name="latitude" value={pendingFile.meta.latitude ?? ''} />
+          <input type="hidden" name="longitude" value={pendingFile.meta.longitude ?? ''} />
+          <input type="hidden" name="takenAt" value={pendingFile.meta.takenAt?.toISOString() ?? ''} />
+        </div>
+      ) : null}
 
       <div className="flex justify-end">
         <SubmitButton />

@@ -10,6 +10,7 @@ export interface MembershipContext {
     name: string;
     industry: string | null;
     createdAt: Date;
+    plan: 'STARTER' | 'PRO' | 'ENTERPRISE';
   };
   membership: {
     id: string;
@@ -36,7 +37,7 @@ export async function requireMembership(
 
   const workspace = await prisma.workspace.findUnique({
     where: { slug: workspaceSlug },
-    select: { id: true, slug: true, name: true, industry: true, createdAt: true },
+    select: { id: true, slug: true, name: true, industry: true, createdAt: true, plan: true },
   });
   if (!workspace) notFound();
 

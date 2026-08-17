@@ -3,6 +3,9 @@ import { requireRole } from '@/lib/auth/require-role';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { listWorkspaceActivity } from '@/lib/activity/queries';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
+import { TierBadge } from '@/components/ui/TierBadge';
+import { PLAN_INFO } from '@/lib/workspace/tier';
+import { Plan } from '@prisma/client';
 import { WorkspaceSettingsForm, InviteMemberForm, DeleteWorkspaceSection, BackupSection } from './SettingsClient';
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -54,6 +57,8 @@ export default async function SettingsPage({
     listWorkspaceActivity(workspace.id, 25),
   ]);
 
+  const planInfo = PLAN_INFO[workspace.plan as Plan];
+
   return (
     <div className="p-8 max-w-4xl">
       <div className="text-xs font-mono font-bold tracking-[0.2em] text-orange-d uppercase mb-5 flex items-center gap-3">
@@ -68,7 +73,10 @@ export default async function SettingsPage({
 
       {/* Workspace info */}
       <div className="bg-paper border-2 border-line p-6 mb-6">
-        <div className="label-eyebrow mb-3">{'// Workspace'}</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="label-eyebrow">{'// Workspace'}</div>
+          <TierBadge plan={workspace.plan} size="md" />
+        </div>
         {isAdmin ? (
           <WorkspaceSettingsForm
             workspaceSlug={workspace.slug}
@@ -98,6 +106,84 @@ export default async function SettingsPage({
         <div className="mt-4 pt-4 border-t border-line-soft text-[11px] font-mono text-ink-50 flex items-center gap-4">
           <span>slug: <span className="text-ink-70">{workspace.slug}</span></span>
           <span>created: <span className="text-ink-70">{workspace.createdAt.toLocaleDateString('en-US')}</span></span>
+        </div>
+      </div>
+
+      {/* Plan & billing */}
+      <div className="bg-paper border-2 border-line p-6 mb-6">
+        <div className="label-eyebrow mb-4">{'// Plan & billing'}</div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">Current plan</div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-2xl font-black">{planInfo.label}</span>
+              <TierBadge plan={workspace.plan} size="md" />
+            </div>
+            <div className="text-[12px] text-ink-70 mt-1">{planInfo.tagline} · {planInfo.price}</div>
+          </div>
+          <button
+            type="button"
+            disabled
+            className="px-4 py-2.5 bg-ink text-cream border-2 border-ink text-[10px] font-extrabold uppercase tracking-[0.15em] opacity-60 cursor-not-allowed"
+            title="Billing is coming soon — contact us to upgrade"
+          >
+            Upgrade plan (soon)
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 pt-4 border-t border-line-soft">
+          {(['STARTER', 'PRO', 'ENTERPRISE'] as const).map((tier) => {
+            const info = PLAN_INFO[tier];
+            const isCurrent = tier === workspace.plan;
+            return (
+              <div
+                key={tier}
+                className={`p-4 border-2 ${
+                  isCurrent ? 'border-orange bg-cream-2' : 'border-line bg-paper'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-extrabold text-[14px]">{info.label}</span>
+                  {isCurrent ? <TierBadge plan={tier} size="sm" /> : null}
+                </div>
+                <div className="font-black text-xl mb-2">{info.price}</div>
+                <p className="text-[11px] text-ink-70 mb-3">{info.tagline}</p>
+                <ul className="text-[11px] space-y-1">
+                  <li className="text-ink-70">{tier === 'STARTER' ? '✓' : '✓'} CRM, projects, pay apps</li>
+                  <li className="text-ink-70">{tier === 'STARTER' ? '✓' : '✓'} Subcontractor library</li>
+                  <li className="text-ink-70">{tier === 'STARTER' ? '✓' : '✓'} Team presence & activity log</li>
+                  <li className="text-ink-70">{tier === 'STARTER' ? '✓' : '✓'} PWA install & offline drafts</li>
+                  <li className="text-ink-70">{tier === 'STARTER' ? '✓' : '✓'} Internal messages</li>
+                  {tier !== 'STARTER' ? (
+                    <>
+                      <li className="text-ink-70">✓ GPS-tagged site photos</li>
+                      <li className="text-ink-70">✓ Barcode & QR scanning</li>
+                      <li className="text-ink-70">✓ Export / import & backup</li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="text-ink-30">– GPS-tagged site photos</li>
+                      <li className="text-ink-30">– Barcode & QR scanning</li>
+                      <li className="text-ink-30">– Export / import & backup</li>
+                    </>
+                  )}
+                  {tier === 'ENTERPRISE' ? (
+                    <>
+                      <li className="text-ink-70">✓ SSO</li>
+                      <li className="text-ink-70">✓ Audit log export</li>
+                      <li className="text-ink-70">✓ Custom branding</li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="text-ink-30">– SSO</li>
+                      <li className="text-ink-30">– Audit log export</li>
+                      <li className="text-ink-30">– Custom branding</li>
+                    </>
+                  )}
+                </ul>
+              </div>
+            );
+          })}
         </div>
       </div>
 

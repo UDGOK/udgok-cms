@@ -44,3 +44,5 @@ attachments/
 
 # pnpm
 .pnpm-store/
+.home/
+node_modules/.cache/

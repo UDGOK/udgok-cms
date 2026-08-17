@@ -9,6 +9,7 @@ interface Tab {
   href: string;
   icon: React.ReactNode;
   matchPrefix: string;
+  isFab?: boolean;
 }
 
 function IconHome() {
@@ -37,20 +38,23 @@ function IconTasks() {
     </svg>
   );
 }
-function IconFiles() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  );
-}
 function IconMore() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="1" />
       <circle cx="19" cy="12" r="1" />
       <circle cx="5" cy="12" r="1" />
+    </svg>
+  );
+}
+function IconScan() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+      <line x1="3" y1="12" x2="21" y2="12" />
     </svg>
   );
 }
@@ -73,16 +77,23 @@ export function MobileTabBar({ onMoreClick }: { onMoreClick?: () => void }) {
       icon: <IconProjects />,
     },
     {
+      label: 'Scan',
+      href: `/w/${slug}/scan`,
+      matchPrefix: `/w/${slug}/scan`,
+      icon: <IconScan />,
+      isFab: true,
+    },
+    {
       label: 'Tasks',
       href: `/w/${slug}/tasks`,
       matchPrefix: `/w/${slug}/tasks`,
       icon: <IconTasks />,
     },
     {
-      label: 'Files',
-      href: `/w/${slug}/files`,
-      matchPrefix: `/w/${slug}/files`,
-      icon: <IconFiles />,
+      label: 'More',
+      href: '',
+      matchPrefix: '',
+      icon: <IconMore />,
     },
   ];
 
@@ -93,7 +104,45 @@ export function MobileTabBar({ onMoreClick }: { onMoreClick?: () => void }) {
     >
       <div className="grid grid-cols-5 h-16">
         {tabs.map((tab) => {
-          const isActive = pathname === tab.href || pathname.startsWith(`${tab.matchPrefix}/`);
+          const isActive =
+            tab.href === ''
+              ? false
+              : pathname === tab.href || pathname.startsWith(`${tab.matchPrefix}/`);
+
+          if (tab.label === 'More') {
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={onMoreClick}
+                className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+                  isActive ? 'text-orange-d' : 'text-ink-50 hover:text-ink'
+                }`}
+              >
+                <span className="w-5 h-5">{tab.icon}</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.05em]">{tab.label}</span>
+              </button>
+            );
+          }
+
+          if (tab.isFab) {
+            return (
+              <Link
+                key={tab.label}
+                href={tab.href}
+                className="flex flex-col items-center justify-center gap-0.5 transition-colors relative -top-3"
+                aria-label="Scan"
+              >
+                <span className="w-12 h-12 rounded-full bg-orange text-paper flex items-center justify-center shadow-lg border-2 border-ink">
+                  <span className="w-6 h-6">{tab.icon}</span>
+                </span>
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.05em] text-orange-d mt-0.5">
+                  {tab.label}
+                </span>
+              </Link>
+            );
+          }
+
           return (
             <Link
               key={tab.label}
@@ -114,16 +163,6 @@ export function MobileTabBar({ onMoreClick }: { onMoreClick?: () => void }) {
             </Link>
           );
         })}
-        <button
-          type="button"
-          onClick={onMoreClick}
-          className="flex flex-col items-center justify-center gap-1 text-ink-50 hover:text-ink transition-colors"
-        >
-          <span className="w-5 h-5">
-            <IconMore />
-          </span>
-          <span className="text-[10px] font-extrabold uppercase tracking-[0.05em]">More</span>
-        </button>
       </div>
       {/* Safe area padding for iPhone home indicator */}
       <div className="h-[env(safe-area-inset-bottom)] bg-paper" />

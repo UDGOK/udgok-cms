@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1e2a3a"/>
+  <text x="256" y="310" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="150" font-weight="900" fill="#f5f1ea" letter-spacing="-5">UDG</text>
+  <text x="256" y="420" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="96" font-weight="900" fill="#f06a2d" letter-spacing="-3">OK</text>
+</svg>

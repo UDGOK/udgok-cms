@@ -96,6 +96,21 @@ export function Topbar({
           </span>
         </Link>
 
+        <Link
+          href={`/w/${slug}/scan`}
+          className="w-[34px] h-[34px] flex items-center justify-center bg-paper border border-line text-ink-70 hover:border-ink hover:text-ink"
+          aria-label="Scan barcode or QR"
+          title="Scan"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+            <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+            <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+            <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+          </svg>
+        </Link>
+
         <button
           className="w-[34px] h-[34px] flex items-center justify-center bg-paper border border-line text-ink-70 hover:border-ink hover:text-ink relative"
           aria-label="Notifications"

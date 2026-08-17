@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { auth } from '@clerk/nextjs/server';
 import { getProject } from '@/lib/projects/queries';
 import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
@@ -8,6 +9,10 @@ import { NewDivisionForm } from './NewDivisionForm';
 import { GeneratePayAppButton } from './GeneratePayAppButton';
 import { AssignSubForm } from './AssignSubForm';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
+import { MessageThread } from '@/components/messages/MessageThread';
+import { listMessagesForEntity } from '@/lib/messages/queries';
+import { listEntityActivity } from '@/lib/activity/queries';
+import { ActivityFeed } from '@/components/activity/ActivityFeed';
 
 const SUB_STATUS_LABEL: Record<string, string> = {
   PROPOSED: 'Proposed',
@@ -31,16 +36,26 @@ export default async function ProjectDetailPage({
   params: { workspace: string; id: string };
 }) {
   const { workspace } = await requireMembership(params.workspace);
+  const { userId } = await auth();
 
-  const [project, subs] = await Promise.all([
+  const [project, subs, messages, activity] = await Promise.all([
     getProject(workspace.id, params.id),
     prisma.subcontractor.findMany({
       where: { workspaceId: workspace.id },
       orderBy: { name: 'asc' },
       select: { id: true, name: true, primaryTrade: true },
     }),
+    listMessagesForEntity('PROJECT', params.id, 50),
+    listEntityActivity(workspace.id, 'project', params.id, 20),
   ]);
   if (!project) notFound();
+
+  const isAdmin =
+    (await prisma.membership.findUnique({
+      where: { userId_workspaceId: { userId: userId!, workspaceId: workspace.id } },
+    }))?.role === 'OWNER' || (await prisma.membership.findUnique({
+      where: { userId_workspaceId: { userId: userId!, workspaceId: workspace.id } },
+    }))?.role === 'ADMIN';
 
   // Compute the SOV totals and remaining to bill
   const totalBudget = project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
@@ -354,6 +369,25 @@ export default async function ProjectDetailPage({
             ))}
           </div>
         )}
+      </div>
+
+      {/* Team discussion */}
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MessageThread
+          workspaceSlug={params.workspace}
+          entityType="PROJECT"
+          entityId={project.id}
+          initialMessages={messages}
+          currentUserId={userId ?? ''}
+          isAdmin={isAdmin}
+          heading="Team discussion"
+        />
+
+        {/* Activity history */}
+        <div className="bg-paper border-2 border-line p-5">
+          <h2 className="text-[15px] font-extrabold uppercase tracking-[0.05em] mb-3">History</h2>
+          <ActivityFeed entries={activity} emptyMessage="No activity yet." />
+        </div>
       </div>
     </div>
   );

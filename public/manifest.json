@@ -1,0 +1,39 @@
+{
+  "name": "UDGOK CMS",
+  "short_name": "UDGOK",
+  "description": "Construction management CMS for UDGOK Construction",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f1ea",
+  "theme_color": "#1e2a3a",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "New pay app",
+      "short_name": "Pay app",
+      "url": "/workspaces",
+      "description": "Jump to your workspaces to generate a new pay app"
+    },
+    {
+      "name": "Tasks",
+      "short_name": "Tasks",
+      "url": "/workspaces",
+      "description": "See what's open today"
+    }
+  ]
+}
