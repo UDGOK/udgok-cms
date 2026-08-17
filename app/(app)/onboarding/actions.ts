@@ -55,7 +55,7 @@ export async function createWorkspaceAction(
       userName = [u.firstName, u.lastName].filter(Boolean).join(' ') || null;
       avatarUrl = u.imageUrl;
     }
-  } catch (e) {
+  } catch {
     // ignore — currentUser() can fail with key issues, we just won't have name/email
   }
 
