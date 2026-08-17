@@ -7,7 +7,8 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up(.*)',
   '/pay-apps/(.*)', // public pay app share links (token-based, no auth)
   '/api/pay-apps/(.*)/acknowledge', // public ack endpoint called from share page
-  '/api/presence(.*)', // presence API does its own auth check (returns 401 for unauthed)
+  '/api/presence/(.*)', // presence API does its own auth check (returns 401 for unauthed)
+  '/api/presence', // also match the bare /api/presence path
   '/api/webhooks/(.*)', // Clerk webhook (verified via Svix signature)
 ]);
 
