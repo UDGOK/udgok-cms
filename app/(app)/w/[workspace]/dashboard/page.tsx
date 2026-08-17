@@ -14,6 +14,8 @@ export default async function DashboardPage({
     recentActivity(workspace.id, 10),
   ]);
 
+  const isFresh = stats.activeClients + stats.openDeals + stats.activeProjects === 0;
+
   return (
     <div className="p-8 max-w-6xl">
       <div className="text-xs font-mono font-bold tracking-[0.2em] text-orange-d uppercase mb-5 flex items-center gap-3">
@@ -70,12 +72,51 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {/* Recent activity */}
-        <div className="md:col-span-2 bg-paper border border-line p-6">
-          <div className="label-eyebrow mb-4">{'// Recent activity'}</div>
-          {activity.length === 0 ? (
+        {/* Recent activity (or getting-started guide for fresh workspaces) */}
+        {isFresh ? (
+          <div className="md:col-span-2 bg-paper border-2 border-line p-6">
+            <div className="label-eyebrow mb-5">{'// Get started'}</div>
+            <ol className="space-y-4">
+              <li className="flex gap-4">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-orange text-paper font-black text-sm flex items-center justify-center">1</span>
+                <div className="flex-1">
+                  <div className="font-extrabold text-[14px] mb-0.5">Add your first client</div>
+                  <p className="text-[12px] text-ink-50 mb-2">A client is who you bill. Each one gets a profile, deal history, and projects.</p>
+                  <Link href={`/w/${params.workspace}/clients`} className="inline-block px-3 py-1.5 bg-ink text-cream text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange transition-colors">
+                    Go to clients →
+                  </Link>
+                </div>
+              </li>
+              <li className="flex gap-4">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-ink text-cream font-black text-sm flex items-center justify-center">2</span>
+                <div className="flex-1">
+                  <div className="font-extrabold text-[14px] mb-0.5">Create a project & build its schedule of values</div>
+                  <p className="text-[12px] text-ink-50 mb-2">Each project gets a budget split by trade. The SOV drives the pay app math.</p>
+                  <Link href={`/w/${params.workspace}/projects`} className="inline-block px-3 py-1.5 bg-ink text-cream text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange transition-colors">
+                    Go to projects →
+                  </Link>
+                </div>
+              </li>
+              <li className="flex gap-4">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-ink text-cream font-black text-sm flex items-center justify-center">3</span>
+                <div className="flex-1">
+                  <div className="font-extrabold text-[14px] mb-0.5">Generate your first pay app</div>
+                  <p className="text-[12px] text-ink-50 mb-2">Pick the SOV lines, enter this-draw amounts, send the link, get paid.</p>
+                  <Link href={`/w/${params.workspace}/projects`} className="inline-block px-3 py-1.5 bg-ink text-cream text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange transition-colors">
+                    Open a project →
+                  </Link>
+                </div>
+              </li>
+            </ol>
+          </div>
+        ) : activity.length === 0 ? (
+          <div className="md:col-span-2 bg-paper border border-line p-6">
+            <div className="label-eyebrow mb-4">{'// Recent activity'}</div>
             <p className="text-ink-50 text-sm">No activity yet. Add a client or deal to get started.</p>
-          ) : (
+          </div>
+        ) : (
+          <div className="md:col-span-2 bg-paper border border-line p-6">
+            <div className="label-eyebrow mb-4">{'// Recent activity'}</div>
             <div className="space-y-3">
               {activity.map((a) => (
                 <Link
@@ -96,8 +137,8 @@ export default async function DashboardPage({
                 </Link>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
