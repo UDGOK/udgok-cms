@@ -13,10 +13,10 @@ export default function NotFound() {
           project may have been moved or never existed in the first place.
         </p>
         <Link
-          href="/dashboard"
+          href="/"
           className="inline-flex items-center gap-2 px-5 py-4 bg-ink text-cream border-2 border-ink font-extrabold uppercase tracking-[0.12em] text-sm hover:bg-orange hover:border-orange transition-colors"
         >
-          Back to dashboard
+          Back to workspaces
         </Link>
       </div>
     </div>
