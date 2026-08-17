@@ -4,6 +4,8 @@ import { auth } from '@clerk/nextjs/server';
 import { getUserWorkspaces } from '@/lib/auth/get-user-workspaces';
 import { WorkspaceTile } from '@/components/workspace/WorkspaceTile';
 
+export const dynamic = 'force-dynamic';
+
 export default async function WorkspacesPage() {
   const { userId } = await auth();
   if (!userId) redirect('/sign-in');
