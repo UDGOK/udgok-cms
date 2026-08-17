@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob';
+import { put, del } from '@vercel/blob';
 import { nanoid } from 'nanoid';
 import { env } from '@/lib/env';
 
@@ -42,7 +42,6 @@ export async function uploadFile(
  */
 export async function deleteFile(url: string): Promise<void> {
   if (!env.BLOB_READ_WRITE_TOKEN) return;
-  const { del } = await import('@vercel/blob');
   await del(url, { token: env.BLOB_READ_WRITE_TOKEN }).catch(() => {
     // Best-effort delete; don't throw on missing.
   });
