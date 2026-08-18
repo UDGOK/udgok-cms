@@ -4,6 +4,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { ScanPageClient } from './ScanPageClient';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 import { listRecentScansForWorkspace } from '@/lib/scans/queries';
+import { listActiveProjectsForInventory } from '@/lib/inventory/queries';
+import { CreateInventoryFromScan } from './CreateInventoryFromScan';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +85,14 @@ export default async function ScanPage({
   // and knows where history will appear once they scan.
   const recentScans = await listRecentScansForWorkspace(workspace.id, 10);
 
+  // Active projects for the create-from-scan form. We only
+  // include ACTIVE / ON_HOLD projects (not COMPLETED /
+  // CANCELLED) because adding inventory to a finished job is
+  // almost always a mistake.
+  const inventoryProjects = searchParams.code
+    ? await listActiveProjectsForInventory(workspace.id)
+    : [];
+
   return (
     <div>
       <PageHeader
@@ -116,9 +126,16 @@ export default async function ScanPage({
                 <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
                   Not found
                 </div>
-                <p className="text-[12px] text-ink-70">
-                  This code isn&apos;t linked to anything in your workspace yet. You can paste it into a new material, equipment, or contact.
+                <p className="text-[12px] text-ink-70 mb-4">
+                  This code isn&apos;t linked to anything in your workspace yet.
+                  Add it to a project&apos;s inventory as a new material or
+                  piece of equipment.
                 </p>
+                <CreateInventoryFromScan
+                  workspaceSlug={workspace.slug}
+                  scannedCode={searchParams.code}
+                  projects={inventoryProjects}
+                />
               </div>
             )}
           </div>

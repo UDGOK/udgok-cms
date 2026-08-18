@@ -170,6 +170,13 @@ const TAB_ICONS: Record<string, ReactNode> = {
       <line x1="12" y1="22.08" x2="12" y2="12" />
     </svg>
   ),
+  inventory: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20.91 8.84L8.56 2.23a1.93 1.93 0 0 0-1.81 0L3.1 4.13a1.93 1.93 0 0 0-.97 1.68v8.39a1.93 1.93 0 0 0 .97 1.68l12.35 6.6a1.93 1.93 0 0 0 1.81 0l3.65-1.95a1.93 1.93 0 0 0 .97-1.68V10.52a1.93 1.93 0 0 0-.97-1.68z" />
+      <polyline points="7.09 6.31 12 8.83 16.91 6.31" />
+      <line x1="12" y1="8.83" x2="12" y2="21.97" />
+    </svg>
+  ),
   map: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />

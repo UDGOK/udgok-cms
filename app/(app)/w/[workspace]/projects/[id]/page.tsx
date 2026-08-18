@@ -28,6 +28,7 @@ import { CompletionRing } from './CompletionRing';
 import { AIBoard } from './AIBoard';
 import { TakeoffTab } from './TakeoffTab';
 import { ProjectMapTab as MapTab } from './MapTab';
+import { InventoryTab } from './InventoryTab';
 import type { ProjectStatus } from '@prisma/client';
 import { hasValidCoords } from '@/lib/map/valid-coords';
 import { AddProjectMemberForm } from './AddProjectMemberForm';
@@ -316,6 +317,7 @@ export default async function ProjectDetailPage({
     { key: 'schedule', label: 'Schedule', href: `${base}?tab=schedule` },
     { key: 'permits', label: 'Permits', href: `${base}?tab=permits`, badge: permitsBadge },
     { key: 'takeoff', label: 'Takeoff', href: `${base}?tab=takeoff`, badge: projectData.bimModels.length || undefined },
+    { key: 'inventory', label: 'Inventory', href: `${base}?tab=inventory` },
     { key: 'map', label: 'Map', href: `${base}?tab=map`, badge: gpsPhotos.length > 0 ? gpsPhotos.length : undefined },
     { key: 'pay-apps', label: 'Pay apps', href: `${base}/pay-apps`, badge: projectData.payApps.length || undefined },
     { key: 'subs', label: 'Subs', href: `${base}?tab=subs`, badge: projectData.subAssignments.length || undefined },
@@ -522,6 +524,13 @@ export default async function ProjectDetailPage({
           projectId={projectData.id}
           bimModels={projectData.bimModels}
           bimTakeoffs={projectData.bimTakeoffs}
+        />
+      ) : null}
+
+      {tab === 'inventory' ? (
+        <InventoryTab
+          workspaceSlug={params.workspace}
+          projectId={projectData.id}
         />
       ) : null}
 

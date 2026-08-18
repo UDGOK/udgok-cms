@@ -41,6 +41,8 @@ model Workspace {
   bimModels     BimModel[]
   bimTakeoffs   BimTakeoff[]
   scanEvents    ScanEvent[]
+  materials     Material[]
+  equipment     Equipment[]
 
   @@index([slug])
 }
@@ -65,6 +67,8 @@ model User {
   activity       ActivityLog[]
   bimModels      BimModel[]      @relation("bimUploader")
   scanEvents     ScanEvent[]
+  materials      Material[]      @relation("materialUploader")
+  equipment      Equipment[]     @relation("equipmentUploader")
 
   @@index([email])
 }
@@ -293,10 +297,96 @@ model Project {
   permits   Permit[]
   bimModels     BimModel[]
   bimTakeoffs   BimTakeoff[]
+  materials     Material[]
+  equipment     Equipment[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
   @@index([workspaceId, latitude, longitude])
+}
+
+// =========================================
+// INVENTORY — materials and equipment per project
+// =========================================
+
+/**
+ * Building materials tracked per project. The `code` field is
+ * the barcode/UPC/SKU that gets scanned — uniqueness is scoped
+ * to (workspaceId, projectId, code) so the same SKU can be
+ * tracked separately for two different projects (e.g., 50
+ * sheets of drywall on Job A, 30 sheets on Job B). This is
+ * what the scan page links to when a code is recognized.
+ *
+ * `unit` is a free-text string (each, board-feet, linear-feet,
+ * square-feet, cubic-yard, pound, gallon, etc.) — we don't
+ * constrain it because construction has a million units and
+ * the user knows what they bought.
+ *
+ * `quantity` is the current on-hand count. Decremented as the
+ * material is consumed on site; incremented as deliveries
+ * arrive. We don't track every movement here (that's a future
+ * feature) — just the current balance.
+ */
+model Material {
+  id          String   @id @default(cuid())
+  workspaceId String
+  projectId   String
+  uploaderId  String
+  code        String   // barcode / UPC / SKU / QR value
+  name        String
+  description String?
+  unit        String   @default("each")
+  unitCost    Decimal? @db.Decimal(12, 2)
+  quantity    Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader  User     @relation("materialUploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+
+  @@unique([workspaceId, projectId, code], name: "material_code_per_project")
+  @@index([workspaceId, projectId])
+  @@index([workspaceId, code])
+}
+
+/**
+ * Tools and equipment tracked per project. Same shape as
+ * Material (code, project-scoping, current quantity) plus a
+ * `condition` enum (NEW, GOOD, FAIR, POOR) so the team can
+ * track what's worn out. Serial number is captured separately
+ * from the barcode — a piece of equipment can have both, and
+ * some have neither.
+ */
+model Equipment {
+  id          String         @id @default(cuid())
+  workspaceId String
+  projectId   String
+  uploaderId  String
+  code        String
+  name        String
+  description String?
+  serialNumber String?
+  condition   EquipmentCondition @default(GOOD)
+  unitCost    Decimal?       @db.Decimal(12, 2)
+  quantity    Int            @default(1)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader  User     @relation("equipmentUploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+
+  @@unique([workspaceId, projectId, code], name: "equipment_code_per_project")
+  @@index([workspaceId, projectId])
+  @@index([workspaceId, code])
+}
+
+enum EquipmentCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
 }
 
 // Per-construction-phase photos. Categorized by:
