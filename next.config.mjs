@@ -30,7 +30,11 @@ const aliases = {
   NEXT_PUBLIC_APP_URL: ['UDGOK_CMS_APP_URL'],
   // Master admin emails (JSON array, optional — yasir@udgok.com is always master)
   UDGOK_CMS_MASTERS: ['MASTERS'],
-  // DeepSeek AI
+  // NVIDIA NIM AI (replaces DeepSeek). Two-way aliasing so both
+  // UDGOK_CMS_NVIDIA_API_KEY and NVIDIA_API_KEY resolve either way.
+  NVIDIA_API_KEY: ['UDGOK_CMS_NVIDIA_API_KEY'],
+  UDGOK_CMS_NVIDIA_API_KEY: ['NVIDIA_API_KEY'],
+  // Legacy DeepSeek aliases (kept so any leftover env vars don't crash reads)
   DEEPSEEK_API_KEY: ['UDGOK_CMS_DEEPSEEK_API_KEY'],
   UDGOK_CMS_DEEPSEEK_API_KEY: ['DEEPSEEK_API_KEY'],
 };

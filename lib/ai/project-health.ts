@@ -6,7 +6,7 @@
 
 import { prisma } from '@/lib/db/client';
 import { computeProjectCompletion, generateProjectInsights } from '@/lib/projects/insights';
-import { isDeepSeekConfigured } from './deepseek';
+import { isNvidiaConfigured } from './nvidia';
 import { analyzeProjectDeep } from './project-analyzer';
 
 export interface ProjectHealthRow {
@@ -223,7 +223,7 @@ export async function getGlobalProjectHealth(): Promise<GlobalHealth> {
     avgTasks,
     atRiskCount,
     onTrackCount,
-    deepseekEnabled: isDeepSeekConfigured(),
+    deepseekEnabled: isNvidiaConfigured(),
     rows,
   };
 }

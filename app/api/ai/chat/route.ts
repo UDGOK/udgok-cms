@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 import { prisma } from '@/lib/db/client';
 import { computeProjectCompletion } from '@/lib/projects/insights';
-import { deepseekJson, isDeepSeekConfigured } from '@/lib/ai/deepseek';
+import { nvidiaJson, isNvidiaConfigured } from '@/lib/ai/nvidia';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
   }
-  if (!isDeepSeekConfigured()) {
+  if (!isNvidiaConfigured()) {
     return NextResponse.json({ error: 'AI not configured' }, { status: 503 });
   }
 
@@ -204,7 +204,7 @@ Answer the user's question. Be specific. Use bullet points when listing things. 
   ];
 
   try {
-    const result = await deepseekJson<{ answer: string }>(
+    const result = await nvidiaJson<{ answer: string }>(
       'You are UDGOK AI, a project management assistant. Be direct, specific, use the actual data. Always return JSON with an "answer" key containing your response in plain text (no markdown, but bullets and line breaks are fine).',
       messages.map((m) => m.content).join('\n\n'),
       { temperature: 0.5, maxTokens: 800 },

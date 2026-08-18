@@ -1,7 +1,7 @@
 /**
- * Project analyzer — uses DeepSeek to give an in-depth natural-language
- * analysis of a project based on its current state. The result augments
- * the rule-based insights from lib/projects/insights.ts.
+ * Project analyzer — uses NVIDIA NIM (Llama 3.3 70B) to give an in-depth
+ * natural-language analysis of a project based on its current state. The
+ * result augments the rule-based insights from lib/projects/insights.ts.
  *
  * Three outputs:
  *   1. analyzeProjectDeep() — long-form "executive summary" + health score
@@ -9,12 +9,12 @@
  *   3. draftSubMessage() — draft a message to a specific subcontractor
  *
  * The system prompt is tuned for the UDGOK user: small-to-mid construction
- * contractors, US-based, residential + light commercial. We feed DeepSeek
+ * contractors, US-based, residential + light commercial. We feed the model
  * the actual sub names, division codes, task titles, etc. so the output
  * is specific (not generic).
  */
 
-import { deepseekJson, isDeepSeekConfigured } from './deepseek';
+import { nvidiaJson, isNvidiaConfigured } from './nvidia';
 import { computeProjectCompletion, type ProjectMeta } from '@/lib/projects/insights';
 
 export interface DeepInsight {
@@ -233,7 +233,7 @@ export async function analyzeProjectDeep(
   projectId: string,
   extras: Parameters<typeof buildProjectContext>[2] = {},
 ): Promise<DeepAnalysis | null> {
-  if (!isDeepSeekConfigured()) return null;
+  if (!isNvidiaConfigured()) return null;
 
   const completion = computeProjectCompletion(project);
   const ctx = buildProjectContext(project, completion, extras);
@@ -250,7 +250,7 @@ Base href for any actions: /w/${workspaceSlug}/projects/${projectId}
 Use fragments like /tasks, /pay-apps, /subs, etc. for the action links.`;
 
   try {
-    const result = await deepseekJson<{
+    const result = await nvidiaJson<{
       summary: string;
       healthScore: number;
       risks: string[];
@@ -265,7 +265,7 @@ Use fragments like /tasks, /pay-apps, /subs, etc. for the action links.`;
       opportunities: result.opportunities ?? [],
       nextActions: result.nextActions ?? [],
       generatedAt: new Date().toISOString(),
-      model: 'deepseek-chat',
+      model: 'nvidia/llama-3.3-70b-instruct',
     };
   } catch (e) {
     console.error('[DeepSeek] analyzeProjectDeep failed:', e);
@@ -283,7 +283,7 @@ export async function generateDeepInsights(
   projectId: string,
   extras: Parameters<typeof buildProjectContext>[2] = {},
 ): Promise<DeepInsight[]> {
-  if (!isDeepSeekConfigured()) return [];
+  if (!isNvidiaConfigured()) return [];
 
   const completion = computeProjectCompletion(project);
   const ctx = buildProjectContext(project, completion, extras);
@@ -305,7 +305,7 @@ ${INSIGHTS_SCHEMA_HINT}
 Base href for any action links: /w/${workspaceSlug}/projects/${projectId}`;
 
   try {
-    const result = await deepseekJson<{ insights: DeepInsight[] }>(
+    const result = await nvidiaJson<{ insights: DeepInsight[] }>(
       SYSTEM_PROMPT,
       userPrompt,
       { temperature: 0.6, maxTokens: 1200 },
@@ -330,7 +330,7 @@ export async function draftSubMessage(
     notes?: string;
   },
 ): Promise<SubMessageDraft | null> {
-  if (!isDeepSeekConfigured()) return null;
+  if (!isNvidiaConfigured()) return null;
 
   const completion = computeProjectCompletion(project);
 
@@ -361,7 +361,7 @@ Return JSON:
 ${SUB_MESSAGE_SCHEMA_HINT}`;
 
   try {
-    const result = await deepseekJson<{
+    const result = await nvidiaJson<{
       subject: string;
       body: string;
       confidence: number;
