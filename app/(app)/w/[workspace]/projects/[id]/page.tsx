@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { GanttChart, type GanttTask } from '@/components/workspace/GanttChart';
 import { NewDivisionForm } from './NewDivisionForm';
+import { DivisionRow } from './DivisionRow';
 import { GeneratePayAppButton } from './GeneratePayAppButton';
 import { AssignSubForm } from './AssignSubForm';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
@@ -731,7 +732,7 @@ function OverviewTab({
             <table className="w-full border-collapse min-w-[640px]">
               <thead>
                 <tr>
-                  {['Code', 'Trade', 'Subcontractor', 'Budget', 'Billed', 'Remaining'].map((h) => (
+                  {['Code', 'Trade', 'Subcontractor', 'Budget', 'Billed', 'Remaining', 'Actions'].map((h) => (
                     <th key={h} className="text-left px-3 md:px-5 py-3 bg-cream-2 border-b border-line text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink-50">
                       {h}
                     </th>
@@ -744,27 +745,22 @@ function OverviewTab({
                     .flatMap((p) => p.divisions)
                     .filter((line) => line.projectDivisionId === d.id)
                     .reduce((acc, l) => acc + Number(l.thisDrawAmount), 0);
-                  const rem = Number(d.budget) - billed;
                   const linkedSub = d.subLinks?.[0]?.assignment?.subcontractor;
                   return (
-                    <tr key={d.id} className="hover:bg-cream-2">
-                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-mono text-[12px]">{d.code}</td>
-                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-extrabold text-[13px]">{d.trade}</td>
-                      <td className="px-3 md:px-5 py-3 border-b border-line-soft text-[12px]">
-                        {linkedSub ? (
-                          <Link href={`/w/${workspace}/subcontractors/${linkedSub.id}`} className="text-orange-d font-extrabold hover:underline">
-                            {linkedSub.name}
-                          </Link>
-                        ) : d.subcontractorName ? (
-                          <span className="text-ink-70">{d.subcontractorName}</span>
-                        ) : (
-                          <span className="text-ink-30">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-black">${Number(d.budget).toLocaleString()}</td>
-                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-black text-success">${billed.toLocaleString()}</td>
-                      <td className="px-3 md:px-5 py-3 border-b border-line-soft font-black text-orange-d">${rem.toLocaleString()}</td>
-                    </tr>
+                    <DivisionRow
+                      key={d.id}
+                      workspaceSlug={workspace}
+                      projectId={projectId}
+                      division={{
+                        id: d.id,
+                        code: d.code,
+                        trade: d.trade,
+                        budget: Number(d.budget),
+                        subcontractorName: d.subcontractorName,
+                        linkedSub: linkedSub ?? null,
+                      }}
+                      billed={billed}
+                    />
                   );
                 })}
                 <tr className="bg-ink text-cream">
@@ -772,6 +768,7 @@ function OverviewTab({
                   <td className="px-3 md:px-5 py-3 font-black text-lg">${totalBudget.toLocaleString()}</td>
                   <td className="px-3 md:px-5 py-3 font-black text-lg">${totalBilled.toLocaleString()}</td>
                   <td className="px-3 md:px-5 py-3 font-black text-lg">${(totalBudget - totalBilled).toLocaleString()}</td>
+                  <td className="px-3 md:px-5 py-3"></td>
                 </tr>
               </tbody>
             </table>

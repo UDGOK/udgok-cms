@@ -164,6 +164,97 @@ export async function createDivisionAction(
   return { ok: true };
 }
 
+export type UpdateDivisionState =
+  | { error?: string; fieldErrors?: Record<string, string>; ok?: boolean }
+  | undefined;
+
+/**
+ * Edit an existing Schedule of Values line — code, trade, subcontractor
+ * name, budget. Used for both manually-added lines and lines that came
+ * from the auto-generated CSI template (which otherwise had no way to
+ * be corrected after project creation).
+ */
+export async function updateDivisionAction(
+  workspaceSlug: string,
+  projectId: string,
+  divisionId: string,
+  _prev: UpdateDivisionState,
+  formData: FormData,
+): Promise<UpdateDivisionState> {
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  // Verify project belongs to this workspace, and division belongs to project
+  const project = await prisma.project.findFirst({ where: { id: projectId, workspaceId: workspace.id } });
+  if (!project) return { error: 'Project not found' };
+
+  const division = await prisma.projectDivision.findFirst({ where: { id: divisionId, projectId } });
+  if (!division) return { error: 'Division not found' };
+
+  const parsed = divisionSchema.safeParse({
+    code: formData.get('code'),
+    trade: formData.get('trade'),
+    subcontractorName: formData.get('subcontractorName') || undefined,
+    budget: formData.get('budget'),
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const k = String(issue.path[0]);
+      if (!fieldErrors[k]) fieldErrors[k] = issue.message;
+    }
+    return { error: 'Please fix the errors below', fieldErrors };
+  }
+
+  await prisma.projectDivision.update({
+    where: { id: divisionId },
+    data: {
+      code: parsed.data.code,
+      trade: parsed.data.trade,
+      subcontractorName: parsed.data.subcontractorName,
+      budget: parsed.data.budget,
+    },
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
+  return { ok: true };
+}
+
+/**
+ * Delete a Schedule of Values line. Blocked if the division already has
+ * pay app history (PayAppDivision has no cascade on this FK — see
+ * deleteWorkspaceAction for the same relation) so we never silently lose
+ * billing records; the user has to remove it from the pay app(s) first.
+ */
+export async function deleteDivisionAction(
+  workspaceSlug: string,
+  projectId: string,
+  divisionId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const project = await prisma.project.findFirst({ where: { id: projectId, workspaceId: workspace.id } });
+  if (!project) return { ok: false, error: 'Project not found' };
+
+  const division = await prisma.projectDivision.findFirst({ where: { id: divisionId, projectId } });
+  if (!division) return { ok: false, error: 'Division not found' };
+
+  const billedLineCount = await prisma.payAppDivision.count({ where: { projectDivisionId: divisionId } });
+  if (billedLineCount > 0) {
+    return {
+      ok: false,
+      error: `Can't delete — this division appears on ${billedLineCount} pay app line${billedLineCount === 1 ? '' : 's'}. Remove it from those pay apps first.`,
+    };
+  }
+
+  // ProjectDivisionAssignment cascades via schema, safe to delete directly.
+  await prisma.projectDivision.delete({ where: { id: divisionId } });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
+  return { ok: true };
+}
+
 // =========================================
 // PROJECT DETAILS (address, status, etc.)
 // =========================================
