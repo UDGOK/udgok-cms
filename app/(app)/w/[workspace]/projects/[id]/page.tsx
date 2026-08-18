@@ -28,6 +28,8 @@ import { AddPermitForm } from './AddPermitForm';
 import { PermitCard } from './PermitCard';
 import { listProjectPermits, summarizePermits } from '@/lib/permits/queries';
 import { analyzeProjectDeep, generateDeepInsights } from '@/lib/ai/project-analyzer';
+import { AskAIChat } from './AskAIChat';
+import { DraftSubMessageButton } from './DraftSubMessageButton';
 
 interface ProjectUser {
   id: string;
@@ -232,17 +234,6 @@ export default async function ProjectDetailPage({
   const completion = computeProjectCompletion(projectForInsights);
   const insights = generateProjectInsights(projectForInsights, completion);
 
-  // DeepSeek: in-depth analysis. Only run on the AI tab to avoid
-  // burning API credits on every page load. Runs in parallel.
-  let deepAnalysis = null;
-  let deepInsights: Awaited<ReturnType<typeof generateDeepInsights>> = [];
-  if (tab === 'ai') {
-    [deepAnalysis, deepInsights] = await Promise.all([
-      analyzeProjectDeep(projectForInsights, params.workspace, projectData.id),
-      generateDeepInsights(projectForInsights, params.workspace, projectData.id),
-    ]);
-  }
-
   // Build tabs
   const base = `/w/${params.workspace}/projects/${projectData.id}`;
   const permitSummary = summarizePermits(permits);
@@ -251,6 +242,65 @@ export default async function ProjectDetailPage({
     : permits.length > 0
       ? permits.length
       : undefined;
+
+  // Build the rich context that DeepSeek gets fed (so the output uses
+  // real sub names, division codes, etc.).
+  const aiExtras = {
+    subs: projectData.subAssignments.map((a) => ({
+      id: a.subcontractor.id,
+      name: a.subcontractor.name,
+      primaryTrade: a.subcontractor.primaryTrade,
+      status: a.status,
+      contractAmount: a.contractAmount ? Number(a.contractAmount) : null,
+      divisionLabels: a.divisionLinks.map((dl) => `${dl.division.code} ${dl.division.trade}`),
+    })),
+    divisions: projectData.divisions.map((d) => {
+      const billed = projectData.payApps
+        .flatMap((p) => p.divisions)
+        .filter((l) => l.projectDivisionId === d.id)
+        .reduce((acc, l) => acc + Number(l.thisDrawAmount), 0);
+      const linkedSub = d.subLinks?.[0]?.assignment?.subcontractor;
+      return {
+        id: d.id,
+        code: d.code,
+        trade: d.trade,
+        budget: Number(d.budget),
+        billed,
+        remaining: Number(d.budget) - billed,
+        subcontractorName: d.subcontractorName,
+        linkedSub: linkedSub?.name ?? null,
+      };
+    }),
+    tasks: projectData.tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      dueDate: t.dueDate,
+      assignee: t.assignee?.name ?? null,
+    })),
+    projectMeta: {
+      code: projectData.code,
+      clientName: projectData.client?.name ?? null,
+      address: projectData.address,
+      city: projectData.city,
+      state: projectData.state,
+    },
+    permits: { overdueCount: permitSummary.overdueInspections },
+  };
+
+  // DeepSeek: in-depth analysis. Only run on the AI tab to avoid
+  // burning API credits on every page load. Runs in parallel.
+  let deepAnalysis = null;
+  let deepInsights: Awaited<ReturnType<typeof generateDeepInsights>> = [];
+  if (tab === 'ai') {
+    [deepAnalysis, deepInsights] = await Promise.all([
+      analyzeProjectDeep(projectForInsights, params.workspace, projectData.id, aiExtras),
+      generateDeepInsights(projectForInsights, params.workspace, projectData.id, aiExtras),
+    ]);
+  }
+
+  // Build tabs
   const tabs = [
     { key: 'overview', label: 'Overview', href: base },
     {
@@ -461,6 +511,8 @@ export default async function ProjectDetailPage({
           </div>
         </div>
       ) : null}
+
+      <AskAIChat projectId={projectData.id} projectName={projectData.name} />
     </div>
   );
 }
@@ -1052,8 +1104,13 @@ function SubsTab({
                   ) : null}
                   {a.notes ? <p className="text-[11px] text-ink-50 mt-1.5">{a.notes}</p> : null}
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end gap-1.5 flex-shrink-0">
                   <div className="font-black text-[15px]">${Number(a.contractAmount).toLocaleString()}</div>
+                  <DraftSubMessageButton
+                    workspaceSlug={workspace}
+                    projectId={projectId}
+                    sub={{ id: a.subcontractor.id, name: a.subcontractor.name, primaryTrade: a.subcontractor.primaryTrade }}
+                  />
                 </div>
               </div>
             ))}

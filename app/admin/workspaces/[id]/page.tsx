@@ -5,6 +5,9 @@ import { PLAN_INFO } from '@/lib/workspace/tier';
 import { listMasterAdminEmails } from '@/lib/admin/permissions';
 import { WorkspacePlanForm } from './WorkspacePlanForm';
 import { ForceAddMemberForm } from './ForceAddMemberForm';
+import { EditWorkspaceForm } from './EditWorkspaceForm';
+import { ChangeRoleButton } from './ChangeRoleButton';
+import { DeleteWorkspaceButton } from './DeleteWorkspaceButton';
 import { relativeTime } from '@/lib/format/relative-time';
 
 export const dynamic = 'force-dynamic';
@@ -18,11 +21,22 @@ export default async function AdminWorkspaceDetail({ params }: { params: { id: s
         include: { user: true },
       },
       _count: {
-        select: { members: true, projects: true, clients: true, files: true, messages: true },
+        select: {
+          members: true,
+          projects: true,
+          clients: true,
+          files: true,
+          messages: true,
+          tasks: true,
+        },
       },
     },
   });
   if (!workspace) notFound();
+
+  const payAppCount = await prisma.payApp.count({
+    where: { project: { workspaceId: workspace.id } },
+  });
 
   const masters = listMasterAdminEmails().map((e) => e.toLowerCase());
   const planInfo = PLAN_INFO[workspace.plan];
@@ -35,28 +49,39 @@ export default async function AdminWorkspaceDetail({ params }: { params: { id: s
         </Link>
       </div>
 
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-black">{workspace.name}</h1>
-          <p className="text-ink-70 text-sm mt-1">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-3xl font-black tracking-tight">{workspace.name}</h1>
+          <p className="text-ink-70 text-sm mt-1 flex items-center gap-2 flex-wrap">
             <code className="px-1.5 py-0.5 bg-cream-2 text-[11px] font-mono">{workspace.slug}</code>
-            {workspace.industry ? <span> · {workspace.industry}</span> : null}
+            {workspace.industry ? <span>· {workspace.industry}</span> : null}
+            <span className="text-ink-30 text-[10px] font-mono">id: {workspace.id}</span>
           </p>
         </div>
-        <a
-          href={`/w/${workspace.slug}/dashboard`}
-          target="_blank"
-          rel="noopener"
-          className="text-[10px] font-extrabold uppercase tracking-[0.1em] px-3 py-2 border-2 border-ink hover:bg-ink hover:text-cream"
-        >
-          Open as user ↗
-        </a>
+        <div className="flex items-center gap-2 flex-wrap">
+          <a
+            href={`/w/${workspace.slug}/dashboard`}
+            target="_blank"
+            rel="noopener"
+            className="text-[10px] font-extrabold uppercase tracking-[0.1em] px-3 py-2 border-2 border-ink hover:bg-ink hover:text-cream"
+          >
+            Open as user ↗
+          </a>
+          <EditWorkspaceForm
+            workspaceId={workspace.id}
+            initial={{ name: workspace.name, slug: workspace.slug, industry: workspace.industry }}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <KpiCard label="Members" value={workspace._count.members} />
         <KpiCard label="Projects" value={workspace._count.projects} />
         <KpiCard label="Clients" value={workspace._count.clients} />
+        <KpiCard label="Pay apps" value={payAppCount} />
+        <KpiCard label="Tasks" value={workspace._count.tasks} />
+        <KpiCard label="Messages" value={workspace._count.messages} />
         <KpiCard label="Files" value={workspace._count.files} />
       </div>
 
@@ -101,7 +126,7 @@ export default async function AdminWorkspaceDetail({ params }: { params: { id: s
                       {m.user.name || m.user.email}
                       {isMaster ? (
                         <span className="text-[8px] font-mono uppercase tracking-[0.15em] px-1.5 py-0.5 bg-orange text-paper">
-                          👑
+                          👑 MASTER
                         </span>
                       ) : null}
                     </div>
@@ -109,17 +134,12 @@ export default async function AdminWorkspaceDetail({ params }: { params: { id: s
                       {m.user.email} · joined {relativeTime(m.joinedAt.toISOString())}
                     </div>
                   </div>
-                  <span
-                    className={`text-[9px] font-extrabold uppercase tracking-[0.1em] px-2 py-0.5 ${
-                      m.role === 'OWNER'
-                        ? 'bg-orange text-paper'
-                        : m.role === 'ADMIN'
-                        ? 'bg-ink text-cream'
-                        : 'bg-cream-2 text-ink-50'
-                    }`}
-                  >
-                    {m.role}
-                  </span>
+                  <ChangeRoleButton
+                    workspaceId={workspace.id}
+                    userId={m.user.id}
+                    userName={m.user.name || m.user.email}
+                    currentRole={m.role}
+                  />
                 </li>
               );
             })}
@@ -129,6 +149,31 @@ export default async function AdminWorkspaceDetail({ params }: { params: { id: s
             <h3 className="text-[11px] font-extrabold uppercase tracking-[0.05em] mb-2">Force-add member</h3>
             <ForceAddMemberForm workspaceId={workspace.id} />
           </div>
+        </div>
+      </div>
+
+      {/* DANGER ZONE */}
+      <div className="mt-8 bg-paper border-2 border-error p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">⚠</span>
+          <h2 className="text-[16px] font-black uppercase tracking-[0.05em] text-error">Danger zone</h2>
+        </div>
+        <p className="text-[13px] text-ink-70 mb-4">
+          These actions permanently affect the workspace. They are gated behind a typed confirmation and cannot be undone.
+        </p>
+        <div className="flex items-center justify-between gap-4 flex-wrap bg-cream-2 p-4 border border-error">
+          <div>
+            <div className="font-extrabold text-[14px]">Delete this workspace</div>
+            <div className="text-[12px] text-ink-70 mt-0.5">
+              Cascade-deletes all {workspace._count.projects} project{workspace._count.projects === 1 ? '' : 's'}, {workspace._count.clients} client{workspace._count.clients === 1 ? '' : 's'}, {payAppCount} pay app{payAppCount === 1 ? '' : 's'}, every photo, message, task, note, and file. Members are removed (not deleted from Clerk).
+            </div>
+          </div>
+          <DeleteWorkspaceButton
+            workspaceId={workspace.id}
+            workspaceName={workspace.name}
+            memberCount={workspace._count.members}
+            projectCount={workspace._count.projects}
+          />
         </div>
       </div>
     </div>

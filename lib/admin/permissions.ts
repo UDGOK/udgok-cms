@@ -59,6 +59,27 @@ export async function currentUserIsMasterAdmin(): Promise<boolean> {
 }
 
 /**
+ * Throws if the current user is not a master admin. Use in server
+ * actions / API routes to gate access in one line:
+ *
+ *   await requireMasterAdmin();
+ *
+ * Returns the userId of the master admin so the caller can log it.
+ */
+export async function requireMasterAdmin(): Promise<{ userId: string; email: string }> {
+  const { userId } = await auth();
+  if (!userId) throw new Error('Not signed in');
+  if (!(await isMasterAdmin(userId))) {
+    throw new Error('Master admin access required');
+  }
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  return { userId, email: me?.email ?? '' };
+}
+
+/**
  * Get the list of master admin emails (for display purposes). Excludes
  * the default yasir@udgok.com from being shown twice.
  */

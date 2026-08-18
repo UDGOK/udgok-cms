@@ -2,6 +2,8 @@ import { prisma } from '@/lib/db/client';
 import Link from 'next/link';
 import { listMasterAdminEmails } from '@/lib/admin/permissions';
 import { Prisma } from '@prisma/client';
+import { auth } from '@clerk/nextjs/server';
+import { UserAdminActions } from './UserAdminActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +20,7 @@ export default async function AdminUsersPage({
     ];
   }
 
-  const [users, total] = await Promise.all([
+  const [users, total, { userId: meId }] = await Promise.all([
     prisma.user.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -31,6 +33,7 @@ export default async function AdminUsersPage({
       },
     }),
     prisma.user.count(),
+    auth(),
   ]);
 
   const masters = listMasterAdminEmails().map((e) => e.toLowerCase());
@@ -71,6 +74,7 @@ export default async function AdminUsersPage({
               <th className="px-4 py-3">Workspaces</th>
               <th className="px-4 py-3 hidden lg:table-cell">Joined</th>
               <th className="px-4 py-3 hidden lg:table-cell">Last seen</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
@@ -139,12 +143,22 @@ export default async function AdminUsersPage({
                       return lastSeen.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
                     })()}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <UserAdminActions
+                      userId={u.id}
+                      userName={u.name ?? ''}
+                      userEmail={u.email}
+                      isMaster={masters.includes(u.email.toLowerCase())}
+                      isSelf={u.id === meId}
+                      workspaceCount={u.memberships.length}
+                    />
+                  </td>
                 </tr>
               );
             })}
             {users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-ink-50">
+                <td colSpan={6} className="px-4 py-12 text-center text-ink-50">
                   No users found.
                 </td>
               </tr>

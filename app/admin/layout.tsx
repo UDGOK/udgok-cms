@@ -55,7 +55,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <AdminNavLink href="/admin" label="Overview" />
               <AdminNavLink href="/admin/workspaces" label="Workspaces" />
               <AdminNavLink href="/admin/users" label="Users" />
-              <AdminNavLink href="/admin/email-test" label="Email test" />
+              <AdminNavLink href="/admin/projects" label="Projects" />
+              <AdminNavLink href="/admin/ai" label="AI" />
+              <AdminNavLink href="/admin/email-test" label="Email" />
               <AdminNavLink href="/admin/system" label="System" />
             </nav>
           </div>
@@ -76,7 +78,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <AdminNavLink href="/admin" label="Overview" mobile />
           <AdminNavLink href="/admin/workspaces" label="Workspaces" mobile />
           <AdminNavLink href="/admin/users" label="Users" mobile />
-          <AdminNavLink href="/admin/email-test" label="Email test" mobile />
+          <AdminNavLink href="/admin/projects" label="Projects" mobile />
+          <AdminNavLink href="/admin/ai" label="AI" mobile />
+          <AdminNavLink href="/admin/email-test" label="Email" mobile />
           <AdminNavLink href="/admin/system" label="System" mobile />
         </div>
       </header>
