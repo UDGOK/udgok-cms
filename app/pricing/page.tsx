@@ -33,7 +33,7 @@ export default async function PricingPage() {
 
   return (
     <MarketingPageShell>
-      <MarketingNav signedIn={false} />
+      <MarketingNav />
 
       <PricingSection plans={data.plans} />
 

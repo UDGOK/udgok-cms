@@ -203,7 +203,7 @@ export default async function FeaturesPage() {
 
   return (
     <MarketingPageShell>
-      <MarketingNav signedIn={false} />
+      <MarketingNav />
 
       <Header />
 

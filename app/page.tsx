@@ -31,7 +31,7 @@ export default async function HomePage() {
 
   return (
     <MarketingPageShell>
-      <MarketingNav signedIn={false} />
+      <MarketingNav />
 
       <Hero />
 
