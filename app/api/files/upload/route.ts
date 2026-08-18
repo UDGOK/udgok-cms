@@ -15,6 +15,7 @@
  *      with the metadata from the token
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { auth } from '@clerk/nextjs/server';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { prisma } from '@/lib/db/client';
@@ -109,6 +110,36 @@ export async function POST(req: NextRequest) {
             const d = new Date(meta.takenAt);
             if (!isNaN(d.getTime())) takenAt = d;
           }
+
+          // Defensive upserts — if the Clerk webhook hasn't synced
+          // the user or workspace yet (webhook delivery can lag a
+          // few seconds behind sign-in), the FK on File.uploaderId
+          // / File.workspaceId would otherwise fail and silently
+          // drop the row. The webhooks remain the canonical sync
+          // path; this is the belt-and-braces fallback so uploads
+          // never silently fail.
+          await prisma.user.upsert({
+            where: { id: meta.uploaderId },
+            create: {
+              id: meta.uploaderId,
+              email: `${meta.uploaderId}@unknown.udgok.com`,
+              name: null,
+            },
+            update: {},
+          });
+          // Upsert the workspace too. The slug is set to the
+          // workspaceId as a placeholder; the Clerk webhook will
+          // overwrite it with the real slug once it fires.
+          const ws = await prisma.workspace.upsert({
+            where: { id: meta.workspaceId },
+            create: {
+              id: meta.workspaceId,
+              slug: meta.workspaceId,
+              name: 'Workspace',
+            },
+            update: {},
+          });
+
           await prisma.file.create({
             data: {
               workspaceId: meta.workspaceId,
@@ -127,6 +158,11 @@ export async function POST(req: NextRequest) {
               takenAt,
             },
           });
+
+          // Revalidate the workspace files page so the next request
+          // re-renders with the new file even if the client doesn't
+          // call router.refresh().
+          revalidatePath(`/w/${ws.slug}/files`);
         } catch (err) {
           // Without this, a Prisma error here would silently lose
           // the row while the file is happily in Vercel Blob. Log
