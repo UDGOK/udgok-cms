@@ -46,5 +46,10 @@ export const OSM_STYLE: StyleSpecification = {
       maxzoom: 22,
     },
   ],
-  glyphs: undefined,
+  // Intentionally NO `glyphs` key. MapLibre's strict style
+  // validator rejects `glyphs: undefined` with
+  // "glyphs: string expected, undefined found". Without a glyphs
+  // URL, MapLibre will fall back to its built-in font set for
+  // any text labels. Since our style has no text layers (just
+  // the raster tile layer), this is fine.
 };
