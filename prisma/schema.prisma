@@ -242,6 +242,10 @@ model Project {
   startDate     DateTime?
   endDate       DateTime?
   contractValue Decimal?      @db.Decimal(12, 2)
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 

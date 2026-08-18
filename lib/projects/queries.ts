@@ -17,7 +17,12 @@ export async function getProject(workspaceId: string, id: string) {
     where: { id, workspaceId },
     include: {
       client: true,
-      members: { include: { user: true } },
+      members: {
+        include: {
+          user: { select: { id: true, name: true, avatarUrl: true, email: true } },
+        },
+        orderBy: { joinedAt: 'asc' },
+      },
       divisions: {
         orderBy: { sortOrder: 'asc' },
         include: {
@@ -41,19 +46,51 @@ export async function getProject(workspaceId: string, id: string) {
           },
         },
       },
-      // All tasks that have any kind of date — used for the Gantt chart.
-      // Tasks with no date at all are excluded (can't be placed on a timeline).
+      // All tasks (gantt subset below). Full task list for the Tasks tab.
       tasks: {
-        where: {
-          OR: [
-            { startDate: { not: null } },
-            { endDate: { not: null } },
-            { dueDate: { not: null } },
-          ],
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: 200,
+        include: {
+          assignee: { select: { id: true, name: true, avatarUrl: true } },
+          createdBy: { select: { id: true, name: true } },
         },
-        orderBy: { startDate: 'asc' },
-        take: 100,
+      },
+      files: {
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      },
+      notes: {
+        orderBy: { createdAt: 'desc' },
+        take: 5,
       },
     },
+  });
+}
+
+export async function listProjectTasks(workspaceId: string, projectId: string) {
+  return prisma.task.findMany({
+    where: { workspaceId, projectId },
+    orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+    include: {
+      assignee: { select: { id: true, name: true, avatarUrl: true } },
+    },
+  });
+}
+
+export async function listProjectMembers(workspaceId: string, projectId: string) {
+  return prisma.projectMember.findMany({
+    where: { projectId, project: { workspaceId } },
+    include: {
+      user: { select: { id: true, name: true, avatarUrl: true, email: true } },
+    },
+    orderBy: { joinedAt: 'asc' },
+  });
+}
+
+export async function listWorkspaceMembersForAdd(workspaceId: string) {
+  return prisma.membership.findMany({
+    where: { workspaceId },
+    include: { user: { select: { id: true, name: true, avatarUrl: true, email: true } } },
+    orderBy: { joinedAt: 'asc' },
   });
 }
