@@ -42,16 +42,18 @@ export async function compressImage(
   // Already small: return as-is (saves CPU)
   if (file.size < 800 * 1024 && mimeType === 'image/jpeg') return file;
 
-  // Load the image into a canvas
-  let bitmap: ImageBitmap | HTMLImageElement;
+  // Load the image into something drawImage can consume. If the
+  // browser can't decode the file (rare for HEIC, common for
+  // bizarre formats), return the original file so the upload
+  // proceeds and the user sees a clear 413 / server-side error.
+  let loaded: LoadedImage;
   try {
-    bitmap = await createImageBitmapSafe(file);
+    loaded = await loadImage(file);
   } catch {
-    // Browser couldn't decode (uncommon formats, broken file)
     return file;
   }
 
-  const { width, height } = computeResized(bitmap.width, bitmap.height, maxDim);
+  const { width, height } = computeResized(loaded.width, loaded.height, maxDim);
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -59,9 +61,13 @@ export async function compressImage(
   const ctx = canvas.getContext('2d');
   if (!ctx) return file;
 
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  if ('close' in bitmap && typeof bitmap.close === 'function') {
-    bitmap.close();
+  ctx.drawImage(loaded.source, 0, 0, width, height);
+  // ImageBitmap exposes close() to release GPU memory. HTMLImageElement
+  // does not. Be specific — `'close' in loaded.source` would also
+  // match HTMLImageElement's prototype chain, but the typeof guard
+  // makes intent explicit.
+  if (loaded.kind === 'bitmap' && typeof loaded.source.close === 'function') {
+    loaded.source.close();
   }
 
   // Re-encode as JPEG (or whatever mimeType the caller wants)
@@ -88,14 +94,39 @@ function computeResized(srcW: number, srcH: number, maxDim: number): { width: nu
   return { width: Math.round((srcW * maxDim) / srcH), height: maxDim };
 }
 
-async function createImageBitmapSafe(file: File): Promise<ImageBitmap> {
-  // createImageBitmap is the modern, fast path. It works for JPEG, PNG,
-  // WebP, and most browsers' HEIC support. Fall back to <img>+drawImage
-  // if it's not available.
+/**
+ * Result of loading a File into something drawImage can consume.
+ * `ctx.drawImage` accepts both ImageBitmap and HTMLImageElement, so
+ * the source is heterogeneous depending on which path worked.
+ */
+type LoadedImage =
+  | { kind: 'bitmap'; source: ImageBitmap; width: number; height: number }
+  | { kind: 'img'; source: HTMLImageElement; width: number; height: number };
+
+/**
+ * Load a File into something drawImage can consume. Tries the fast
+ * `createImageBitmap` path first (handles JPEG/PNG/WebP/HEIC on
+ * Safari + modern Chrome). If that throws — which happens with
+ * some HEIC files on certain iOS builds, and with corrupted files —
+ * falls back to loading via <img> + URL.createObjectURL. If BOTH
+ * paths fail, the file can't be decoded and the caller returns the
+ * original file (the user gets a clear 413 error rather than a
+ * silent black image).
+ *
+ * Critical: do NOT call createImageBitmap on the fallback path. If
+ * the first createImageBitmap(file) threw, calling
+ * createImageBitmap(canvas) will throw too, and the whole point of
+ * the fallback is to handle that case.
+ */
+async function loadImage(file: File): Promise<LoadedImage> {
   if (typeof createImageBitmap === 'function') {
-    return createImageBitmap(file);
+    try {
+      const bmp = await createImageBitmap(file);
+      return { kind: 'bitmap', source: bmp, width: bmp.width, height: bmp.height };
+    } catch {
+      // fall through to <img> path
+    }
   }
-  // Fallback: load via <img> and use as the source
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const i = new Image();
@@ -109,15 +140,7 @@ async function createImageBitmapSafe(file: File): Promise<ImageBitmap> {
     };
     i.src = url;
   });
-  // Wrap the <img> as an ImageBitmap-like object by drawing it onto a
-  // canvas. This guarantees drawImage below accepts it.
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('No 2D canvas context');
-  ctx.drawImage(img, 0, 0);
-  return await createImageBitmap(canvas);
+  return { kind: 'img', source: img, width: img.naturalWidth, height: img.naturalHeight };
 }
 
 /**

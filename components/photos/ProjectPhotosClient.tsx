@@ -78,13 +78,17 @@ export function ProjectPhotosClient({
     undefined,
   );
 
-  // Close the sheet when upload succeeds
-  useState(() => {
+  // Close the sheet when upload succeeds. Must be useEffect, not
+  // useState — the latter only runs the body once on mount when
+  // uploadState is still `undefined`, so the sheet would never
+  // close after a successful upload. (Caught by the regression
+  // test in __tests__/ProjectPhotosClient.test.ts.)
+  useEffect(() => {
     if (uploadState?.ok) {
       setSheetOpen(false);
       router.refresh();
     }
-  });
+  }, [uploadState, router]);
 
   async function handleGeophotoUpload(file: File, meta: { latitude?: number; longitude?: number; takenAt?: Date }) {
     // Compress first — phone-camera photos are routinely 5-10 MB
@@ -550,19 +554,6 @@ function PhotoUploadForm({
           <p className="text-[10px] font-mono text-ink-30 uppercase tracking-[0.1em] mt-1">
             Phone photos auto-compressed to fit upload limit
           </p>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1.5">
-            Photo file
-          </label>
-          <input
-            type="file"
-            name="file"
-            accept="image/*"
-            required
-            className="block w-full px-3 py-2 bg-paper border border-line text-[12px] file:mr-3 file:py-1.5 file:px-3 file:border-0 file:bg-ink file:text-cream file:font-extrabold file:uppercase file:tracking-[0.1em] file:text-[10px]"
-          />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
