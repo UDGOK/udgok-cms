@@ -27,6 +27,7 @@ import { JurisdictionCard } from './JurisdictionCard';
 import { AddPermitForm } from './AddPermitForm';
 import { PermitCard } from './PermitCard';
 import { listProjectPermits, summarizePermits } from '@/lib/permits/queries';
+import { analyzeProjectDeep, generateDeepInsights } from '@/lib/ai/project-analyzer';
 
 interface ProjectUser {
   id: string;
@@ -231,6 +232,17 @@ export default async function ProjectDetailPage({
   const completion = computeProjectCompletion(projectForInsights);
   const insights = generateProjectInsights(projectForInsights, completion);
 
+  // DeepSeek: in-depth analysis. Only run on the AI tab to avoid
+  // burning API credits on every page load. Runs in parallel.
+  let deepAnalysis = null;
+  let deepInsights: Awaited<ReturnType<typeof generateDeepInsights>> = [];
+  if (tab === 'ai') {
+    [deepAnalysis, deepInsights] = await Promise.all([
+      analyzeProjectDeep(projectForInsights, params.workspace, projectData.id),
+      generateDeepInsights(projectForInsights, params.workspace, projectData.id),
+    ]);
+  }
+
   // Build tabs
   const base = `/w/${params.workspace}/projects/${projectData.id}`;
   const permitSummary = summarizePermits(permits);
@@ -362,7 +374,11 @@ export default async function ProjectDetailPage({
               </p>
             </div>
           </div>
-          <AIBoard insights={insights} />
+          <AIBoard
+            ruleInsights={insights}
+            deepInsights={deepInsights}
+            deepAnalysis={deepAnalysis}
+          />
           <div className="mt-5 text-[11px] font-mono uppercase tracking-[0.1em] text-ink-30 text-center">
             Based on {projectData.tasks.length} task{projectData.tasks.length === 1 ? '' : 's'} ·
             {' '}{projectData.payApps.length} pay app{projectData.payApps.length === 1 ? '' : 's'} ·

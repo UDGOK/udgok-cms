@@ -30,6 +30,9 @@ const aliases = {
   NEXT_PUBLIC_APP_URL: ['UDGOK_CMS_APP_URL'],
   // Master admin emails (JSON array, optional — yasir@udgok.com is always master)
   UDGOK_CMS_MASTERS: ['MASTERS'],
+  // DeepSeek AI
+  DEEPSEEK_API_KEY: ['UDGOK_CMS_DEEPSEEK_API_KEY'],
+  UDGOK_CMS_DEEPSEEK_API_KEY: ['DEEPSEEK_API_KEY'],
 };
 
 for (const [target, sources] of Object.entries(aliases)) {

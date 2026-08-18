@@ -29,7 +29,7 @@ interface TaskLite {
   assignee: { name: string | null } | null;
 }
 
-interface ProjectMeta {
+export interface ProjectMeta {
   id: string;
   name: string;
   status: string;
