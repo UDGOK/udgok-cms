@@ -30,6 +30,7 @@ import { listProjectPermits, summarizePermits } from '@/lib/permits/queries';
 import { analyzeProjectDeep, generateDeepInsights } from '@/lib/ai/project-analyzer';
 import { AskAIChat } from './AskAIChat';
 import { DraftSubMessageButton } from './DraftSubMessageButton';
+import { ThreeDGanttViewer } from '@/components/3d/ThreeDGanttViewer';
 
 interface ProjectUser {
   id: string;
@@ -1018,6 +1019,29 @@ function ScheduleTab({
         projectEnd={project.endDate}
         tasks={ganttTasks}
       />
+
+      {/* 3D view — drag to rotate, scroll to zoom, status-based colors */}
+      {ganttTasks.length > 0 ? (
+        <div className="mt-6">
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <div>
+              <h2 className="font-black text-lg tracking-tight flex items-center gap-2">
+                <span aria-hidden>🧊</span> 3D timeline
+              </h2>
+              <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
+                Three.js visualization · status colors · priority-based height
+              </p>
+            </div>
+          </div>
+          <ThreeDGanttViewer
+            projectName={project.name}
+            projectStart={project.startDate}
+            projectEnd={project.endDate}
+            tasks={ganttTasks}
+            height={520}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
