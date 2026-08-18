@@ -40,6 +40,7 @@ model Workspace {
   inspections   Inspection[]
   bimModels     BimModel[]
   bimTakeoffs   BimTakeoff[]
+  scanEvents    ScanEvent[]
 
   @@index([slug])
 }
@@ -63,6 +64,7 @@ model User {
   teamMembers    TeamMember[]
   activity       ActivityLog[]
   bimModels      BimModel[]      @relation("bimUploader")
+  scanEvents     ScanEvent[]
 
   @@index([email])
 }
@@ -580,6 +582,41 @@ model File {
   @@index([dealId])
   @@index([projectId])
   @@index([taskId])
+}
+
+// =========================================
+// SCAN HISTORY (barcode/QR scanner audit log)
+// =========================================
+
+/**
+ * One row per scan. We persist every scanned code so the user
+ * can see what they (or a teammate) scanned and when, and so we
+ * have an audit trail for equipment checkouts / material receipts.
+ *
+ * `matched` and `matchedId` are set when the scanned code resolved
+ * to a known entity (sub, project, client, file). They're null
+ * when nothing matched — that's the "not found" case. The user
+ * can still see they scanned a code, just nothing was linked.
+ *
+ * `source` records where the value came from: 'camera' (the
+ * barcode scanner decoded it) or 'manual' (the text-input
+ * fallback on the scan page). Useful for debugging.
+ */
+model ScanEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  code        String    // the raw decoded text or the manually-typed value
+  source      String    // 'camera' | 'manual'
+  matched     String?   // 'sub' | 'project' | 'client' | 'file' | null
+  matchedId   String?   // id of the matched entity
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, userId, createdAt])
 }
 
 enum FileKind {

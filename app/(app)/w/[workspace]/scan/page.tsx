@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/client';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ScanPageClient } from './ScanPageClient';
 import { isMasterAdmin } from '@/lib/admin/permissions';
+import { listRecentScansForWorkspace } from '@/lib/scans/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,10 @@ export default async function ScanPage({
   const { workspace, userId } = await requireMembership(params.workspace);
   const master = await isMasterAdmin(userId);
 
-  // If a code was passed, look it up in the workspace
+  // If a code was passed, look it up in the workspace and PERSIST
+  // the scan as a ScanEvent. The persistence is what gives the
+  // user a "Recent scans" list and an audit trail. The lookup
+  // matches against the entity's id OR its name (case-insensitive).
   let lookup: { type: 'sub' | 'project' | 'client' | 'file' | 'none'; label: string; href: string } = {
     type: 'none',
     label: '',
@@ -45,7 +49,39 @@ export default async function ScanPage({
     } else if (client) {
       lookup = { type: 'client', label: client.name, href: `/w/${workspace.slug}/clients/${client.id}` };
     }
+
+    // Persist the scan. We don't fail the request if this write
+    // throws — the user already saw the result, and a missing
+    // history row is a small price to pay for availability.
+    try {
+      await prisma.scanEvent.create({
+        data: {
+          workspaceId: workspace.id,
+          userId,
+          code: code.slice(0, 500), // safety cap on huge pastes
+          source: 'manual', // The ?code= path is always manual
+          // (camera scans also go through this same redirect, so
+          // the source attribute gets overwritten below in the
+          // client component for the camera path. We use 'manual'
+          // here as the safer default.)
+          matched: lookup.type === 'none' ? null : lookup.type,
+          matchedId: lookup.type === 'none' ? null : (
+            lookup.type === 'sub' ? sub!.id :
+            lookup.type === 'project' ? project!.id :
+            client!.id
+          ),
+        },
+      });
+    } catch (err) {
+      console.error('[scan] failed to persist ScanEvent:', err);
+    }
   }
+
+  // Recent scans for the "Recent scans" panel. Limit to 10 to
+  // keep the page tight. We show this even when the user hasn't
+  // scanned yet this session, so a fresh user sees an empty list
+  // and knows where history will appear once they scan.
+  const recentScans = await listRecentScansForWorkspace(workspace.id, 10);
 
   return (
     <div>
@@ -93,6 +129,18 @@ export default async function ScanPage({
         workspaceSlug={workspace.slug}
         plan={workspace.plan}
         isMasterAdmin={master}
+        recentScans={recentScans.map((s) => ({
+          id: s.id,
+          code: s.code,
+          source: s.source,
+          matched: s.matched,
+          matchedLabel:
+            s.matched === 'project' ? s.projectName :
+            s.matched === 'sub' ? s.subName :
+            s.matched === 'client' ? s.clientName :
+            null,
+          createdAt: s.createdAt.toISOString(),
+        }))}
       />
     </div>
   );
