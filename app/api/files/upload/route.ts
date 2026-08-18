@@ -30,12 +30,16 @@ interface WorkspaceFileTokenPayload {
   workspaceId: string;
   uploaderId: string;
   category: string;
-  clientId: string | null;
-  projectId: string | null;
-  dealId: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  takenAt: string | null;
+  // Optional linkage fields — empty string means "unlinked"
+  clientId: string;
+  projectId: string;
+  dealId: string;
+  // GPS — empty string means "not captured" (Geolocation denied, etc.)
+  // All values arrive as strings because the browser JSON-stringifies
+  // the whole clientPayload. We parse to numbers/null in onUploadCompleted.
+  latitude: string;
+  longitude: string;
+  takenAt: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -78,35 +82,57 @@ export async function POST(req: NextRequest) {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        if (!tokenPayload) return;
-        const meta = JSON.parse(tokenPayload) as WorkspaceFileTokenPayload;
-        const filename = blob.pathname.split('/').pop() ?? 'file';
-        let size = 0;
-        try {
-          const head = await fetch(blob.url, { method: 'HEAD' });
-          const cl = head.headers.get('content-length');
-          if (cl) size = Number(cl);
-        } catch {
-          // best-effort
+        if (!tokenPayload) {
+          console.error('[handleUpload] onUploadCompleted called without tokenPayload');
+          return;
         }
-        await prisma.file.create({
-          data: {
-            workspaceId: meta.workspaceId,
-            uploaderId: meta.uploaderId,
-            url: blob.url,
-            filename,
-            mimeType: blob.contentType ?? 'application/octet-stream',
-            size,
-            kind: 'DOCUMENT',
-            category: meta.category,
-            clientId: meta.clientId || null,
-            projectId: meta.projectId || null,
-            dealId: meta.dealId || null,
-            latitude: meta.latitude,
-            longitude: meta.longitude,
-            takenAt: meta.takenAt ? new Date(meta.takenAt) : null,
-          },
-        });
+        try {
+          const meta = JSON.parse(tokenPayload) as WorkspaceFileTokenPayload;
+          const filename = blob.pathname.split('/').pop() ?? 'file';
+          let size = 0;
+          try {
+            const head = await fetch(blob.url, { method: 'HEAD' });
+            const cl = head.headers.get('content-length');
+            if (cl) size = Number(cl);
+          } catch {
+            // best-effort
+          }
+          // Prisma Float fields need numbers, not strings. tokenPayload
+          // is a JSON string from the browser, so lat/lng arrive as
+          // strings (possibly empty). Parse them to numbers or null.
+          const lat = meta.latitude && meta.latitude !== '' ? Number(meta.latitude) : null;
+          const lng = meta.longitude && meta.longitude !== '' ? Number(meta.longitude) : null;
+          // takenAt is an ISO string from the browser; Prisma DateTime
+          // accepts that, but reject invalid values explicitly.
+          let takenAt: Date | null = null;
+          if (meta.takenAt && meta.takenAt !== '') {
+            const d = new Date(meta.takenAt);
+            if (!isNaN(d.getTime())) takenAt = d;
+          }
+          await prisma.file.create({
+            data: {
+              workspaceId: meta.workspaceId,
+              uploaderId: meta.uploaderId,
+              url: blob.url,
+              filename,
+              mimeType: blob.contentType ?? 'application/octet-stream',
+              size,
+              kind: 'DOCUMENT',
+              category: meta.category,
+              clientId: meta.clientId || null,
+              projectId: meta.projectId || null,
+              dealId: meta.dealId || null,
+              latitude: lat != null && isFinite(lat) ? lat : null,
+              longitude: lng != null && isFinite(lng) ? lng : null,
+              takenAt,
+            },
+          });
+        } catch (err) {
+          // Without this, a Prisma error here would silently lose
+          // the row while the file is happily in Vercel Blob. Log
+          // it so Vercel logs surface the problem.
+          console.error('[handleUpload] onUploadCompleted failed:', err);
+        }
       },
     });
     return NextResponse.json(json);

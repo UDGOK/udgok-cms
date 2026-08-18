@@ -61,36 +61,43 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        if (!tokenPayload) return;
-        const meta = JSON.parse(tokenPayload) as {
-          projectId: string;
-          workspaceId: string;
-          uploaderId: string;
-          pathname: string;
-        };
-        // Filename recovery: pathname might be "model.ifc" or "x-y-z.ifc"
-        // because of addRandomSuffix. We just use the blob's pathname.
-        const filename = blob.pathname.split('/').pop() ?? 'model.ifc';
-        // Fetch the blob to get its size (blob has a contentLength too
-        // but it's not always populated by handleUpload; we fetch).
-        let size = 0;
-        try {
-          const head = await fetch(blob.url, { method: 'HEAD' });
-          const cl = head.headers.get('content-length');
-          if (cl) size = Number(cl);
-        } catch {
-          // best-effort
+        if (!tokenPayload) {
+          console.error('[handleUpload] onUploadCompleted called without tokenPayload');
+          return;
         }
-        await prisma.bimModel.create({
-          data: {
-            projectId: meta.projectId,
-            workspaceId: meta.workspaceId,
+        try {
+          const meta = JSON.parse(tokenPayload) as {
+            projectId: string;
+            workspaceId: string;
+            uploaderId: string;
+            pathname: string;
+          };
+          // Filename recovery: pathname might be "model.ifc" or "x-y-z.ifc"
+          // because of addRandomSuffix. We just use the blob's pathname.
+          const filename = blob.pathname.split('/').pop() ?? 'model.ifc';
+          // Fetch the blob to get its size (blob has a contentLength too
+          // but it's not always populated by handleUpload; we fetch).
+          let size = 0;
+          try {
+            const head = await fetch(blob.url, { method: 'HEAD' });
+            const cl = head.headers.get('content-length');
+            if (cl) size = Number(cl);
+          } catch {
+            // best-effort
+          }
+          await prisma.bimModel.create({
+            data: {
+              projectId: meta.projectId,
+              workspaceId: meta.workspaceId,
             uploaderId: meta.uploaderId,
             url: blob.url,
             filename,
             size,
           },
         });
+        } catch (err) {
+          console.error('[handleUpload] onUploadCompleted failed:', err);
+        }
       },
     });
     return NextResponse.json(json);

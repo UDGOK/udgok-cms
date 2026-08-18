@@ -70,46 +70,53 @@ export async function POST(
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        if (!tokenPayload) return;
-        const meta = JSON.parse(tokenPayload) as SubDocTokenPayload;
-        const filename = blob.pathname.split('/').pop() ?? 'file';
-        let size = 0;
+        if (!tokenPayload) {
+          console.error('[handleUpload] onUploadCompleted called without tokenPayload');
+          return;
+        }
         try {
-          const head = await fetch(blob.url, { method: 'HEAD' });
-          const cl = head.headers.get('content-length');
-          if (cl) size = Number(cl);
-        } catch {
-          // best-effort
-        }
-        await prisma.file.create({
-          data: {
-            workspaceId: meta.workspaceId,
-            uploaderId: meta.uploaderId,
-            subcontractorId: meta.subcontractorId,
-            url: blob.url,
-            filename,
-            mimeType: blob.contentType ?? 'application/octet-stream',
-            size,
-            kind: 'DOCUMENT',
-            // Use a category that signals what kind of doc this is
-            category: meta.kind.toLowerCase(),
-          },
-        });
-        // Update sub flags + timestamps based on kind
-        const now = new Date();
-        const updates: Record<string, unknown> = {};
-        if (meta.kind === 'ID_CARD') {
-          updates.idScanned = true;
-          updates.idScannedAt = now;
-        } else if (meta.kind === 'W9') {
-          updates.w9OnFile = true;
-          updates.w9ScannedAt = now;
-        }
-        if (Object.keys(updates).length > 0) {
-          await prisma.subcontractor.updateMany({
-            where: { id: meta.subcontractorId, workspaceId: meta.workspaceId },
-            data: updates,
+          const meta = JSON.parse(tokenPayload) as SubDocTokenPayload;
+          const filename = blob.pathname.split('/').pop() ?? 'file';
+          let size = 0;
+          try {
+            const head = await fetch(blob.url, { method: 'HEAD' });
+            const cl = head.headers.get('content-length');
+            if (cl) size = Number(cl);
+          } catch {
+            // best-effort
+          }
+          await prisma.file.create({
+            data: {
+              workspaceId: meta.workspaceId,
+              uploaderId: meta.uploaderId,
+              subcontractorId: meta.subcontractorId,
+              url: blob.url,
+              filename,
+              mimeType: blob.contentType ?? 'application/octet-stream',
+              size,
+              kind: 'DOCUMENT',
+              // Use a category that signals what kind of doc this is
+              category: meta.kind.toLowerCase(),
+            },
           });
+          // Update sub flags + timestamps based on kind
+          const now = new Date();
+          const updates: Record<string, unknown> = {};
+          if (meta.kind === 'ID_CARD') {
+            updates.idScanned = true;
+            updates.idScannedAt = now;
+          } else if (meta.kind === 'W9') {
+            updates.w9OnFile = true;
+            updates.w9ScannedAt = now;
+          }
+          if (Object.keys(updates).length > 0) {
+            await prisma.subcontractor.updateMany({
+              where: { id: meta.subcontractorId, workspaceId: meta.workspaceId },
+              data: updates,
+            });
+          }
+        } catch (err) {
+          console.error('[handleUpload] onUploadCompleted failed:', err);
         }
       },
     });
