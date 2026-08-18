@@ -1,6 +1,14 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@clerk/nextjs/server';
+
+// Server actions in this file (notably runTakeoffAction) can take
+// up to 5 minutes to wait for the Python takeoff service. The
+// default Next.js route timeout is 10s; Vercel Pro bumps the
+// ceiling to 300s. Keep this aligned with the AbortSignal.timeout
+// in runTakeoffAction.
+export const maxDuration = 300;
+export const dynamic = 'force-dynamic';
 import { getProjectWithRelations, computeProjectCompletion, generateProjectInsights } from '@/lib/projects/insights';
 import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
@@ -18,6 +26,7 @@ import { countProjectPhotosByPhase, listProjectPhotos } from '@/lib/photos/queri
 import { ProjectTabs } from './ProjectTabs';
 import { CompletionRing } from './CompletionRing';
 import { AIBoard } from './AIBoard';
+import { TakeoffTab } from './TakeoffTab';
 import { AddProjectMemberForm } from './AddProjectMemberForm';
 import { AddProjectTaskForm } from './AddProjectTaskForm';
 import { ProjectTaskRow } from './ProjectTaskRow';
@@ -113,6 +122,23 @@ interface ProjectData {
   members: { user: ProjectUser; userId: string; role: string | null }[];
   divisions: ProjectDivision[];
   payApps: ProjectPayApp[];
+  bimModels: {
+    id: string;
+    url: string;
+    filename: string;
+    size: number;
+    createdAt: Date;
+    takeoffs?: { id: string; status: string; error: string | null; createdAt: Date }[];
+  }[];
+  bimTakeoffs: {
+    id: string;
+    bimModelId: string;
+    status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+    result: import('@/lib/takeoff/types').TakeoffResult | null;
+    error: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }[];
   subAssignments: ProjectSubAssignment[];
   tasks: ProjectTask[];
   files: { id: string; filename: string; url: string }[];
@@ -281,6 +307,7 @@ export default async function ProjectDetailPage({
     { key: 'team', label: 'Team', href: `${base}?tab=team`, badge: projectMembers.length || undefined },
     { key: 'schedule', label: 'Schedule', href: `${base}?tab=schedule` },
     { key: 'permits', label: 'Permits', href: `${base}?tab=permits`, badge: permitsBadge },
+    { key: 'takeoff', label: 'Takeoff', href: `${base}?tab=takeoff`, badge: projectData.bimModels.length || undefined },
     { key: 'pay-apps', label: 'Pay apps', href: `${base}/pay-apps`, badge: projectData.payApps.length || undefined },
     { key: 'subs', label: 'Subs', href: `${base}?tab=subs`, badge: projectData.subAssignments.length || undefined },
   ];
@@ -469,6 +496,15 @@ export default async function ProjectDetailPage({
           project={projectData}
           permits={permits as unknown as PermitWithInspections[]}
           summary={permitSummary}
+        />
+      ) : null}
+
+      {tab === 'takeoff' ? (
+        <TakeoffTab
+          workspaceSlug={params.workspace}
+          projectId={projectData.id}
+          bimModels={projectData.bimModels}
+          bimTakeoffs={projectData.bimTakeoffs}
         />
       ) : null}
 

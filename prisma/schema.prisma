@@ -38,6 +38,8 @@ model Workspace {
   permits       Permit[]
   photoFolders  ProjectPhotoFolder[]
   inspections   Inspection[]
+  bimModels     BimModel[]
+  bimTakeoffs   BimTakeoff[]
 
   @@index([slug])
 }
@@ -60,6 +62,7 @@ model User {
   projectMembers ProjectMember[]
   teamMembers    TeamMember[]
   activity       ActivityLog[]
+  bimModels      BimModel[]      @relation("bimUploader")
 
   @@index([email])
 }
@@ -277,6 +280,8 @@ model Project {
   photos    ProjectPhoto[]
   photoFolders ProjectPhotoFolder[]
   permits   Permit[]
+  bimModels     BimModel[]
+  bimTakeoffs   BimTakeoff[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
@@ -837,4 +842,64 @@ model Message {
   @@index([workspaceId, entityType, entityId, createdAt])
   @@index([threadId, createdAt])
   @@index([authorId, createdAt])
+}
+
+// =========================================
+// BIM TAKEOFF
+// =========================================
+
+// One IFC/BIM file uploaded to the project. The .ifc lives in Vercel
+// Blob; this row is the metadata. Uploader FK is NoAction (matches
+// the pattern we set after the deleteWorkspace saga — a user with
+// models uploaded must not block a user delete).
+model BimModel {
+  id          String   @id @default(cuid())
+  projectId   String
+  workspaceId String
+  uploaderId  String
+  url         String   // Vercel Blob URL of the .ifc file
+  filename    String
+  size        Int
+  createdAt   DateTime @default(now())
+
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploader User         @relation("bimUploader", fields: [uploaderId], references: [id], onDelete: NoAction)
+  takeoffs BimTakeoff[]
+
+  @@index([projectId])
+  @@index([workspaceId])
+}
+
+// One takeoff run against a BimModel. The result is the raw JSON
+// the Python service returned, schema-documented in lib/takeoff/types.ts
+// (see TakeoffResult). Storing it as Json lets the service evolve
+// without a Prisma migration.
+model BimTakeoff {
+  id         String        @id @default(cuid())
+  bimModelId String
+  projectId  String
+  workspaceId String
+  status     TakeoffStatus @default(PENDING)
+  // Full JSON payload from the service. Keep as Json so the service
+  // can evolve the TakeoffResult shape without a migration.
+  result     Json?
+  error      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  bimModel  BimModel  @relation(fields: [bimModelId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([bimModelId])
+  @@index([status])
+}
+
+enum TakeoffStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
 }

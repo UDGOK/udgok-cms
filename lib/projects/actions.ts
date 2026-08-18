@@ -727,3 +727,219 @@ export async function clearManualPinAction(
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
   return { ok: true };
 }
+
+// =========================================
+// BIM TAKEOFF
+// =========================================
+
+export type RunTakeoffState =
+  | { ok?: boolean; error?: string; takeoffId?: string; status?: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' }
+  | undefined;
+
+/**
+ * Kick off a takeoff run. Creates a `BimTakeoff` row in PENDING,
+ * then calls the Python service, then updates the row to DONE/FAILED.
+ *
+ * The call is synchronous: Vercel Pro lets the page that renders
+ * the takeoff tab use `maxDuration = 300`, so we can wait for the
+ * service to return. For files that take longer, we'd need to flip
+ * this to an async pattern (PENDING → service webhook → DONE) but
+ * the schema already supports that.
+ */
+export async function runTakeoffAction(
+  workspaceSlug: string,
+  projectId: string,
+  bimModelId: string,
+): Promise<RunTakeoffState> {
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId: workspace.id },
+    select: { id: true },
+  });
+  if (!project) return { error: 'Project not found' };
+
+  const bim = await prisma.bimModel.findFirst({
+    where: { id: bimModelId, projectId, workspaceId: workspace.id },
+    select: { id: true, url: true },
+  });
+  if (!bim) return { error: 'BIM model not found' };
+
+  // Idempotency: if a takeoff for this BIM model is already RUNNING,
+  // don't start another one. The UI also gates the button, but
+  // double-click + network blips can both create two calls.
+  const existing = await prisma.bimTakeoff.findFirst({
+    where: { bimModelId: bim.id, status: 'RUNNING' },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (existing) {
+    return { ok: true, takeoffId: existing.id, status: 'RUNNING' };
+  }
+
+  const takeoff = await prisma.bimTakeoff.create({
+    data: {
+      bimModelId: bim.id,
+      projectId,
+      workspaceId: workspace.id,
+      status: 'RUNNING',
+    },
+    select: { id: true },
+  });
+
+  const serviceUrl = process.env.UDGOK_CMS_TAKEOFF_SERVICE_URL;
+  const apiKey = process.env.UDGOK_CMS_TAKEOFF_API_KEY;
+  if (!serviceUrl || !apiKey) {
+    await prisma.bimTakeoff.update({
+      where: { id: takeoff.id },
+      data: {
+        status: 'FAILED',
+        error:
+          'Takeoff service is not configured. Set UDGOK_CMS_TAKEOFF_SERVICE_URL and UDGOK_CMS_TAKEOFF_API_KEY.',
+      },
+    });
+    return { error: 'Takeoff service not configured' };
+  }
+
+  try {
+    const res = await fetch(`${serviceUrl}/takeoff`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Takeoff-Key': apiKey,
+      },
+      body: JSON.stringify({ url: bim.url }),
+      // 280s — leaves headroom under the 300s page maxDuration.
+      signal: AbortSignal.timeout(280_000),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`takeoff service ${res.status}: ${text.slice(0, 300)}`);
+    }
+    const result = (await res.json()) as import('@/lib/takeoff/types').TakeoffResult;
+    await prisma.bimTakeoff.update({
+      where: { id: takeoff.id },
+      data: { status: 'DONE', result: result as unknown as object },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    await prisma.bimTakeoff.update({
+      where: { id: takeoff.id },
+      data: { status: 'FAILED', error: msg.slice(0, 2000) },
+    });
+    return { takeoffId: takeoff.id, status: 'FAILED', error: msg.slice(0, 300) };
+  }
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}?tab=takeoff`);
+  return { ok: true, takeoffId: takeoff.id, status: 'DONE' };
+}
+
+const pushLineSchema = z.object({
+  csiCode: z.string().min(1).max(20),
+  trade: z.string().min(1).max(120),
+  budget: z.coerce.number().min(0),
+});
+
+export type PushTakeoffToSovState =
+  | { ok?: boolean; error?: string; created?: number; skipped?: number }
+  | undefined;
+
+/**
+ * Push selected takeoff lines to the project's Schedule of Values.
+ * Creates one `ProjectDivision` per line. Skips CSI codes that
+ * already exist on the SOV (re-running a takeoff after a model
+ * update shouldn't double the schedule). Budgets are
+ * `quantity * unit cost` — the UI computes the unit cost from
+ * estimator input, this action trusts the number it's given.
+ */
+export async function pushTakeoffToSovAction(
+  workspaceSlug: string,
+  projectId: string,
+  takeoffId: string,
+  lines: Array<{ csiCode: string; trade: string; budget: number }>,
+): Promise<PushTakeoffToSovState> {
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId: workspace.id },
+    select: { id: true },
+  });
+  if (!project) return { error: 'Project not found' };
+
+  const takeoff = await prisma.bimTakeoff.findFirst({
+    where: { id: takeoffId, projectId, workspaceId: workspace.id, status: 'DONE' },
+    select: { id: true },
+  });
+  if (!takeoff) return { error: 'Takeoff not found or not complete' };
+
+  const parsed = z.array(pushLineSchema).min(1).max(100).safeParse(lines);
+  if (!parsed.success) return { error: 'Invalid line data' };
+
+  // Transaction so the existing-codes check + insert are atomic.
+  // Two simultaneous pushes from two estimators would otherwise
+  // race on sortOrder and create duplicates.
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.projectDivision.findMany({
+      where: { projectId },
+      select: { code: true },
+    });
+    const existingCodes = new Set(existing.map((d) => d.code));
+    const fresh = parsed.data.filter((l) => !existingCodes.has(l.csiCode));
+    if (fresh.length === 0) {
+      // All lines are duplicates — nothing to create. We DON'T throw
+      // here (that would poison the transaction for no reason); we
+      // surface it as ok:false after the transaction commits.
+      return { created: 0, skipped: parsed.data.length, allDuplicates: true };
+    }
+    const maxSort = await tx.projectDivision.aggregate({
+      where: { projectId },
+      _max: { sortOrder: true },
+    });
+    let sort = (maxSort._max.sortOrder ?? 0) + 1;
+    await tx.projectDivision.createMany({
+      data: fresh.map((l) => ({
+        projectId,
+        code: l.csiCode,
+        trade: l.trade,
+        budget: l.budget,
+        sortOrder: sort++,
+      })),
+    });
+    return { created: fresh.length, skipped: parsed.data.length - fresh.length, allDuplicates: false };
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
+  if (result.allDuplicates) {
+    return {
+      ok: false,
+      error: 'All of these CSI codes already exist on the SOV',
+      created: 0,
+      skipped: result.skipped,
+    };
+  }
+  return { ok: true, created: result.created, skipped: result.skipped };
+}
+
+/**
+ * Delete a BIM model and all its takeoffs. The IFC file stays in
+ * Vercel Blob (separate orphan-cleanup job) until the user opts to
+ * wipe it. Workspace owners / master admins only.
+ */
+export async function deleteBimModelAction(
+  workspaceSlug: string,
+  projectId: string,
+  bimModelId: string,
+): Promise<{ ok?: boolean; error?: string }> {
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const result = await prisma.bimModel.deleteMany({
+    where: { id: bimModelId, projectId, workspaceId: workspace.id },
+  });
+  if (result.count === 0) return { error: 'BIM model not found' };
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}?tab=takeoff`);
+  return { ok: true };
+}

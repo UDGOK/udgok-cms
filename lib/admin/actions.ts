@@ -220,6 +220,11 @@ export async function deleteWorkspaceAction(
       await tx.payApp.deleteMany({ where: { project: { workspaceId } } });
       await tx.projectPhoto.deleteMany({ where: { project: { workspaceId } } });
       await tx.projectPhotoFolder.deleteMany({ where: { project: { workspaceId } } });
+      // BIM takeoffs cascade off Project, but the IFC files live in
+      // Vercel Blob and need a separate sweep. The DB rows go with
+      // the project; the blob sweep is the orphan-cleanup job's job.
+      await tx.bimTakeoff.deleteMany({ where: { workspaceId } });
+      await tx.bimModel.deleteMany({ where: { workspaceId } });
       await tx.projectMember.deleteMany({ where: { project: { workspaceId } } });
       
       // Client must be deleted after Project — Project.clientId has no
@@ -432,6 +437,11 @@ export async function deleteProjectAction(
       await tx.payApp.deleteMany({ where: { projectId } });
       await tx.projectPhoto.deleteMany({ where: { projectId } });
       await tx.projectPhotoFolder.deleteMany({ where: { projectId } });
+      // BIM takeoffs/models cascade off Project via the schema, but
+      // we delete them explicitly to keep the dependency order
+      // obvious and to mirror the pattern of the other deletes above.
+      await tx.bimTakeoff.deleteMany({ where: { projectId } });
+      await tx.bimModel.deleteMany({ where: { projectId } });
       await tx.projectMember.deleteMany({ where: { projectId } });
       await tx.permit.deleteMany({ where: { projectId } });
       await tx.inspection.deleteMany({ where: { permit: { projectId } } });

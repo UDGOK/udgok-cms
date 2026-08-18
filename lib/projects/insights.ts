@@ -347,6 +347,15 @@ export async function getProjectWithRelations(workspaceId: string, id: string) {
         orderBy: { createdAt: 'desc' },
         take: 5,
       },
+      bimModels: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          takeoffs: { orderBy: { createdAt: 'desc' } },
+        },
+      },
+      bimTakeoffs: {
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
   return project;
