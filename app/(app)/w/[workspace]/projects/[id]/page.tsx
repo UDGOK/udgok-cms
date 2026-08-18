@@ -29,6 +29,7 @@ import { AIBoard } from './AIBoard';
 import { TakeoffTab } from './TakeoffTab';
 import { ProjectMapTab as MapTab } from './MapTab';
 import type { ProjectStatus } from '@prisma/client';
+import { hasValidCoords } from '@/lib/map/valid-coords';
 import { AddProjectMemberForm } from './AddProjectMemberForm';
 import { AddProjectTaskForm } from './AddProjectTaskForm';
 import { ProjectTaskRow } from './ProjectTaskRow';
@@ -524,7 +525,7 @@ export default async function ProjectDetailPage({
         />
       ) : null}
 
-      {tab === 'map' && projectData.latitude != null && projectData.longitude != null ? (
+      {tab === 'map' && hasValidCoords(projectData.latitude, projectData.longitude) ? (
         <MapTab
           workspaceSlug={params.workspace}
           project={{
@@ -532,28 +533,31 @@ export default async function ProjectDetailPage({
             name: projectData.name,
             code: projectData.code,
             status: projectData.status as ProjectStatus,
-            latitude: projectData.latitude,
-            longitude: projectData.longitude,
+            latitude: projectData.latitude as number,
+            longitude: projectData.longitude as number,
             city: projectData.city,
             state: projectData.state,
             geocodeSource: projectData.geocodeSource,
             geocodedAddress: projectData.geocodedAddress,
           }}
-          gpsPhotos={gpsPhotos.map((p) => ({
-            id: p.id,
-            url: p.url,
-            filename: p.filename,
-            latitude: p.latitude,
-            longitude: p.longitude,
-            room: p.room,
-            area: p.area,
-            takenAt: p.takenAt ? p.takenAt.toISOString() : null,
-          }))}
+          gpsPhotos={gpsPhotos
+            .filter((p) => hasValidCoords(p.latitude, p.longitude))
+            .map((p) => ({
+              id: p.id,
+              url: p.url,
+              filename: p.filename,
+              latitude: p.latitude as number,
+              longitude: p.longitude as number,
+              room: p.room,
+              area: p.area,
+              takenAt: p.takenAt ? p.takenAt.toISOString() : null,
+            }))}
         />
       ) : tab === 'map' ? (
-        <NoLocationYet
+        <MapLocationIssue
           workspaceSlug={params.workspace}
           projectId={projectData.id}
+          hasAnyCoords={projectData.latitude != null || projectData.longitude != null}
         />
       ) : null}
 
@@ -1469,30 +1473,44 @@ function PermitsTab({
 }
 
 /**
- * Shown when the user opens the MAP tab but the project has no
- * lat/lng yet. Tells them to either save an address (which
- * auto-geocodes) or set a manual pin.
+ * Shown when the user opens the MAP tab but the project has
+ * missing or invalid coordinates. Two cases:
+ *
+ *   1. `hasAnyCoords` is false → no lat or lng at all. Tells the
+ *      user to add an address and let the geocoder do its thing.
+ *
+ *   2. `hasAnyCoords` is true → one or both fields are set, but
+ *      the pair is (0, 0) or otherwise invalid. This is almost
+ *      always "I typed 0 in both lat and lng fields" or "I left
+ *      the manual pin form half-filled". The project page already
+ *      has a "Re-geocode" button; we direct the user there with
+ *      a clear explanation.
  */
-function NoLocationYet({
+function MapLocationIssue({
   workspaceSlug,
   projectId,
+  hasAnyCoords,
 }: {
   workspaceSlug: string;
   projectId: string;
+  hasAnyCoords: boolean;
 }) {
   return (
-    <div className="border border-line bg-paper p-6 md:p-10 text-center">
-      <div className="text-4xl mb-3">📍</div>
-      <h3 className="text-lg font-black mb-2">No site pin yet</h3>
+    <div className="border border-warning/40 bg-warning/10 p-6 md:p-10 text-center">
+      <div className="text-4xl mb-3">{hasAnyCoords ? '⚠️' : '📍'}</div>
+      <h3 className="text-lg font-black mb-2">
+        {hasAnyCoords ? 'Pin is missing or invalid' : 'No site pin yet'}
+      </h3>
       <p className="text-sm text-ink-70 max-w-md mx-auto mb-5">
-        Add a project address and we&apos;ll auto-geocode it. Or click
-        &quot;Edit details&quot; above to drop a manual pin on the map.
+        {hasAnyCoords
+          ? 'The latitude/longitude on this project is empty or (0, 0) — usually a half-filled manual pin. Clear the pin and the geocoder will re-run from the project address, or set the coordinates manually.'
+          : 'Add a project address and we\u2019ll auto-geocode it. Or click \u201cEdit details\u201d above to drop a manual pin on the map.'}
       </p>
       <a
         href={`/w/${workspaceSlug}/projects/${projectId}#details`}
         className="inline-block px-4 py-2 bg-orange text-paper text-xs font-extrabold uppercase tracking-[0.1em] hover:bg-orange-d transition-colors"
       >
-        Set project address
+        Open project details
       </a>
     </div>
   );

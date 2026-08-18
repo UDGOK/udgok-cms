@@ -20,15 +20,30 @@ export default async function WorkspaceMapPage({
 }) {
   const { workspace } = await requireMembership(params.workspace);
 
-  // Pull every project that has BOTH lat and lng set. We deliberately
-  // don't try to geocode missing ones here — that's a slow blocking
-  // operation. The `ProjectLocationBadge` on each project already
-  // shows the re-geocode button. The map just renders what's there.
+  // Pull every project that has usable lat/lng. "Usable" means:
+  //   - both fields are non-null
+  //   - the pair is not (0, 0) — that's the "Null Island" pin
+  //     in the Gulf of Guinea, which happens when a user types
+  //     0 in both lat and lng fields or submits an empty form.
+  //     A construction project in Oklahoma is never legitimately
+  //     at lat 0, lng 0. (See lib/map/valid-coords.ts for the
+  //     full validity rules.)
+  //
+  // We deliberately don't try to geocode missing/invalid ones
+  // here — that's a slow blocking operation. The
+  // `ProjectLocationBadge` on each project already shows the
+  // re-geocode button. The map just renders what's there.
   const projects = await prisma.project.findMany({
     where: {
       workspaceId: workspace.id,
-      latitude: { not: null },
-      longitude: { not: null },
+      // Reject Null Island (0, 0) — see lib/map/valid-coords.ts.
+      // Prisma's where filter syntax only allows one `not` per
+      // field, so we use `notIn` with the 0 sentinel.
+      AND: [
+        { latitude: { not: null } },
+        { longitude: { not: null } },
+        { OR: [{ latitude: { not: 0 } }, { longitude: { not: 0 } }] },
+      ],
     },
     select: {
       id: true,
@@ -57,6 +72,23 @@ export default async function WorkspaceMapPage({
     contractValue: p.contractValue ? p.contractValue.toString() : null,
   }));
 
+  // Count projects that have NO usable coords (null OR 0,0) so we
+  // can show a small banner pointing the user at the fix. A project
+  // with address but bad coords is almost always an "I typed 0
+  // in both fields" or a "the geocoder hasn't run yet" — both
+  // easily fixed from the project page.
+  const unpinnedCount = await prisma.project.count({
+    where: {
+      workspaceId: workspace.id,
+      OR: [
+        { latitude: null },
+        { longitude: null },
+        { latitude: 0 },
+        { longitude: 0 },
+      ],
+    },
+  });
+
   return (
     <div className="p-4 md:p-8 max-w-6xl">
       <MobilePageHeader
@@ -78,6 +110,10 @@ export default async function WorkspaceMapPage({
         the project. Use the project page to set or correct a pin.
       </p>
 
+      {unpinnedCount > 0 ? (
+        <UnpinnedBanner count={unpinnedCount} workspaceSlug={workspace.slug} />
+      ) : null}
+
       <div className="border border-line bg-paper">
         {mapProjects.length === 0 ? (
           <EmptyState workspaceSlug={workspace.slug} />
@@ -89,6 +125,36 @@ export default async function WorkspaceMapPage({
       </div>
 
       <Legend />
+    </div>
+  );
+}
+
+function UnpinnedBanner({
+  count,
+  workspaceSlug,
+}: {
+  count: number;
+  workspaceSlug: string;
+}) {
+  return (
+    <div className="mb-4 border border-warning/40 bg-warning/10 px-4 py-3 flex items-start gap-3">
+      <span className="text-xl leading-none mt-0.5" aria-hidden="true">⚠️</span>
+      <div className="flex-1 text-sm">
+        <p className="font-semibold text-ink">
+          {count} project{count === 1 ? '' : 's'} not pinned on the map
+        </p>
+        <p className="text-ink-70 mt-0.5">
+          These projects have a missing or invalid location (often 0,0 entered
+          in the lat/lng fields). Open each project and use the address
+          auto-geocoder or a manual pin to put it on the map.
+        </p>
+      </div>
+      <a
+        href={`/w/${workspaceSlug}/projects`}
+        className="shrink-0 text-[11px] font-extrabold uppercase tracking-[0.1em] px-3 py-1.5 border border-line bg-paper hover:bg-paper-2"
+      >
+        See projects →
+      </a>
     </div>
   );
 }
