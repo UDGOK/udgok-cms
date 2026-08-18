@@ -13,7 +13,7 @@ import { MessageThread } from '@/components/messages/MessageThread';
 import { listMessagesForEntity } from '@/lib/messages/queries';
 import { listEntityActivity } from '@/lib/activity/queries';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
-import { countProjectPhotosByPhase } from '@/lib/photos/queries';
+import { countProjectPhotosByPhase, listProjectPhotos } from '@/lib/photos/queries';
 import { ProjectTabs } from './ProjectTabs';
 import { CompletionRing } from './CompletionRing';
 import { AIBoard } from './AIBoard';
@@ -31,6 +31,9 @@ import { analyzeProjectDeep, generateDeepInsights } from '@/lib/ai/project-analy
 import { AskAIChat } from './AskAIChat';
 import { DraftSubMessageButton } from './DraftSubMessageButton';
 import { ThreeDGanttViewer } from '@/components/3d/ThreeDGanttViewer';
+import { PayAppFlow3DViewer } from '@/components/3d/PayAppFlow3DViewer';
+import { ProgressRing3DViewer } from '@/components/3d/ProgressRing3DViewer';
+import { RecentPhotosStrip } from './RecentPhotosStrip';
 
 interface ProjectUser {
   id: string;
@@ -161,7 +164,7 @@ export default async function ProjectDetailPage({
   const { userId } = await auth();
   const tab = searchParams.tab ?? 'overview';
 
-  const [project, subs, messages, activity, photoCounts, workspaceMembers, projectMembers, myRole, permits] = await Promise.all([
+  const [project, subs, messages, activity, photoCounts, recentPhotos, workspaceMembers, projectMembers, myRole, permits] = await Promise.all([
     getProjectWithRelations(workspace.id, params.id),
     prisma.subcontractor.findMany({
       where: { workspaceId: workspace.id },
@@ -171,6 +174,7 @@ export default async function ProjectDetailPage({
     listMessagesForEntity('PROJECT', params.id, 50),
     listEntityActivity(workspace.id, 'project', params.id, 20),
     countProjectPhotosByPhase(params.id),
+    listProjectPhotos(params.id, {}).then((all) => all.slice(0, 6)),
     prisma.membership.findMany({
       where: { workspaceId: workspace.id },
       include: { user: { select: { id: true, name: true, avatarUrl: true, email: true } } },
@@ -333,7 +337,6 @@ export default async function ProjectDetailPage({
             ? `${base}/pay-apps/new`
             : `${base}?tab=pay-apps`
         }
-        actionVariant="copper"
       />
 
       <ProjectTabs tabs={tabs} />
@@ -408,6 +411,8 @@ export default async function ProjectDetailPage({
           workspace={params.workspace}
           project={projectData}
           photoCounts={photoCounts}
+          recentPhotos={recentPhotos}
+          totalPhotoCount={photoCounts.ROUGH_IN + photoCounts.FINAL}
           completion={completion}
         />
       ) : null}
@@ -527,12 +532,16 @@ function OverviewTab({
   workspace,
   project,
   photoCounts,
+  recentPhotos,
+  totalPhotoCount,
   completion,
 }: {
   projectId: string;
   workspace: string;
   project: ProjectData;
   photoCounts: { ROUGH_IN: number; FINAL: number };
+  recentPhotos: Awaited<ReturnType<typeof listProjectPhotos>>;
+  totalPhotoCount: number;
   completion: ReturnType<typeof computeProjectCompletion>;
 }) {
   const totalBudget = project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
@@ -667,6 +676,40 @@ function OverviewTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-6">
         <WeatherWidget project={project} />
         <JurisdictionCard project={project} />
+      </div>
+
+      {/* Recent photos — strip with click-to-enlarge */}
+      <div className="mb-6">
+        <RecentPhotosStrip
+          workspaceSlug={workspace}
+          projectId={projectId}
+          photos={recentPhotos}
+          totalCount={totalPhotoCount}
+        />
+      </div>
+
+      {/* 3D Progress Ring — replaces the 2D ring with a real Three.js torus */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div>
+            <h3 className="font-black text-lg tracking-tight flex items-center gap-2">
+              <span aria-hidden>⭕</span> 3D completion
+            </h3>
+            <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
+              Three.js torus · ring color = project status · 4 marker dots = sub-metrics
+            </p>
+          </div>
+        </div>
+        <ProgressRing3DViewer
+          percent={completion.overall}
+          financial={completion.financial}
+          tasks={completion.tasks}
+          subs={completion.subs}
+          schedule={completion.schedule}
+          status={project.status}
+          height={380}
+          title={project.name}
+        />
       </div>
 
       {/* SOV summary */}
@@ -1171,6 +1214,17 @@ function PayAppsTab({
   workspace: string;
   project: ProjectData;
 }) {
+  const contractTotal = project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
+  const payAppFlowItems = project.payApps
+    .map((p) => ({
+      id: p.id,
+      number: p.drawNumber,
+      status: p.status as 'DRAFT' | 'SENT' | 'VIEWED' | 'ACKNOWLEDGED' | 'PAID' | 'OVERDUE',
+      amount: Number(p.totalThisDraw),
+      date: p.periodEnd,
+      paidAt: null,
+    }));
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
@@ -1186,6 +1240,27 @@ function PayAppsTab({
           hasDivisions={project.divisions.length > 0}
         />
       </div>
+
+      {/* 3D money tower — each pay app is a glowing plate stacked up to the contract total */}
+      {project.payApps.length > 0 && contractTotal > 0 ? (
+        <div className="mb-6">
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <div>
+              <h3 className="font-black text-lg tracking-tight flex items-center gap-2">
+                <span aria-hidden>💸</span> Pay app flow
+              </h3>
+              <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
+                Three.js · each plate = one draw · color by status · height = amount
+              </p>
+            </div>
+          </div>
+          <PayAppFlow3DViewer
+            contractTotal={contractTotal}
+            payApps={payAppFlowItems}
+            height={520}
+          />
+        </div>
+      ) : null}
       {project.payApps.length === 0 ? (
         <div className="bg-paper border-2 border-line p-12 text-center text-ink-50">
           <p className="mb-4">No pay apps yet. Generate the first draw once you have at least one division.</p>

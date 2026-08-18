@@ -6,6 +6,7 @@ import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { GeneratePayAppButton } from '../GeneratePayAppButton';
 import { ProjectTabsBar } from '../ProjectTabsBar';
+import { PayAppFlow3DViewer } from '@/components/3d/PayAppFlow3DViewer';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,21 @@ export default async function ProjectPayAppsPage({
     where: { projectId: params.id },
   });
 
+  // Contract total = sum of all division budgets
+  const divisions = await prisma.projectDivision.findMany({
+    where: { projectId: project.id },
+    select: { budget: true },
+  });
+  const contractTotal = divisions.reduce((acc, d) => acc + Number(d.budget), 0);
+  const payAppFlowItems = project.payApps.map((p) => ({
+    id: p.id,
+    number: p.drawNumber,
+    status: p.status as 'DRAFT' | 'SENT' | 'VIEWED' | 'ACKNOWLEDGED' | 'PAID' | 'OVERDUE',
+    amount: Number(p.totalThisDraw),
+    date: p.periodEnd,
+    paidAt: null,
+  }));
+
   return (
     <div className="p-4 md:p-8 max-w-6xl">
       <MobilePageHeader
@@ -82,6 +98,25 @@ export default async function ProjectPayAppsPage({
           hasDivisions={project.divisions.length > 0}
         />
       </div>
+
+      {/* 3D money tower */}
+      {project.payApps.length > 0 && contractTotal > 0 ? (
+        <div className="mb-6">
+          <div className="mb-3">
+            <h3 className="font-black text-lg tracking-tight flex items-center gap-2">
+              <span aria-hidden>💸</span> Pay app flow
+            </h3>
+            <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
+              Three.js · each plate = one draw · color by status · height = amount
+            </p>
+          </div>
+          <PayAppFlow3DViewer
+            contractTotal={contractTotal}
+            payApps={payAppFlowItems}
+            height={520}
+          />
+        </div>
+      ) : null}
 
       {project.payApps.length === 0 ? (
         <div className="bg-paper border-2 border-line p-12 text-center">

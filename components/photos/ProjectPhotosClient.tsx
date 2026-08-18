@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFormState, useFormStatus } from 'react-dom';
 import type { ProjectPhotoListItem } from '@/lib/photos/queries';
@@ -216,7 +216,24 @@ export function ProjectPhotosClient({
       )}
 
       {/* Lightbox */}
-      {lightbox ? <Lightbox photo={lightbox} onClose={() => setLightbox(null)} /> : null}
+      {lightbox ? (
+        <Lightbox
+          photo={lightbox}
+          currentIndex={filtered.findIndex((p) => p.id === lightbox.id)}
+          totalCount={filtered.length}
+          onClose={() => setLightbox(null)}
+          onPrev={() => {
+            const idx = filtered.findIndex((p) => p.id === lightbox.id);
+            const prev = idx === 0 ? filtered.length - 1 : idx - 1;
+            setLightbox(filtered[prev]);
+          }}
+          onNext={() => {
+            const idx = filtered.findIndex((p) => p.id === lightbox.id);
+            const next = idx === filtered.length - 1 ? 0 : idx + 1;
+            setLightbox(filtered[next]);
+          }}
+        />
+      ) : null}
 
       {/* Mobile upload sheet (always available, useful on desktop too) */}
       <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Add project photo" maxHeightClass="max-h-[92vh]">
@@ -317,29 +334,90 @@ function PhotoCard({
   );
 }
 
-function Lightbox({ photo, onClose }: { photo: ProjectPhotoListItem; onClose: () => void }) {
+function Lightbox({
+  photo,
+  onClose,
+  onPrev,
+  onNext,
+  currentIndex,
+  totalCount,
+}: {
+  photo: ProjectPhotoListItem;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  currentIndex: number;
+  totalCount: number;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') onPrev();
+      if (e.key === 'ArrowRight') onNext();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose, onPrev, onNext]);
   return (
     <div
-      className="fixed inset-0 z-50 bg-ink/95 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-ink/95 flex items-center justify-center"
       onClick={onClose}
     >
+      {/* Close */}
       <button
         type="button"
-        className="absolute top-4 right-4 w-10 h-10 text-cream border-2 border-cream/30 hover:border-cream"
         onClick={onClose}
+        className="absolute top-3 right-3 z-10 w-10 h-10 text-cream text-2xl border-2 border-cream/30 hover:border-cream flex items-center justify-center"
         aria-label="Close"
       >
         ×
       </button>
+
+      {/* Counter */}
+      <div className="absolute top-3 left-3 z-10 text-cream text-[10px] font-mono uppercase tracking-[0.15em] bg-ink/60 px-3 py-1.5">
+        {currentIndex + 1} / {totalCount}
+      </div>
+
+      {/* Prev */}
+      {totalCount > 1 ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrev();
+          }}
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-12 h-12 text-cream text-2xl border-2 border-cream/30 hover:border-cream flex items-center justify-center"
+          aria-label="Previous photo"
+        >
+          ‹
+        </button>
+      ) : null}
+
+      {/* Next */}
+      {totalCount > 1 ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext();
+          }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-12 h-12 text-cream text-2xl border-2 border-cream/30 hover:border-cream flex items-center justify-center"
+          aria-label="Next photo"
+        >
+          ›
+        </button>
+      ) : null}
+
       <img
         src={photo.url}
         alt={photo.caption || photo.filename}
-        className="max-w-full max-h-[80vh] object-contain"
+        className="max-w-[90vw] max-h-[80vh] object-contain"
         onClick={(e) => e.stopPropagation()}
       />
+
       <div className="absolute bottom-0 left-0 right-0 bg-ink/80 text-cream p-4">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span
               className={`px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.1em] ${
                 photo.phase === 'ROUGH_IN' ? 'bg-warning text-ink' : 'bg-success'
@@ -347,6 +425,11 @@ function Lightbox({ photo, onClose }: { photo: ProjectPhotoListItem; onClose: ()
             >
               {photo.phase === 'ROUGH_IN' ? 'Rough-in' : 'Final'}
             </span>
+            {photo.folderName ? (
+              <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.1em] bg-orange text-paper">
+                {photo.folderName}
+              </span>
+            ) : null}
             {photo.room ? (
               <span className="text-[11px] font-mono uppercase tracking-[0.05em]">{photo.room}</span>
             ) : null}
