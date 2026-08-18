@@ -49,6 +49,11 @@ export async function getDeal(workspaceId: string, id: string) {
       notes: { include: { author: true }, orderBy: { createdAt: 'desc' } },
       files: { orderBy: { createdAt: 'desc' } },
       tasks: { where: { status: { not: 'DONE' } }, take: 10 },
+      // The project this deal was converted into (if any).
+      // The deal detail page uses this to swap the static
+      // "Convert to project" button for a working "Open
+      // project" link when the deal is already converted.
+      convertedProject: { select: { id: true, name: true } },
     },
   });
 }

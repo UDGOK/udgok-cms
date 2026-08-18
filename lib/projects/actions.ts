@@ -943,3 +943,107 @@ export async function deleteBimModelAction(
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}?tab=takeoff`);
   return { ok: true };
 }
+
+/**
+ * Convert a Won deal into a project. Pre-fills the new project
+ * with the deal's title, client, value, and description, and
+ * migrates the deal's files (proposal PDFs, contracts, etc.)
+ * onto the new project so nothing is lost. The deal is marked
+ * WON if it isn't already.
+ *
+ * Idempotent: if a project already exists for this deal
+ * (project.dealId === deal.id), the action just returns that
+ * project's id without creating a duplicate.
+ *
+ * Returns the new (or existing) project id so the caller can
+ * redirect to /w/{slug}/projects/{id}.
+ */
+export type ConvertDealToProjectState =
+  | { ok: true; projectId: string; alreadyConverted: boolean }
+  | { ok: false; error: string };
+
+export async function convertDealToProjectAction(
+  workspaceSlug: string,
+  dealId: string,
+): Promise<ConvertDealToProjectState> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: 'Not signed in' };
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const deal = await prisma.deal.findFirst({
+    where: { id: dealId, workspaceId: workspace.id },
+    include: {
+      convertedProject: { select: { id: true } },
+    },
+  });
+  if (!deal) return { ok: false, error: 'Deal not found' };
+
+  // Idempotency: if a project already exists for this deal, just
+  // hand back its id. Avoids the "I clicked twice, now I have two
+  // projects" footgun.
+  if (deal.convertedProject) {
+    return { ok: true, projectId: deal.convertedProject.id, alreadyConverted: true };
+  }
+
+  // Pick a project name. If a project with the same name already
+  // exists in the workspace, suffix the deal id (truncated) so
+  // conversion doesn't collide on `name`. The createProjectAction
+  // blocks duplicate names, so this is a defense-in-depth.
+  const baseName = deal.title.trim();
+  const existing = await prisma.project.findFirst({
+    where: { workspaceId: workspace.id, name: baseName },
+    select: { id: true },
+  });
+  const projectName = existing
+    ? `${baseName} (from deal ${deal.id.slice(0, 6)})`
+    : baseName;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const project = await tx.project.create({
+      data: {
+        workspaceId: workspace.id,
+        clientId: deal.clientId,
+        dealId: deal.id,
+        name: projectName,
+        description: deal.description,
+        contractValue: deal.value,
+        // startDate / endDate are intentionally left null. The
+        // estimator sets them on the project page once they
+        // actually have a contract and a schedule. Pre-filling
+        // expectedClose would be wrong because deal.expectedClose
+        // is a sales target, not a project start date.
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    // Migrate deal files to the new project. The File model has
+    // both dealId and projectId (both optional). Move them.
+    // We keep the original dealId set to null so the deal's
+    // own "files" view doesn't double-count the row.
+    await tx.file.updateMany({
+      where: { dealId: deal.id, workspaceId: workspace.id },
+      data: { dealId: null, projectId: project.id },
+    });
+
+    // Mark the deal as WON if it isn't already. We don't enforce
+    // this — a PM might convert a deal that's still in
+    // NEGOTIATING (e.g. "we've agreed on terms, project starts
+    // Monday"). The pipeline just gets a heads-up that this
+    // deal now has a live project.
+    if (deal.stage !== 'WON' && deal.stage !== 'LOST') {
+      await tx.deal.update({
+        where: { id: deal.id },
+        data: { stage: 'WON', closedAt: deal.closedAt ?? new Date() },
+      });
+    }
+
+    return project;
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/deals/${deal.id}`);
+  revalidatePath(`/w/${workspaceSlug}/deals`);
+  revalidatePath(`/w/${workspaceSlug}/projects`);
+  return { ok: true, projectId: result.id, alreadyConverted: false };
+}

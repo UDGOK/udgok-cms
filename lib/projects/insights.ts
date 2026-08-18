@@ -304,6 +304,10 @@ export async function getProjectWithRelations(workspaceId: string, id: string) {
     where: { id, workspaceId },
     include: {
       client: true,
+      // The deal this project was converted from (if any).
+      // Used to show a "Converted from deal" badge in the
+      // project header with a link back to the deal.
+      deal: { select: { id: true, title: true, stage: true } },
       members: {
         include: {
           user: { select: { id: true, name: true, avatarUrl: true, email: true } },

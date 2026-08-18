@@ -121,6 +121,7 @@ interface ProjectData {
   geocodeSource: string | null;
   geocodedAddress: string | null;
   client: { id: string; name: string } | null;
+  deal: { id: string; title: string; stage: string } | null;
   members: { user: ProjectUser; userId: string; role: string | null }[];
   divisions: ProjectDivision[];
   payApps: ProjectPayApp[];
@@ -342,6 +343,14 @@ export default async function ProjectDetailPage({
             {projectData.code ?? 'PROJECT'} · {projectData.client?.name ?? 'NO CLIENT'}
           </div>
           <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">{projectData.name}</h2>
+          {projectData.deal ? (
+            <a
+              href={`/w/${params.workspace}/deals/${projectData.deal.id}`}
+              className="inline-flex items-center gap-1.5 mt-2 text-[10px] font-mono uppercase tracking-[0.1em] px-2 py-0.5 bg-success/15 text-success border border-success/30 hover:bg-success/25 transition-colors"
+            >
+              ✓ Converted from deal · {projectData.deal.title}
+            </a>
+          ) : null}
           {projectData.description ? (
             <p className="text-[13px] text-ink-70 mt-2 max-w-2xl">{projectData.description}</p>
           ) : null}

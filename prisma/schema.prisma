@@ -202,6 +202,9 @@ model Deal {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   client    Client    @relation(fields: [clientId], references: [id])
   property  Property? @relation(fields: [propertyId], references: [id])
+  // The project this deal was converted into. null until
+  // "Convert to project" is clicked on the deal detail page.
+  convertedProject Project? @relation("DealConversion")
   notes     Note[]
   files     File[]
   tasks     Task[]
@@ -246,6 +249,11 @@ model Project {
   id            String        @id @default(cuid())
   workspaceId   String
   clientId      String?
+  // Set when this project was created from a Won deal. One
+  // deal → at most one project (enforced by the @unique below).
+  // OnDelete: SetNull so deleting a deal doesn't cascade-delete
+  // the project — the project stands on its own.
+  dealId        String?       @unique
   name          String
   code          String?
   description   String?
@@ -270,6 +278,7 @@ model Project {
 
   workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   client    Client?           @relation(fields: [clientId], references: [id])
+  deal      Deal?             @relation("DealConversion", fields: [dealId], references: [id], onDelete: SetNull)
   members   ProjectMember[]
   tasks     Task[]
   files     File[]

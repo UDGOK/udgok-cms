@@ -3,6 +3,7 @@ import { getDeal } from '@/lib/deals/queries';
 import { DEAL_STAGE_LABELS, DEAL_STAGES, type DealStage } from '@/lib/deals/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { Button, StatusBadge } from '@/components/ui';
+import { ConvertToProjectButton } from './ConvertToProjectButton';
 
 export default async function DealDetailPage({
   params,
@@ -127,7 +128,12 @@ export default async function DealDetailPage({
             </div>
           </div>
 
-          <Button variant="primary" fullWidth>+ Convert to project</Button>
+          <ConvertToProjectButton
+            workspaceSlug={params.workspace}
+            dealId={deal.id}
+            convertedProjectId={deal.convertedProject?.id ?? null}
+            convertedProjectName={deal.convertedProject?.name ?? null}
+          />
           <Button variant="secondary" fullWidth>Edit deal</Button>
         </div>
       </div>
