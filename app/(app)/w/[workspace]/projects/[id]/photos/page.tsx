@@ -78,7 +78,8 @@ export default async function ProjectPhotosPage({
           initialFacets={facets}
           initialFolders={folders}
           activeFolderId={activeFolderId}
-          canDelete={(uploaderId) => uploaderId === userId}
+          currentUserId={userId}
+          canDeleteAny={false}
         />
       </div>
     </div>

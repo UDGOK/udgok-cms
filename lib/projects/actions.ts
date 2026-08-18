@@ -53,6 +53,18 @@ export async function createProjectAction(
     return { error: 'Please fix the errors below', fieldErrors };
   }
 
+  // Check for a project with the same name in this workspace — warn
+  // (don't block) so the user can confirm they didn't double-submit.
+  const existingByName = await prisma.project.findFirst({
+    where: { workspaceId: workspace.id, name: parsed.data.name },
+    select: { id: true, name: true },
+  });
+  if (existingByName) {
+    return {
+      error: `A project named "${parsed.data.name}" already exists in this workspace. Pick a different name, or go to the existing project.`,
+    };
+  }
+
   // Compute the default SOV line budgets from the contract value + template %
   const contractValue = parsed.data.contractValue ?? 0;
   const template = parsed.data.seedTemplate ? DEFAULT_SOV_TEMPLATE : [];

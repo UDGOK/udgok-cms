@@ -12,11 +12,17 @@ vi.mock('@clerk/nextjs/server', () => ({
 const workspaceFindUnique = vi.fn();
 const projectFindFirst = vi.fn();
 const payAppCreate = vi.fn();
+const payAppFindFirst = vi.fn();
+const payAppDivisionFindMany = vi.fn();
 vi.mock('@/lib/db/client', () => ({
   prisma: {
     workspace: { findUnique: (...args: unknown[]) => workspaceFindUnique(...args) },
     project: { findFirst: (...args: unknown[]) => projectFindFirst(...args) },
-    payApp: { create: (...args: unknown[]) => payAppCreate(...args) },
+    payApp: {
+      create: (...args: unknown[]) => payAppCreate(...args),
+      findFirst: (...args: unknown[]) => payAppFindFirst(...args),
+    },
+    payAppDivision: { findMany: (...args: unknown[]) => payAppDivisionFindMany(...args) },
     user: { upsert: vi.fn() },
   },
 }));
@@ -49,6 +55,11 @@ beforeEach(() => {
   workspaceFindUnique.mockReset();
   projectFindFirst.mockReset();
   payAppCreate.mockReset();
+  payAppFindFirst.mockReset();
+  payAppDivisionFindMany.mockReset();
+  // Default: no prior pay apps / divisions found
+  payAppFindFirst.mockResolvedValue(null);
+  payAppDivisionFindMany.mockResolvedValue([]);
 });
 
 function mockFormData(entries: Record<string, string>) {
@@ -70,6 +81,9 @@ describe('generatePayAppAction', () => {
       ],
       payApps: [], // no prior pay apps
     });
+    // No prior pay app lines
+    payAppDivisionFindMany.mockResolvedValue([]);
+    payAppFindFirst.mockResolvedValue(null);
     payAppCreate.mockResolvedValue({ id: 'pa_1', shareToken: 'tok_1' });
 
     const result = await generatePayAppAction('my-ws', 'proj_1', undefined, mockFormData({
@@ -111,7 +125,7 @@ describe('generatePayAppAction', () => {
     expect(call.data.shareToken).toBeTruthy();
   });
 
-  it('cumulative math: draw 2 uses draw 1 balanceAfter as previous', async () => {
+  it('cumulative math: draw 2 uses sum of prior thisDrawAmount as previous', async () => {
     authMock.mockResolvedValue({ userId: 'user_1' });
     currentUserMock.mockResolvedValue(null);
     workspaceFindUnique.mockResolvedValue({ id: 'ws_1', slug: 'my-ws' });
@@ -120,15 +134,13 @@ describe('generatePayAppAction', () => {
       divisions: [
         { id: 'd1', code: '01', trade: 'Site prep', budget: 1000, sortOrder: 0 },
       ],
-      payApps: [
-        {
-          drawNumber: 1,
-          divisions: [
-            { projectDivisionId: 'd1', previousAmount: 0, thisDrawAmount: 500, balanceAfter: 500 },
-          ],
-        },
-      ],
+      payApps: [{ drawNumber: 1 }],
     });
+    // Prior pay app division: billed 500 of 1000
+    payAppDivisionFindMany.mockResolvedValue([
+      { projectDivisionId: 'd1', thisDrawAmount: 500 },
+    ]);
+    payAppFindFirst.mockResolvedValue({ drawNumber: 1 });
     payAppCreate.mockResolvedValue({ id: 'pa_2', shareToken: 'tok_2' });
 
     await generatePayAppAction('my-ws', 'proj_1', undefined, mockFormData({
@@ -139,12 +151,12 @@ describe('generatePayAppAction', () => {
 
     const call = payAppCreate.mock.calls[0][0];
     expect(call.data.drawNumber).toBe(2);
-    expect(call.data.totalPrevious).toBe(500);  // from prior draw
+    expect(call.data.totalPrevious).toBe(500);  // from sum of prior thisDrawAmount
     expect(call.data.totalThisDraw).toBe(300);
     expect(call.data.totalBalance).toBe(200);   // 1000 - 500 - 300
     expect(call.data.divisions.create[0]).toEqual({
       projectDivisionId: 'd1',
-      previousAmount: 500, // from prior's balanceAfter
+      previousAmount: 500, // from cumulative prior thisDrawAmount
       thisDrawAmount: 300,
       balanceAfter: 200,  // 1000 - 500 - 300
       sortOrder: 0,
@@ -189,6 +201,8 @@ describe('generatePayAppAction', () => {
       divisions: [{ id: 'd1', code: '01', trade: 'Over-bill', budget: 100, sortOrder: 0 }],
       payApps: [],
     });
+    payAppDivisionFindMany.mockResolvedValue([]);
+    payAppFindFirst.mockResolvedValue(null);
     payAppCreate.mockResolvedValue({ id: 'pa_1', shareToken: 't' });
 
     // User tries to bill 200 against a 100-budget line

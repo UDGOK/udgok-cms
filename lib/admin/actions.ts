@@ -410,15 +410,37 @@ export async function deleteProjectAction(
   // delete a project from a different workspace by mistake)
   const project = await prisma.project.findFirst({
     where: { id: projectId, workspaceId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, workspace: { select: { slug: true } } },
   });
   if (!project) return { ok: false, error: 'Project not found' };
 
-  await prisma.project.delete({ where: { id: projectId } });
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Delete project-scoped tables explicitly to avoid FK violations
+      // when schema cascades don't reach deep enough.
+      await tx.payApp.deleteMany({ where: { projectId } });
+      await tx.projectPhoto.deleteMany({ where: { projectId } });
+      await tx.projectPhotoFolder.deleteMany({ where: { projectId } });
+      await tx.projectMember.deleteMany({ where: { projectId } });
+      await tx.permit.deleteMany({ where: { projectId } });
+      await tx.inspection.deleteMany({ where: { permit: { projectId } } });
+      await tx.projectDivisionAssignment.deleteMany({
+        where: { assignment: { projectId } },
+      });
+      await tx.projectSubcontractorAssignment.deleteMany({ where: { projectId } });
+      await tx.projectDivision.deleteMany({ where: { projectId } });
+      // Then the project itself
+      await tx.project.delete({ where: { id: projectId } });
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[deleteProjectAction] transaction failed:', msg);
+    return { ok: false, error: `Delete failed: ${msg}` };
+  }
 
   revalidatePath('/admin');
   revalidatePath('/admin/projects');
-  revalidatePath(`/w/${workspaceId}/projects`);
+  revalidatePath(`/w/${project.workspace.slug}/projects`);
   return { ok: true };
 }
 

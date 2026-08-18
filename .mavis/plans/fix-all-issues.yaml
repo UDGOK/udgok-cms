@@ -1,0 +1,80 @@
+# Fix all production issues plan
+
+## Issue 1: Cascade order in deleteWorkspaceAction (CRITICAL)
+
+**Root cause:** `prisma.subcontractor.deleteMany()` is called BEFORE `projectSubcontractorAssignment` and `projectDivisionAssignment` are deleted. `ProjectSubcontractorAssignment.subcontractorId` FK has no `onDelete` directive → defaults to `Restrict` → Postgres blocks the delete.
+
+**Fix:** Reorder the delete sequence to:
+1. Delete `projectDivisionAssignment` (references both assignment AND division)
+2. Delete `projectSubcontractorAssignment` (references subcontractor)
+3. Delete `subcontractor` (now nothing references it)
+4. Delete everything else in dependency order
+
+Also fix `ProjectDivisionAssignment` — it has `divisionId` which references `ProjectDivision`. Need to delete assignments before deleting divisions.
+
+**Files to edit:**
+- `lib/admin/actions.ts` — reorder the deleteMany calls in the transaction
+- `prisma/schema.prisma` — change `ProjectSubcontractorAssignment.subcontractor` to `onDelete: Cascade` so the FK cascade is clean (one direction: deleting a sub cascades its assignments, not the other way)
+- `prisma/schema.prisma` — change `ProjectDivisionAssignment.division` to `onDelete: Cascade`
+
+**Verification:** Build must succeed. Test that the action compiles.
+
+## Issue 2: Clerk webhook secret not configured
+
+**Root cause:** The Clerk webhook endpoint (`/api/webhooks/clerk`) needs `CLERK_WEBHOOK_SECRET` env var. If not set, Svix verification fails silently or the secret is wrong, so `POST /api/webhooks/clerk` never creates user records in Prisma.
+
+**Fix:** 
+1. In `app/api/webhooks/clerk/route.ts`, add a check that warns if the secret isn't configured (log to console.error), but still handles `user.created` and `user.deleted` events.
+2. The webhook handler should gracefully handle missing secret by logging a warning.
+3. Document in `.env.example` that `CLERK_WEBHOOK_SECRET` needs to be set from Clerk dashboard → Webhooks.
+
+**Files to edit:**
+- `app/api/webhooks/clerk/route.ts` — add env var validation + graceful fallback
+- `.env.example` — add `CLERK_WEBHOOK_SECRET=` documentation
+
+## Issue 3: Can't edit clients
+
+**Root cause:** Check `lib/clients/actions.ts` and the client edit form. Likely the `updateClientAction` has a bug (wrong field name, missing auth check, or schema mismatch).
+
+**Fix:** 
+1. Read `lib/clients/actions.ts` and the client edit form component
+2. Check the Prisma `Client` model in `prisma/schema.prisma`
+3. Find the bug (likely a field name mismatch or auth issue)
+4. Fix it
+
+## Issue 4: Pay app generation issues
+
+**Root cause:** Two issues:
+1. Pay app doesn't acknowledge it's filled (form state not updating)
+2. Doesn't populate from previous pay apps for that project's trades
+
+**Fix:**
+1. Read `lib/payapps/actions.ts` — check `generatePayAppAction` or whatever generates pay apps
+2. Read `app/(app)/w/[workspace]/projects/[id]/pay-apps/new/page.tsx`
+3. Find what fields should be populated from the previous pay app
+4. Fix the generation logic
+
+---
+
+## Files in scope
+
+```
+prisma/schema.prisma
+lib/admin/actions.ts
+app/api/webhooks/clerk/route.ts
+.env.example
+lib/clients/actions.ts
+lib/payapps/actions.ts
+app/(app)/w/[workspace]/projects/[id]/pay-apps/new/page.tsx
+```
+
+## Verification
+
+After all fixes:
+1. `pnpm build` must succeed
+2. `pnpm test` must pass
+3. All files must be saved to `/workspace`
+
+## Output
+
+When complete, write a summary of all fixes to `/workspace/.mavis/plans/fix-all-issues-summary.md`

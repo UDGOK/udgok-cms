@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFormState, useFormStatus } from 'react-dom';
 import { generatePayAppAction } from '@/lib/pay-apps/actions';
@@ -13,6 +13,7 @@ interface Division {
   subcontractorName: string | null;
   budget: number;
   previous: number;
+  lastBilledDraw: number | null;
 }
 
 function SubmitButton() {
@@ -42,6 +43,13 @@ export function NewPayAppForm({
     undefined as { error?: string; fieldErrors?: Record<string, string>; id?: string } | undefined,
   );
 
+  // When the action returns a new pay app id, navigate to it.
+  useEffect(() => {
+    if (state?.id) {
+      router.push(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${state.id}`);
+    }
+  }, [state, router, workspaceSlug, projectId]);
+
   const totalThisDraw = Object.values(draws).reduce((acc, v) => acc + (Number(v) || 0), 0);
   const totalBudget = divisions.reduce((acc, d) => acc + d.budget, 0);
   const totalPrevious = divisions.reduce((acc, d) => acc + d.previous, 0);
@@ -49,17 +57,24 @@ export function NewPayAppForm({
 
   return (
     <form
-      action={async (fd) => {
-        const result = (await formAction(fd)) as { error?: string; fieldErrors?: Record<string, string>; id?: string } | undefined;
-        if (result?.id) {
-          router.push(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${result.id}`);
-        }
-      }}
+      action={formAction}
       className="space-y-6"
     >
       {/* Period */}
       <div className="bg-paper border-2 border-line p-6">
-        <div className="label-eyebrow mb-3">{'// Period'}</div>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="label-eyebrow">{'// Period'}</div>
+          {divisions.some((d) => d.lastBilledDraw !== null) ? (
+            <div className="text-[11px] font-mono text-ink-50">
+              Previous draw billed:{' '}
+              {divisions
+                .filter((d) => d.lastBilledDraw !== null)
+                .map((d) => `#${d.lastBilledDraw}`)
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .join(', ')}
+            </div>
+          ) : null}
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Period start" htmlFor="periodStart">
             <Input id="periodStart" name="periodStart" type="date" required />

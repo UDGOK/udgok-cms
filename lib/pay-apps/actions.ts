@@ -70,22 +70,33 @@ export async function generatePayAppAction(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' };
   }
 
-  // Determine previous cumulative billed per division from prior pay apps
-  const lastPayApp = project.payApps[0];
-  const lastLines = lastPayApp?.divisions ?? [];
+  // Determine previous cumulative billed per division from ALL prior pay apps.
+  // Fetch every line for every prior pay app, then sum thisDrawAmount per division.
+  const priorLines = await prisma.payAppDivision.findMany({
+    where: {
+      payApp: { projectId, status: { in: ['DRAFT', 'SENT', 'VIEWED', 'ACKNOWLEDGED', 'PAID'] } },
+    },
+    select: { projectDivisionId: true, thisDrawAmount: true },
+  });
+  const cumulativeByDiv = new Map<string, number>();
+  for (const line of priorLines) {
+    cumulativeByDiv.set(
+      line.projectDivisionId,
+      (cumulativeByDiv.get(line.projectDivisionId) ?? 0) + Number(line.thisDrawAmount),
+    );
+  }
   const totalContract = project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
 
   // Build PayAppDivision rows
   const lines = project.divisions.map((div, i) => {
-    const prev = lastLines.find((l) => l.projectDivisionId === div.id);
-    const previousAmount = prev ? Number(prev.balanceAfter) : 0;
+    const previousAmount = cumulativeByDiv.get(div.id) ?? 0;
     const thisDraw = thisDraws[div.id] ?? 0;
-    const balanceAfter = Number(div.budget) - previousAmount - thisDraw;
+    const balanceAfter = Math.max(0, Number(div.budget) - previousAmount - thisDraw);
     return {
       projectDivisionId: div.id,
       previousAmount,
       thisDrawAmount: thisDraw,
-      balanceAfter: Math.max(balanceAfter, 0),
+      balanceAfter,
       sortOrder: div.sortOrder || i,
     };
   });
@@ -94,7 +105,13 @@ export async function generatePayAppAction(
   const totalThisDraw = lines.reduce((acc, l) => acc + l.thisDrawAmount, 0);
   const totalBalance = totalContract - totalPrevious - totalThisDraw;
 
-  const nextDrawNumber = (lastPayApp?.drawNumber ?? 0) + 1;
+  // Determine the next draw number from the highest existing one.
+  const maxDraw = await prisma.payApp.findFirst({
+    where: { projectId },
+    orderBy: { drawNumber: 'desc' },
+    select: { drawNumber: true },
+  });
+  const nextDrawNumber = (maxDraw?.drawNumber ?? 0) + 1;
 
   const payApp = await prisma.payApp.create({
     data: {

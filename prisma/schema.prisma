@@ -738,7 +738,7 @@ model ProjectSubcontractorAssignment {
   updatedAt       DateTime               @updatedAt
 
   project       Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  subcontractor Subcontractor                 @relation(fields: [subcontractorId], references: [id])
+  subcontractor Subcontractor                 @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
   divisionLinks ProjectDivisionAssignment[]
 
   @@index([projectId])

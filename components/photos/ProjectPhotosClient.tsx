@@ -25,7 +25,19 @@ interface ProjectPhotosClientProps {
   initialFacets: { rooms: string[]; areas: string[]; roughInCount: number; finalCount: number };
   initialFolders: PhotoFolder[];
   activeFolderId: string | null;
-  canDelete: (uploaderId: string) => boolean;
+  /** ID of the signed-in user. Photo is deletable if they uploaded it. */
+  currentUserId: string;
+  /** Master admins can delete any photo in their workspaces. */
+  canDeleteAny: boolean;
+}
+
+/** Compute whether the current user can delete a given photo. */
+function userCanDelete(
+  photo: ProjectPhotoListItem,
+  currentUserId: string,
+  canDeleteAny: boolean,
+): boolean {
+  return canDeleteAny || photo.uploaderId === currentUserId;
 }
 
 function UploadButton() {
@@ -48,7 +60,8 @@ export function ProjectPhotosClient({
   initialFacets,
   initialFolders,
   activeFolderId,
-  canDelete,
+  currentUserId,
+  canDeleteAny,
 }: ProjectPhotosClientProps) {
   const router = useRouter();
   const [photos, setPhotos] = useState(initialPhotos);
@@ -207,7 +220,7 @@ export function ProjectPhotosClient({
               key={p.id}
               photo={p}
               onClick={() => setLightbox(p)}
-              canDelete={canDelete(p.uploaderId)}
+              canDelete={userCanDelete(p, currentUserId, canDeleteAny)}
               onDelete={() => handleDelete(p.id)}
               pendingDelete={pendingDeleteId}
             />
