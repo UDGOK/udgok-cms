@@ -23,6 +23,7 @@ import { AddProjectTaskForm } from './AddProjectTaskForm';
 import { ProjectTaskRow } from './ProjectTaskRow';
 import { RemoveProjectMemberButton } from './RemoveProjectMemberButton';
 import { EditProjectDetailsButton } from './EditProjectDetailsButton';
+import { ProjectLocationBadge } from './ProjectLocationBadge';
 import { WeatherWidget } from './WeatherWidget';
 import { JurisdictionCard } from './JurisdictionCard';
 import { AddPermitForm } from './AddPermitForm';
@@ -103,6 +104,11 @@ interface ProjectData {
   city: string | null;
   state: string | null;
   zip: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geocodedAt: Date | null;
+  geocodeSource: string | null;
+  geocodedAddress: string | null;
   client: { id: string; name: string } | null;
   members: { user: ProjectUser; userId: string; role: string | null }[];
   divisions: ProjectDivision[];
@@ -316,6 +322,23 @@ export default async function ProjectDetailPage({
               </span>
             </div>
           ) : null}
+          {/* Location pin status — shows coords + source. A small block
+              so the user knows geocoding worked and where the pin is. */}
+          {projectData.latitude != null && projectData.longitude != null ? (
+            <ProjectLocationBadge
+              workspaceSlug={params.workspace}
+              projectId={projectData.id}
+              latitude={projectData.latitude}
+              longitude={projectData.longitude}
+              geocodeSource={projectData.geocodeSource}
+              geocodedAt={projectData.geocodedAt}
+              geocodedAddress={projectData.geocodedAddress}
+            />
+          ) : projectData.address ? (
+            <div className="text-[11px] text-ink-30 mt-1.5 font-mono italic">
+              📍 Not yet geocoded — will run on next save.
+            </div>
+          ) : null}
           <div className="mt-2">
             <EditProjectDetailsButton
               workspaceSlug={params.workspace}
@@ -330,6 +353,9 @@ export default async function ProjectDetailPage({
                 endDate: projectData.endDate,
                 contractValue: projectData.contractValue ? Number(projectData.contractValue) : null,
                 status: projectData.status,
+                latitude: projectData.latitude,
+                longitude: projectData.longitude,
+                geocodeSource: projectData.geocodeSource,
               }}
             />
           </div>

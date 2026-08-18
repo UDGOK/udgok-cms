@@ -254,6 +254,14 @@ model Project {
   city          String?
   state         String?
   zip           String?
+  // Geocoded coordinates. Auto-populated by the geocoder when address
+  // changes, but can be manually overridden (set geocodeSource='manual').
+  // Used by the Site Map / Project MAP features.
+  latitude      Float?
+  longitude     Float?
+  geocodedAt    DateTime?
+  geocodeSource String?      // 'nominatim' | 'manual' | 'mapbox' | 'cached'
+  geocodedAddress String?    // the address that was actually geocoded (for cache invalidation)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -272,6 +280,7 @@ model Project {
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
+  @@index([workspaceId, latitude, longitude])
 }
 
 // Per-construction-phase photos. Categorized by:

@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db/client';
 import { auth } from '@clerk/nextjs/server';
 import { requireRole } from '@/lib/auth/require-role';
 import { getWorkspace } from '@/lib/workspace/get-workspace';
+import { geocodeProjectAddress, buildAddressQuery } from '@/lib/geocoding';
 
 import { DEFAULT_SOV_TEMPLATE } from '@/lib/construction/csi-masterformat';
 
@@ -18,6 +19,10 @@ const projectSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   seedTemplate: z.union([z.literal('on'), z.literal('true'), z.literal('1')]).optional(),
+  address: z.string().max(500).optional(),
+  city: z.string().max(120).optional(),
+  state: z.string().max(40).optional(),
+  zip: z.string().max(20).optional(),
 });
 
 export type CreateProjectState =
@@ -43,6 +48,10 @@ export async function createProjectAction(
     startDate: formData.get('startDate') || undefined,
     endDate: formData.get('endDate') || undefined,
     seedTemplate: formData.get('seedTemplate') || undefined,
+    address: formData.get('address') || undefined,
+    city: formData.get('city') || undefined,
+    state: formData.get('state') || undefined,
+    zip: formData.get('zip') || undefined,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -79,9 +88,39 @@ export async function createProjectAction(
       contractValue: parsed.data.contractValue,
       startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
       endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : null,
+      address: parsed.data.address || null,
+      city: parsed.data.city || null,
+      state: parsed.data.state || null,
+      zip: parsed.data.zip || null,
     },
     select: { id: true },
   });
+
+  // Fire-and-forget geocode. The form already has the project; we
+  // don't make the user wait for the network round-trip. If the
+  // geocoder succeeds, the project coords are filled in before the
+  // next page render. If it fails, the user can hit "Re-geocode" on
+  // the project page.
+  const addressQuery = buildAddressQuery(parsed.data);
+  if (addressQuery) {
+    geocodeProjectAddress(parsed.data)
+      .then((geo) => {
+        if (!geo) return;
+        return prisma.project.update({
+          where: { id: project.id },
+          data: {
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            geocodedAt: new Date(),
+            geocodeSource: geo.source,
+            geocodedAddress: geo.formattedAddress,
+          },
+        });
+      })
+      .catch(() => {
+        // Never block project creation on a geocode failure.
+      });
+  }
 
   // Seed the standard SOV template if the user opted in
   if (template.length > 0) {
@@ -269,6 +308,14 @@ const updateProjectDetailsSchema = z.object({
   endDate: z.string().optional(),
   contractValue: z.coerce.number().min(0).optional(),
   status: z.enum(['ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED']).optional(),
+  // Manual lat/lng override. If present, geocodeSource is forced to
+  // 'manual' and future auto-geocodes are skipped unless the user
+  // hits "Re-geocode" on the project page.
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+  // Explicit "force re-geocode from current address" signal. Sent
+  // when the user clicks the Re-geocode button.
+  forceRegeocode: z.union([z.literal('on'), z.literal('true'), z.literal('1')]).optional(),
 });
 
 export type UpdateProjectDetailsState =
@@ -297,6 +344,9 @@ export async function updateProjectDetailsAction(
     endDate: formData.get('endDate') ?? undefined,
     contractValue: formData.get('contractValue') ?? undefined,
     status: formData.get('status') ?? undefined,
+    latitude: formData.get('latitude') ?? undefined,
+    longitude: formData.get('longitude') ?? undefined,
+    forceRegeocode: formData.get('forceRegeocode') ?? undefined,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -306,6 +356,21 @@ export async function updateProjectDetailsAction(
     }
     return { error: 'Please fix the errors below', fieldErrors };
   }
+
+  // Determine whether to auto-geocode after the update.
+  // We re-geocode if any address field changed AND the user hasn't
+  // pinned the location manually. A manual override is sticky until
+  // the user explicitly clicks "Re-geocode".
+  const addressChanged =
+    (parsed.data.address ?? null) !== project.address ||
+    (parsed.data.city ?? null) !== project.city ||
+    (parsed.data.state ?? null) !== project.state ||
+    (parsed.data.zip ?? null) !== project.zip;
+  const hasManualOverride =
+    parsed.data.latitude !== undefined && parsed.data.longitude !== undefined;
+  const forceRegeocode = parsed.data.forceRegeocode != null;
+  const shouldGeocode = (addressChanged && !hasManualOverride) || forceRegeocode;
+  const isManualPin = hasManualOverride && !forceRegeocode;
 
   await prisma.project.update({
     where: { id: projectId },
@@ -319,8 +384,63 @@ export async function updateProjectDetailsAction(
       endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : null,
       contractValue: parsed.data.contractValue,
       status: parsed.data.status,
+      // Manual pin wins: clear auto-geocode provenance and lock coords
+      // to whatever the user typed. Future edits won't auto-override.
+      ...(isManualPin
+        ? {
+            latitude: parsed.data.latitude!,
+            longitude: parsed.data.longitude!,
+            geocodedAt: new Date(),
+            geocodeSource: 'manual',
+            geocodedAddress: `${parsed.data.latitude!.toFixed(6)}, ${parsed.data.longitude!.toFixed(6)} (manually pinned)`,
+          }
+        : {}),
+      // If we're about to auto-geocode, clear the previous coords so a
+      // failed re-geocode doesn't leave a misleading pin.
+      ...(shouldGeocode && !isManualPin
+        ? {
+            latitude: null,
+            longitude: null,
+            geocodedAt: null,
+            geocodeSource: null,
+            geocodedAddress: null,
+          }
+        : {}),
     },
   });
+
+  // Fire-and-forget geocode. If the user manually pinned, this branch
+  // is skipped (shouldGeocode=false). If forceRegeocode was sent, we
+  // re-run even if the address hasn't changed.
+  if (shouldGeocode) {
+    const nextAddress = parsed.data.address ?? project.address;
+    const nextCity = parsed.data.city ?? project.city;
+    const nextState = parsed.data.state ?? project.state;
+    const nextZip = parsed.data.zip ?? project.zip;
+    geocodeProjectAddress({
+      address: nextAddress,
+      city: nextCity,
+      state: nextState,
+      zip: nextZip,
+    })
+      .then((geo) => {
+        if (!geo) return;
+        return prisma.project.update({
+          where: { id: projectId },
+          data: {
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            geocodedAt: new Date(),
+            geocodeSource: geo.source,
+            geocodedAddress: geo.formattedAddress,
+          },
+        });
+      })
+      .catch(() => {
+        // Swallowed — a failed geocode just leaves coords null. The
+        // user can hit "Re-geocode" to retry.
+      });
+  }
 
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
   return { ok: true };
@@ -507,6 +627,102 @@ export async function deleteProjectTaskAction(
     where: { id: taskId, projectId, workspaceId: workspace.id },
   });
   if (result.count === 0) return { error: 'Task not found' };
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
+  return { ok: true };
+}
+
+// =========================================
+// GEOCODING
+// =========================================
+
+export type RegeocodeState =
+  | { error?: string; ok?: boolean; latitude?: number; longitude?: number; formattedAddress?: string }
+  | undefined;
+
+/**
+ * Force-re-geocode the project's current address. Used by the
+ * "Re-geocode" button on the project page.
+ *
+ * Returns the new coords on success so the UI can show them
+ * immediately without waiting for the revalidate.
+ */
+export async function regeocodeProjectAction(
+  workspaceSlug: string,
+  projectId: string,
+): Promise<RegeocodeState> {
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId: workspace.id },
+    select: { id: true, address: true, city: true, state: true, zip: true, geocodeSource: true },
+  });
+  if (!project) return { error: 'Project not found' };
+
+  // Clear the current pin first so a failed geocode doesn't leave a
+  // stale "nominatim" source pointing at the wrong spot.
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      latitude: null,
+      longitude: null,
+      geocodedAt: null,
+      geocodeSource: null,
+      geocodedAddress: null,
+    },
+  });
+
+  const geo = await geocodeProjectAddress(project);
+  if (!geo) {
+    revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
+    return { error: "Couldn't find this address. Check it and try again, or pin the location manually." };
+  }
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      latitude: geo.latitude,
+      longitude: geo.longitude,
+      geocodedAt: new Date(),
+      geocodeSource: geo.source,
+      geocodedAddress: geo.formattedAddress,
+    },
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
+  return {
+    ok: true,
+    latitude: geo.latitude,
+    longitude: geo.longitude,
+    formattedAddress: geo.formattedAddress,
+  };
+}
+
+/**
+ * Clear any manually-pinned location so the next address edit will
+ * auto-geocode again. The current pin stays on the project until the
+ * next edit triggers a re-geocode, OR until the user types fresh
+ * coords and saves.
+ */
+export async function clearManualPinAction(
+  workspaceSlug: string,
+  projectId: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
+  const result = await prisma.project.updateMany({
+    where: { id: projectId, workspaceId: workspace.id },
+    data: {
+      latitude: null,
+      longitude: null,
+      geocodedAt: null,
+      geocodeSource: null,
+      geocodedAddress: null,
+    },
+  });
+  if (result.count === 0) return { error: 'Project not found' };
 
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
   return { ok: true };

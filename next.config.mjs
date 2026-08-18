@@ -37,6 +37,10 @@ const aliases = {
   // Legacy DeepSeek aliases (kept so any leftover env vars don't crash reads)
   DEEPSEEK_API_KEY: ['UDGOK_CMS_DEEPSEEK_API_KEY'],
   UDGOK_CMS_DEEPSEEK_API_KEY: ['DEEPSEEK_API_KEY'],
+  // Nominatim (OpenStreetMap) geocoder. We use the OSM public service —
+  // no API key, but we identify ourselves with a User-Agent per their ToS.
+  UDGOK_CMS_NOMINATIM_USER_AGENT: ['NOMINATIM_USER_AGENT'],
+  UDGOK_CMS_NOMINATIM_BASE_URL: ['NOMINATIM_BASE_URL'],
 };
 
 for (const [target, sources] of Object.entries(aliases)) {

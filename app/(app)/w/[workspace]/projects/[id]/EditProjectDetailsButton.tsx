@@ -17,6 +17,9 @@ interface EditProjectDetailsButtonProps {
     endDate: Date | null;
     contractValue: number | null;
     status: string;
+    latitude: number | null;
+    longitude: number | null;
+    geocodeSource: string | null;
   };
 }
 
@@ -126,6 +129,55 @@ export function EditProjectDetailsButton({
               />
             </div>
           </div>
+
+          {/* Location pin — manual override */}
+          <div className="border-2 border-dashed border-ink bg-cream-2 p-3 space-y-2">
+            <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+              📍 Site location
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+                  Latitude
+                </label>
+                <input
+                  type="number"
+                  name="latitude"
+                  step="0.000001"
+                  min="-90"
+                  max="90"
+                  defaultValue={initial.latitude ?? ''}
+                  placeholder="29.7604"
+                  className="w-full px-2 py-2 bg-paper border border-line text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-orange"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+                  Longitude
+                </label>
+                <input
+                  type="number"
+                  name="longitude"
+                  step="0.000001"
+                  min="-180"
+                  max="180"
+                  defaultValue={initial.longitude ?? ''}
+                  placeholder="-95.3698"
+                  className="w-full px-2 py-2 bg-paper border border-line text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-orange"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-ink-50">
+              {initial.geocodeSource === 'manual' ? (
+                <>📌 Manually pinned. Edits above won&apos;t auto-regeocode. Hit &ldquo;Re-geocode&rdquo; on the project page to clear.</>
+              ) : initial.geocodeSource === 'nominatim' ? (
+                <>🌍 Auto-geocoded. Save with new lat/lng to pin manually, or change the address above to re-geocode.</>
+              ) : (
+                <>Save with both lat/lng filled to pin manually. Otherwise the address above is auto-geocoded.</>
+              )}
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">

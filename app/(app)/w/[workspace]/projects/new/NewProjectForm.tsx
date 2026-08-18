@@ -72,6 +72,33 @@ export function NewProjectForm({
         </Field>
       </div>
 
+      {/* Site address — auto-geocoded to lat/lng on save. The MAP tab
+          (coming soon) and the workspace map will use these coords. */}
+      <div className="bg-cream-2 border-2 border-line p-4 space-y-3">
+        <div>
+          <div className="font-extrabold text-[12px] uppercase tracking-[0.1em] text-ink-50">
+            📍 Site address
+          </div>
+          <p className="text-[11px] text-ink-50 mt-1">
+            We auto-geocode the address to lat/lng on save. You can override the pin from the project page once it&apos;s created.
+          </p>
+        </div>
+        <Field label="Street address" htmlFor="address" hint="optional">
+          <Input id="address" name="address" placeholder="123 Main St" />
+        </Field>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="City" htmlFor="city" hint="optional">
+            <Input id="city" name="city" placeholder="Houston" />
+          </Field>
+          <Field label="State" htmlFor="state" hint="optional">
+            <Input id="state" name="state" placeholder="TX" maxLength={40} />
+          </Field>
+          <Field label="ZIP" htmlFor="zip" hint="optional">
+            <Input id="zip" name="zip" placeholder="77002" maxLength={20} />
+          </Field>
+        </div>
+      </div>
+
       <Field label="Description" htmlFor="description">
         <textarea
           id="description"
