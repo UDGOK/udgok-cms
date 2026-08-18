@@ -51,6 +51,49 @@ describe('Upload routes use handleUpload (no 4.5MB function body cap)', () => {
   }
 });
 
+describe('Upload routes do not call auth() at the top of POST', () => {
+  // handleUpload() dispatches the same POST route to EITHER:
+  //   (a) the token-generation call from the browser (has the
+  //       session cookie, so auth() works)
+  //   (b) the upload-completion callback from Vercel's backend
+  //       (server-to-server, NO user cookie, so auth() returns
+  //       null and 401s the whole route)
+  //
+  // If auth() is at the top of the POST handler, the completion
+  // callback is rejected with 401, onUploadCompleted never fires,
+  // and the file lands in Vercel Blob with no DB row. Classic
+  // 'uploaded but no row' symptom.
+  //
+  // The fix: auth + workspace/project lookups live INSIDE
+  // onBeforeGenerateToken only. onUploadCompleted doesn't need
+  // them — the userId is in the tokenPayload from the token step.
+  //
+  // These tests are static source checks because reproducing the
+  // actual two-phase handleUpload call in vitest is hard. Better
+  // to fail the test than the production upload.
+  for (const p of UPLOAD_ROUTE_PATHS) {
+    it(`${p} does not call auth() at the top of POST`, () => {
+      const src = readFileSync(join(process.cwd(), p), 'utf8');
+      // Look for the function signature line
+      const postMatch = src.match(/export\s+async\s+function\s+POST\s*\([^)]*\)\s*\{/);
+      expect(postMatch, `${p}: no POST handler found`).not.toBeNull();
+      // Get the body up to the first onBeforeGenerateToken call
+      // (that's the part that should NOT contain a top-level auth check).
+      const afterPost = src.slice(postMatch!.index! + postMatch![0].length);
+      const beforeOnBefore = afterPost.split(/onBeforeGenerateToken\s*:/)[0] ?? '';
+      // The body before onBeforeGenerateToken should not call auth()
+      // at the top level. Allow comments mentioning auth.
+      const stripped = beforeOnBefore
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+      expect(
+        /\bauth\s*\(\s*\)/.test(stripped),
+        `${p}: top-level auth() call before onBeforeGenerateToken would 401 the Vercel upload-completion callback`,
+      ).toBe(false);
+    });
+  }
+});
+
 describe('Upload components use the client-side upload hook', () => {
   const COMPONENT_PATHS = [
     'app/(app)/w/[workspace]/files/UploadForm.tsx',

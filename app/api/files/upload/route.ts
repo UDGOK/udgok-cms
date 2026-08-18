@@ -16,7 +16,6 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import { auth } from '@clerk/nextjs/server';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { prisma } from '@/lib/db/client';
 import { requireRole } from '@/lib/auth/require-role';
@@ -44,8 +43,8 @@ interface WorkspaceFileTokenPayload {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+  // See the comment in app/api/files/upload/route.ts for why we
+  // don't call auth() at the top of this handler.
 
   const body = (await req.json()) as HandleUploadBody;
   try {

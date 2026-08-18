@@ -11,7 +11,6 @@
  * updates the Subcontractor's `idScanned` / `w9OnFile` / timestamps.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { prisma } from '@/lib/db/client';
 import { requireRole } from '@/lib/auth/require-role';
@@ -32,8 +31,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+  // See app/api/files/upload/route.ts for why we don't call auth()
+  // at the top of the handler. The completion callback from
+  // Vercel is server-to-server with no user cookie, so a top-level
+  // auth check would 401 it and onUploadCompleted would never run.
+  // The auth + workspace check lives in onBeforeGenerateToken below.
 
   const body = (await req.json()) as HandleUploadBody;
   try {

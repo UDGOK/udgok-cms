@@ -26,15 +26,12 @@ const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
 const ALLOWED_EXTENSIONS = ['.ifc'];
 
 export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
-
-  const project = await prisma.project.findFirst({
-    where: { id: ctx.params.id },
-    select: { id: true, workspaceId: true },
-  });
-  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-  await requireRole(project.workspaceId, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+  // See app/api/files/upload/route.ts for why we don't call auth()
+  // and the project lookup at the top of the handler. The completion
+  // callback from Vercel is server-to-server with no user cookie,
+  // so a top-level auth check would 401 it and onUploadCompleted
+  // would never run. The auth + project lookup happen inside
+  // onBeforeGenerateToken below.
 
   const body = (await req.json()) as HandleUploadBody;
   try {
@@ -42,6 +39,19 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
       body,
       request: req,
       onBeforeGenerateToken: async (pathname) => {
+        // Auth + project lookup live INSIDE onBeforeGenerateToken,
+        // not at the top of the handler. The completion callback
+        // (which is a separate POST from Vercel, no user cookie)
+        // doesn't need either check.
+        const { userId } = await auth();
+        if (!userId) throw new Error('Not signed in');
+        const project = await prisma.project.findFirst({
+          where: { id: ctx.params.id },
+          select: { id: true, workspaceId: true },
+        });
+        if (!project) throw new Error('Project not found');
+        await requireRole(project.workspaceId, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
+
         const ext = pathname.toLowerCase().slice(pathname.lastIndexOf('.'));
         if (!ALLOWED_EXTENSIONS.includes(ext)) {
           throw new Error(`Only ${ALLOWED_EXTENSIONS.join(', ')} files are accepted`);
