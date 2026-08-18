@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFormState, useFormStatus } from 'react-dom';
 import type { ProjectPhotoListItem } from '@/lib/photos/queries';
@@ -9,6 +9,7 @@ import { GeoPhotoCapture } from '@/components/files/GeoPhotoCapture';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { uploadProjectPhotoAction, deleteProjectPhotoAction } from '@/lib/photos/actions';
 import { PhotoFolderTabs } from '@/app/(app)/w/[workspace]/projects/[id]/PhotoFolderTabs';
+import { compressImage } from '@/lib/images/compress';
 
 export interface PhotoFolder {
   id: string;
@@ -40,15 +41,16 @@ function userCanDelete(
   return canDeleteAny || photo.uploaderId === currentUserId;
 }
 
-function UploadButton() {
+function UploadButton({ compressing = false }: { compressing?: boolean }) {
   const { pending } = useFormStatus();
+  const busy = pending || compressing;
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={busy}
       className="w-full px-4 py-3 bg-ink text-cream text-[11px] font-extrabold uppercase tracking-[0.15em] disabled:opacity-50"
     >
-      {pending ? 'Uploading…' : 'Upload photo'}
+      {compressing ? 'Compressing…' : pending ? 'Uploading…' : 'Upload photo'}
     </button>
   );
 }
@@ -85,9 +87,12 @@ export function ProjectPhotosClient({
   });
 
   async function handleGeophotoUpload(file: File, meta: { latitude?: number; longitude?: number; takenAt?: Date }) {
+    // Compress first — phone-camera photos are routinely 5-10 MB
+    // and the Vercel function payload limit is 4.5 MB.
+    const compressed = await compressImage(file);
     const fd = new FormData();
     fd.set('projectId', projectId);
-    fd.set('file', file);
+    fd.set('file', compressed);
     fd.set('phase', 'ROUGH_IN');
     if (meta.latitude) fd.set('latitude', String(meta.latitude));
     if (meta.longitude) fd.set('longitude', String(meta.longitude));
@@ -481,6 +486,39 @@ function PhotoUploadForm({
   uploadState: { error?: string; ok?: boolean; id?: string } | undefined;
   onGeoCapture: (file: File, meta: { latitude?: number; longitude?: number; takenAt?: Date }) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [compressing, setCompressing] = useState(false);
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fileInput = fileInputRef.current;
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      // No file — fall through to the form action
+      const fd = new FormData(form);
+      uploadFormAction(fd);
+      return;
+    }
+    setCompressing(true);
+    try {
+      const file = fileInput.files[0];
+      const compressed = await compressImage(file);
+      // Build a new FormData from the form, but with the compressed file
+      // replacing the original. Copy every other field as-is.
+      const fd = new FormData();
+      const formData = new FormData(form);
+      formData.delete('file');
+      Array.from(formData.entries()).forEach(([k, v]) => {
+        fd.append(k, v);
+      });
+      fd.set('file', compressed, file.name.replace(/\.(heic|heif|png|webp)$/i, '.jpg'));
+      uploadFormAction(fd);
+    } finally {
+      setCompressing(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* GPS capture option */}
@@ -494,8 +532,25 @@ function PhotoUploadForm({
       <div className="text-center text-[10px] font-mono uppercase tracking-[0.1em] text-ink-30">— or —</div>
 
       {/* Manual upload with categorization */}
-      <form action={uploadFormAction} className="space-y-3">
+      <form ref={formRef} onSubmit={onSubmit} className="space-y-3">
         <input type="hidden" name="projectId" value={projectId} />
+
+        <div>
+          <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1.5">
+            Photo file
+          </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            name="file"
+            accept="image/*"
+            required
+            className="block w-full px-3 py-2 bg-paper border border-line text-[12px] file:mr-3 file:py-1.5 file:px-3 file:border-0 file:bg-ink file:text-cream file:font-extrabold file:uppercase file:tracking-[0.1em] file:text-[10px]"
+          />
+          <p className="text-[10px] font-mono text-ink-30 uppercase tracking-[0.1em] mt-1">
+            Phone photos auto-compressed to fit upload limit
+          </p>
+        </div>
 
         <div>
           <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1.5">
@@ -585,7 +640,7 @@ function PhotoUploadForm({
           />
         </div>
 
-        <UploadButton />
+        <UploadButton compressing={compressing} />
         {uploadState?.error ? (
           <p className="text-[11px] text-error font-mono">{uploadState.error}</p>
         ) : null}

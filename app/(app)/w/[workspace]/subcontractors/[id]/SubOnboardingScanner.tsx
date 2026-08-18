@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { compressImage, formatBytes } from '@/lib/images/compress';
 
 type DocKind = 'ID_CARD' | 'W9' | 'INSURANCE' | 'LICENSE' | 'OTHER';
 
@@ -84,13 +85,24 @@ export function SubOnboardingScanner({
     // Show a local preview while uploading
     const url = URL.createObjectURL(file);
     setPreview(url);
-    setStatus('Uploading…');
+    setStatus('Compressing…');
 
     const kind = activeKind;
     start(async () => {
       try {
+        // Compress phone-camera photos (5-10 MB) so the upload fits
+        // the 4.5 MB Vercel function payload limit. ID-card / W-9
+        // images stay readable at 2048 px JPEG q=0.85.
+        const compressed = await compressImage(file);
+        const wasCompressed = compressed.size < file.size;
+        setStatus(
+          wasCompressed
+            ? `Uploading ${formatBytes(compressed.size)} (was ${formatBytes(file.size)})…`
+            : `Uploading ${formatBytes(file.size)}…`,
+        );
+
         const fd = new FormData();
-        fd.set('file', file);
+        fd.set('file', compressed);
         fd.set('kind', kind);
         const res = await fetch(
           `/api/subs/${subId}/documents?workspace=${encodeURIComponent(workspaceSlug)}`,
