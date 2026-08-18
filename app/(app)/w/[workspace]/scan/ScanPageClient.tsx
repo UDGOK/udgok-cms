@@ -24,7 +24,10 @@ export function ScanPageClient({ workspaceSlug, plan, isMasterAdmin }: ScanPageC
           open={sheetOpen}
           onClose={() => {
             setSheetOpen(false);
-            router.push(`/w/${workspaceSlug}`);
+            // Note: /w/[workspaceSlug] (no subpath) is a 404 — there's no
+            // top-level page for a workspace. Send the user to the
+            // workspace dashboard instead.
+            router.push(`/w/${workspaceSlug}/dashboard`);
           }}
           title="Scan"
           maxHeightClass="max-h-[85vh]"
@@ -36,7 +39,7 @@ export function ScanPageClient({ workspaceSlug, plan, isMasterAdmin }: ScanPageC
             }}
             onClose={() => {
               setSheetOpen(false);
-              router.push(`/w/${workspaceSlug}`);
+              router.push(`/w/${workspaceSlug}/dashboard`);
             }}
           />
         </BottomSheet>
