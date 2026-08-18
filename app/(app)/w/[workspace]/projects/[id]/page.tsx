@@ -22,11 +22,13 @@ import { MessageThread } from '@/components/messages/MessageThread';
 import { listMessagesForEntity } from '@/lib/messages/queries';
 import { listEntityActivity } from '@/lib/activity/queries';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
-import { countProjectPhotosByPhase, listProjectPhotos } from '@/lib/photos/queries';
+import { countProjectPhotosByPhase, listProjectPhotos, listProjectGpsPhotos } from '@/lib/photos/queries';
 import { ProjectTabs } from './ProjectTabs';
 import { CompletionRing } from './CompletionRing';
 import { AIBoard } from './AIBoard';
 import { TakeoffTab } from './TakeoffTab';
+import { ProjectMapTab as MapTab } from './MapTab';
+import type { ProjectStatus } from '@prisma/client';
 import { AddProjectMemberForm } from './AddProjectMemberForm';
 import { AddProjectTaskForm } from './AddProjectTaskForm';
 import { ProjectTaskRow } from './ProjectTaskRow';
@@ -197,7 +199,7 @@ export default async function ProjectDetailPage({
   const { userId } = await auth();
   const tab = searchParams.tab ?? 'overview';
 
-  const [project, subs, messages, activity, photoCounts, recentPhotos, workspaceMembers, projectMembers, myRole, permits] = await Promise.all([
+  const [project, subs, messages, activity, photoCounts, recentPhotos, workspaceMembers, projectMembers, myRole, permits, gpsPhotos] = await Promise.all([
     getProjectWithRelations(workspace.id, params.id),
     prisma.subcontractor.findMany({
       where: { workspaceId: workspace.id },
@@ -223,6 +225,10 @@ export default async function ProjectDetailPage({
       select: { role: true },
     }),
     listProjectPermits(params.id),
+    // GPS photos for the MAP tab. Limit 500 — projects rarely
+    // exceed a few hundred, and a hard cap keeps the map payload
+    // bounded even on a busy project.
+    listProjectGpsPhotos(params.id, 500),
   ]);
   if (!project) notFound();
   const projectData = project as unknown as ProjectData;
@@ -308,6 +314,7 @@ export default async function ProjectDetailPage({
     { key: 'schedule', label: 'Schedule', href: `${base}?tab=schedule` },
     { key: 'permits', label: 'Permits', href: `${base}?tab=permits`, badge: permitsBadge },
     { key: 'takeoff', label: 'Takeoff', href: `${base}?tab=takeoff`, badge: projectData.bimModels.length || undefined },
+    { key: 'map', label: 'Map', href: `${base}?tab=map`, badge: gpsPhotos.length > 0 ? gpsPhotos.length : undefined },
     { key: 'pay-apps', label: 'Pay apps', href: `${base}/pay-apps`, badge: projectData.payApps.length || undefined },
     { key: 'subs', label: 'Subs', href: `${base}?tab=subs`, badge: projectData.subAssignments.length || undefined },
   ];
@@ -505,6 +512,39 @@ export default async function ProjectDetailPage({
           projectId={projectData.id}
           bimModels={projectData.bimModels}
           bimTakeoffs={projectData.bimTakeoffs}
+        />
+      ) : null}
+
+      {tab === 'map' && projectData.latitude != null && projectData.longitude != null ? (
+        <MapTab
+          workspaceSlug={params.workspace}
+          project={{
+            id: projectData.id,
+            name: projectData.name,
+            code: projectData.code,
+            status: projectData.status as ProjectStatus,
+            latitude: projectData.latitude,
+            longitude: projectData.longitude,
+            city: projectData.city,
+            state: projectData.state,
+            geocodeSource: projectData.geocodeSource,
+            geocodedAddress: projectData.geocodedAddress,
+          }}
+          gpsPhotos={gpsPhotos.map((p) => ({
+            id: p.id,
+            url: p.url,
+            filename: p.filename,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            room: p.room,
+            area: p.area,
+            takenAt: p.takenAt ? p.takenAt.toISOString() : null,
+          }))}
+        />
+      ) : tab === 'map' ? (
+        <NoLocationYet
+          workspaceSlug={params.workspace}
+          projectId={projectData.id}
         />
       ) : null}
 
@@ -1415,6 +1455,36 @@ function PermitsTab({
           <WeatherWidget project={project} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Shown when the user opens the MAP tab but the project has no
+ * lat/lng yet. Tells them to either save an address (which
+ * auto-geocodes) or set a manual pin.
+ */
+function NoLocationYet({
+  workspaceSlug,
+  projectId,
+}: {
+  workspaceSlug: string;
+  projectId: string;
+}) {
+  return (
+    <div className="border border-line bg-paper p-6 md:p-10 text-center">
+      <div className="text-4xl mb-3">📍</div>
+      <h3 className="text-lg font-black mb-2">No site pin yet</h3>
+      <p className="text-sm text-ink-70 max-w-md mx-auto mb-5">
+        Add a project address and we&apos;ll auto-geocode it. Or click
+        &quot;Edit details&quot; above to drop a manual pin on the map.
+      </p>
+      <a
+        href={`/w/${workspaceSlug}/projects/${projectId}#details`}
+        className="inline-block px-4 py-2 bg-orange text-paper text-xs font-extrabold uppercase tracking-[0.1em] hover:bg-orange-d transition-colors"
+      >
+        Set project address
+      </a>
     </div>
   );
 }

@@ -89,3 +89,111 @@ body {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* MapLibre marker styles — used by WorkspaceMapClient and ProjectMapClient.
+ * The marker is a <button> with a halo (semi-transparent ring), a dot
+ * (solid color), and a card (project name + status + value) that
+ * appears on hover. The halo pulses subtly so the active project's
+ * pin feels alive.
+ */
+.udgok-map-marker {
+  position: relative;
+  width: 0;
+  height: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.udgok-map-marker__halo {
+  position: absolute;
+  top: -14px;
+  left: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  transform: scale(0.85);
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.udgok-map-marker__dot {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  z-index: 1;
+}
+.udgok-map-marker__card {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  display: none;
+  min-width: 180px;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #1a1a1a;
+  border: 1px solid #e7e5e4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  text-align: left;
+  pointer-events: none;
+  z-index: 2;
+  font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace);
+}
+.udgok-map-marker:hover .udgok-map-marker__halo {
+  transform: scale(1.15);
+}
+.udgok-map-marker:hover .udgok-map-marker__card {
+  display: block;
+}
+.udgok-map-marker__name {
+  display: block;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #1a1a1a;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.udgok-map-marker__meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #78716c;
+  white-space: nowrap;
+}
+.udgok-map-marker__value {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: #44403c;
+  white-space: nowrap;
+}
+
+/* Larger pin variant for the project site (vs other projects on
+ * the workspace map). Used by ProjectMapClient for the project
+ * itself + the GPS photo markers. */
+.udgok-map-marker--lg .udgok-map-marker__dot {
+  top: -10px;
+  left: -10px;
+  width: 20px;
+  height: 20px;
+}
+.udgok-map-marker--lg .udgok-map-marker__halo {
+  top: -20px;
+  left: -20px;
+  width: 40px;
+  height: 40px;
+}

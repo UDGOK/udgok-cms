@@ -106,6 +106,56 @@ export async function getProjectPhotoFacets(projectId: string) {
 }
 
 /**
+ * Photos with GPS coordinates. Used by the project MAP tab to
+ * render photo markers. Returns the bare minimum for the map:
+ * id, url, filename, lat/lng, room/area, takenAt. We deliberately
+ * skip the uploader + folder joins to keep the query small even
+ * on projects with hundreds of GPS-tagged photos.
+ */
+export async function listProjectGpsPhotos(
+  projectId: string,
+  limit = 500,
+): Promise<
+  Array<{
+    id: string;
+    url: string;
+    filename: string;
+    latitude: number;
+    longitude: number;
+    room: string | null;
+    area: string | null;
+    takenAt: Date | null;
+    createdAt: Date;
+  }>
+> {
+  const rows = await prisma.projectPhoto.findMany({
+    where: {
+      projectId,
+      latitude: { not: null },
+      longitude: { not: null },
+    },
+    select: {
+      id: true,
+      url: true,
+      filename: true,
+      latitude: true,
+      longitude: true,
+      room: true,
+      area: true,
+      takenAt: true,
+      createdAt: true,
+    },
+    orderBy: { takenAt: 'desc' },
+    take: limit,
+  });
+  return rows.map((r) => ({
+    ...r,
+    latitude: r.latitude as number,
+    longitude: r.longitude as number,
+  }));
+}
+
+/**
  * Count photos by phase for dashboard / project cards.
  */
 export async function countProjectPhotosByPhase(projectId: string) {
