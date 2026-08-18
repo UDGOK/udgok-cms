@@ -81,6 +81,12 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
         result: null,
       });
       try {
+        console.log('[useBlobUpload] calling vercelUpload', {
+          fileName: file.name,
+          fileSize: file.size,
+          handleUploadUrl,
+          hasTokenPayload: Object.keys(tokenPayload).length > 0,
+        });
         const result = await vercelUpload(file.name, file, {
           access: 'public',
           handleUploadUrl,
@@ -104,6 +110,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
             onProgress?.(pct);
           },
         });
+        console.log('[useBlobUpload] vercelUpload resolved', { url: result.url });
         setState((s) => ({
           ...s,
           isUploading: false,
@@ -114,6 +121,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
         return result;
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Upload failed';
+        console.error('[useBlobUpload] vercelUpload failed', { error: msg, name: e instanceof Error ? e.name : 'unknown' });
         setState((s) => ({
           ...s,
           isUploading: false,

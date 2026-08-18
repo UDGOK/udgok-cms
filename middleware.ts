@@ -27,6 +27,16 @@ const isPublicRoute = createRouteMatcher([
   '/api/presence/(.*)',
   '/api/presence',
   '/api/webhooks/(.*)',
+  // Vercel Blob handleUpload routes — these are called by Vercel
+  // Blob's server-to-server callback with no session cookie. Each
+  // route does its own role check inside onBeforeGenerateToken, so
+  // letting them through the middleware is safe. If the middleware
+  // redirects the callback to /sign-in, the completion callback
+  // never reaches the route and the file is in Blob with no DB row.
+  '/api/files/upload',
+  '/api/clients/files',
+  '/api/subs/(.*)/documents',
+  '/api/projects/(.*)/bim',
   // Static assets
   '/manifest.json',
   '/sw.js',

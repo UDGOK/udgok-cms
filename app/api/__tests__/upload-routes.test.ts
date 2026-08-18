@@ -113,3 +113,37 @@ describe('Upload components use the client-side upload hook', () => {
     });
   }
 });
+
+describe('Middleware does not block handleUpload callback routes', () => {
+  // handleUpload() dispatches the same URL to EITHER the browser
+  // (has session cookie) OR Vercel's server-to-server upload-
+  // completion callback (no cookie). Clerk middleware would
+  // redirect the no-cookie callback to /sign-in with 307, so
+  // onUploadCompleted never runs and the file is in Blob with no
+  // DB row.
+  //
+  // The fix: every handleUpload route must be in `isPublicRoute` in
+  // middleware.ts. The route itself does role-based auth inside
+  // onBeforeGenerateToken, so it's safe to let the callback through.
+  // (Found via the bd68574 deploy logs — POST /api/files/upload
+  // returned 200 once for the token step, but the completion
+  // callback never appeared in the logs. Root cause: Clerk
+  // middleware redirected the callback.)
+  it('middleware.ts lists all handleUpload routes as public', () => {
+    const src = readFileSync(join(process.cwd(), 'middleware.ts'), 'utf8');
+    // The createRouteMatcher array MUST include each upload route.
+    for (const route of UPLOAD_ROUTE_PATHS) {
+      // Convert the route path to the URL pattern the matcher
+      // uses. e.g. "app/api/files/upload/route.ts" → "/api/files/upload"
+      // and "app/api/subs/[id]/documents/route.ts" → "/api/subs/(.*)/documents"
+      const urlPattern = route
+        .replace(/^app/, '')
+        .replace(/\/route\.ts$/, '')
+        .replace(/\[id\]/g, '(.*)');
+      expect(
+        src.includes(`'${urlPattern}'`),
+        `middleware.ts isPublicRoute must include '${urlPattern}' so the Vercel upload-completion callback isn't redirected to /sign-in`,
+      ).toBe(true);
+    }
+  });
+});
