@@ -196,7 +196,6 @@ export async function deleteWorkspaceAction(
       await tx.file.deleteMany({ where: { workspaceId } });
       await tx.task.deleteMany({ where: { workspaceId } });
       await tx.deal.deleteMany({ where: { workspaceId } });
-      await tx.client.deleteMany({ where: { workspaceId } });
       await tx.subcontractor.deleteMany({ where: { workspaceId } });
 
       // Step 2: project-scoped tables
@@ -210,6 +209,11 @@ export async function deleteWorkspaceAction(
       await tx.projectSubcontractorAssignment.deleteMany({
         where: { project: { workspaceId } },
       });
+            // PayAppDivision line items reference ProjectDivision (no cascade
+      // on that FK) — must go before projectDivision.deleteMany().
+      await tx.payAppDivision.deleteMany({
+        where: { projectDivision: { project: { workspaceId } } },
+      });
       await tx.projectDivision.deleteMany({
         where: { project: { workspaceId } },
       });
@@ -217,6 +221,13 @@ export async function deleteWorkspaceAction(
       await tx.projectPhoto.deleteMany({ where: { project: { workspaceId } } });
       await tx.projectPhotoFolder.deleteMany({ where: { project: { workspaceId } } });
       await tx.projectMember.deleteMany({ where: { project: { workspaceId } } });
+      
+      // Client must be deleted after Project — Project.clientId has no
+      // cascade, so deleting Client first throws Project_clientId_fkey
+      // the moment any project in the workspace has a client assigned.
+      // (Deal.client and Property.client are already clear by this point:
+      // Deal was deleted in Step 1, and Property cascades off Client.)
+      await tx.client.deleteMany({ where: { workspaceId } });
       await tx.project.deleteMany({ where: { workspaceId } });
 
       // Step 3: workspace-scoped tables
