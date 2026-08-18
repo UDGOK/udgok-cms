@@ -75,7 +75,7 @@ export function BottomSheet({
   }
 
   return (
-    <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <button
         type="button"
@@ -84,18 +84,18 @@ export function BottomSheet({
         onClick={onClose}
       />
 
-      {/* Sheet */}
+      {/* Sheet — bottom on mobile, centered modal on desktop */}
       <div
         ref={sheetRef}
-        className={`absolute bottom-0 left-0 right-0 bg-paper border-t-2 border-ink ${maxHeightClass} flex flex-col rounded-t-2xl animate-slide-up`}
+        className={`absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-2xl md:w-[calc(100%-2rem)] bottom-0 left-0 right-0 bg-paper border-t-2 md:border-2 border-ink ${maxHeightClass} md:max-h-[85vh] flex flex-col md:rounded-md rounded-t-2xl animate-slide-up overflow-hidden`}
         style={{
           transform: dragDelta > 0 ? `translateY(${dragDelta}px)` : undefined,
           transition: dragStart === null ? 'transform 200ms ease-out' : 'none',
         }}
       >
-        {/* Drag handle */}
+        {/* Drag handle — only on mobile (desktop uses X button) */}
         <div
-          className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none"
+          className="md:hidden flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -106,7 +106,7 @@ export function BottomSheet({
 
         {/* Header */}
         {title ? (
-          <div className="px-5 py-3 border-b border-line flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-line flex items-center justify-between flex-shrink-0">
             <h2 className="font-extrabold text-[15px] uppercase tracking-[0.05em]">{title}</h2>
             <button
               type="button"
@@ -127,11 +127,11 @@ export function BottomSheet({
 
         {/* Footer */}
         {footer ? (
-          <div className="px-5 py-3 border-t border-line bg-cream-2">{footer}</div>
+          <div className="px-5 py-3 border-t border-line bg-cream-2 flex-shrink-0">{footer}</div>
         ) : null}
 
-        {/* Safe area padding for iPhone home indicator */}
-        <div className="h-[env(safe-area-inset-bottom)] bg-paper" />
+        {/* Safe area padding for iPhone home indicator (mobile only) */}
+        <div className="md:hidden h-[env(safe-area-inset-bottom)] bg-paper flex-shrink-0" />
       </div>
     </div>
   );
