@@ -1,19 +1,20 @@
 /**
  * NVIDIA NIM AI client.
  *
- * Replaces the old DeepSeek client. Uses NVIDIA's OpenAI-compatible
- * NIM endpoint at https://integrate.api.nvidia.com/v1/chat/completions.
+ * Uses NVIDIA's OpenAI-compatible NIM endpoint at
+ * https://integrate.api.nvidia.com/v1/chat/completions.
  *
  * API key: UDGOK_CMS_NVIDIA_API_KEY (or NVIDIA_API_KEY as fallback).
- * Default model: meta/llama-3.3-70b-instruct
- *   - 70B params, fast, excellent instruction following
- *   - Strong JSON output (we use response_format: { type: 'json_object' })
+ * Default model: nvidia/llama-3.1-nemotron-nano-8b-v1
+ *   - 8B params, NVIDIA-tuned for speed
+ *   - Sub-second responses (1-3s typical) — keeps the AI board snappy
+ *   - Strong JSON output (response_format: { type: 'json_object' })
  *   - Great for: project analysis, sub message drafting, multi-turn chat
  *
- * Other strong options available on https://build.nvidia.com/models:
- *   - nvidia/llama-3.1-nemotron-ultra-253b-v1   (slower, more powerful)
- *   - mistralai/mistral-large-2-instruct
- *   - nvidia/nemotron-4-340b-instruct
+ * Heavier models available if you need them (set UDGOK_CMS_NVIDIA_MODEL):
+ *   - meta/llama-3.3-70b-instruct            (70B, more accurate, slower)
+ *   - nvidia/llama-3.1-nemotron-ultra-253b-v1   (253B, slowest, most powerful)
+ *   - nvidia/nemotron-4-340b-instruct       (340B, very slow, very powerful)
  *
  * To switch models, set UDGOK_CMS_NVIDIA_MODEL or NVIDIA_MODEL env var.
  */
@@ -22,7 +23,7 @@ const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NVIDIA_MODEL =
   process.env.UDGOK_CMS_NVIDIA_MODEL ||
   process.env.NVIDIA_MODEL ||
-  'meta/llama-3.3-70b-instruct';
+  'nvidia/llama-3.1-nemotron-nano-8b-v1';
 
 function getApiKey(): string | null {
   return (

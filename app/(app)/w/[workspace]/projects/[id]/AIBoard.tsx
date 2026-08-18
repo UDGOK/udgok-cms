@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ProjectInsight } from '@/lib/projects/insights';
 import type { DeepInsight, DeepAnalysis } from '@/lib/ai/project-analyzer';
 
@@ -49,15 +49,65 @@ const CATEGORY_ICON: Record<DeepInsight['category'], string> = {
 
 interface AIBoardProps {
   ruleInsights: ProjectInsight[];
-  deepInsights: DeepInsight[];
-  deepAnalysis: DeepAnalysis | null;
+  /** Initial deep analysis from server (may be null when fetched client-side). */
+  initialDeepInsights?: DeepInsight[];
+  initialDeepAnalysis?: DeepAnalysis | null;
+  /** Project ID — used to fetch the deep analysis on the client. */
+  projectId: string;
 }
 
-export function AIBoard({ ruleInsights, deepInsights, deepAnalysis }: AIBoardProps) {
+export function AIBoard({
+  ruleInsights,
+  initialDeepInsights = [],
+  initialDeepAnalysis = null,
+  projectId,
+}: AIBoardProps) {
+  // Deep analysis is now fetched client-side so the page renders
+  // immediately with rule-based insights. The AI call can take
+  // 5-30s depending on model load — show a skeleton while it loads.
+  const [deepAnalysis, setDeepAnalysis] = useState<DeepAnalysis | null>(initialDeepAnalysis);
+  const [deepInsights, setDeepInsights] = useState<DeepInsight[]>(initialDeepInsights);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Skip if we already have data from the server (no client fetch needed)
+    if (initialDeepAnalysis) return;
+    let cancelled = false;
+    setAiLoading(true);
+    setAiError(null);
+    fetch('/api/ai/project-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(data.error ?? `HTTP ${res.status}`);
+        }
+        return res.json() as Promise<{ deepAnalysis: DeepAnalysis | null; deepInsights: DeepInsight[] }>;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        if (data.deepAnalysis) setDeepAnalysis(data.deepAnalysis);
+        if (data.deepInsights) setDeepInsights(data.deepInsights);
+        setAiLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setAiError(err instanceof Error ? err.message : 'AI analysis failed');
+        setAiLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, initialDeepAnalysis]);
+
   // Merge insights for the at-a-glance summary
   const all = [
     ...ruleInsights.map((i) => ({ ...i, source: 'rule' as const })),
-    ...deepInsights.map((i) => ({ ...i, source: 'deepseek' as const })),
+    ...deepInsights.map((i) => ({ ...i, source: 'nvidia' as const })),
   ];
   const counts = {
     success: all.filter((i) => i.level === 'success').length,
@@ -70,6 +120,81 @@ export function AIBoard({ ruleInsights, deepInsights, deepAnalysis }: AIBoardPro
 
   return (
     <div>
+      {/* Loading skeleton while the deep AI analysis streams in */}
+      {aiLoading && !deepAnalysis ? (
+        <div className="mb-5 bg-paper border-2 border-ink p-5 md:p-7">
+          <div className="flex items-start gap-4 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-10 h-10 bg-orange text-paper flex items-center justify-center font-black text-lg flex-shrink-0 animate-pulse">
+                ✦
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-orange-d font-extrabold">
+                  {'// NVIDIA executive summary'}
+                </div>
+                <div className="space-y-2 mt-2">
+                  <div className="h-3 bg-cream-2 w-full animate-pulse" />
+                  <div className="h-3 bg-cream-2 w-5/6 animate-pulse" />
+                  <div className="h-3 bg-cream-2 w-4/6 animate-pulse" />
+                </div>
+                <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-30 mt-3">
+                  AI is reading the project — usually 5–15 seconds…
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col items-end flex-shrink-0">
+              <div className="font-black text-4xl leading-none text-ink-30 animate-pulse">
+                —
+              </div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-30 mt-1">
+                HEALTH SCORE
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Error state */}
+      {aiError && !deepAnalysis ? (
+        <div className="mb-5 bg-error/5 border-2 border-error/40 p-4 flex items-start gap-3">
+          <div className="text-2xl">⚠</div>
+          <div>
+            <div className="font-extrabold text-error text-sm uppercase tracking-[0.05em]">
+              AI analysis failed
+            </div>
+            <div className="text-[12px] text-ink-70 mt-1">
+              {aiError}. The rule-based insights below are still accurate.
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAiError(null);
+                setAiLoading(true);
+                // re-trigger by toggling initialDeepAnalysis briefly
+                setDeepAnalysis(null);
+                // simple retry: re-fire the effect by changing projectId locally
+                // (use a state-based approach: just re-call fetch)
+                fetch('/api/ai/project-analysis', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ projectId }),
+                })
+                  .then((r) => r.json())
+                  .then((d: { deepAnalysis: DeepAnalysis | null; deepInsights: DeepInsight[] }) => {
+                    if (d.deepAnalysis) setDeepAnalysis(d.deepAnalysis);
+                    if (d.deepInsights) setDeepInsights(d.deepInsights);
+                  })
+                  .catch((e) => setAiError(e instanceof Error ? e.message : 'AI failed'))
+                  .finally(() => setAiLoading(false));
+              }}
+              className="mt-2 text-[10px] font-extrabold uppercase tracking-[0.1em] text-error hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* DeepSeek executive summary (only if available) */}
       {deepAnalysis ? (
         <div className="mb-5 bg-paper border-2 border-ink p-5 md:p-7">
@@ -80,7 +205,7 @@ export function AIBoard({ ruleInsights, deepInsights, deepAnalysis }: AIBoardPro
               </div>
               <div className="min-w-0">
                 <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-orange-d font-extrabold">
-                  {'// DeepSeek executive summary'}
+                  {'// NVIDIA executive summary'}
                 </div>
                 <p className="text-[15px] md:text-[16px] text-ink mt-1 leading-relaxed font-medium">
                   {deepAnalysis.summary}

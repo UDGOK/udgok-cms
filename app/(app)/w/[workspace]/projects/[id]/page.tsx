@@ -28,7 +28,7 @@ import { JurisdictionCard } from './JurisdictionCard';
 import { AddPermitForm } from './AddPermitForm';
 import { PermitCard } from './PermitCard';
 import { listProjectPermits, summarizePermits } from '@/lib/permits/queries';
-import { analyzeProjectDeep, generateDeepInsights } from '@/lib/ai/project-analyzer';
+import { generateDeepInsights } from '@/lib/ai/project-analyzer';
 import { AskAIChat } from './AskAIChat';
 import { DraftSubMessageButton } from './DraftSubMessageButton';
 import { ThreeDGanttViewer } from '@/components/3d/ThreeDGanttViewer';
@@ -249,62 +249,15 @@ export default async function ProjectDetailPage({
       ? permits.length
       : undefined;
 
-  // Build the rich context that DeepSeek gets fed (so the output uses
-  // real sub names, division codes, etc.).
-  const aiExtras = {
-    subs: projectData.subAssignments.map((a) => ({
-      id: a.subcontractor.id,
-      name: a.subcontractor.name,
-      primaryTrade: a.subcontractor.primaryTrade,
-      status: a.status,
-      contractAmount: a.contractAmount ? Number(a.contractAmount) : null,
-      divisionLabels: a.divisionLinks.map((dl) => `${dl.division.code} ${dl.division.trade}`),
-    })),
-    divisions: projectData.divisions.map((d) => {
-      const billed = projectData.payApps
-        .flatMap((p) => p.divisions)
-        .filter((l) => l.projectDivisionId === d.id)
-        .reduce((acc, l) => acc + Number(l.thisDrawAmount), 0);
-      const linkedSub = d.subLinks?.[0]?.assignment?.subcontractor;
-      return {
-        id: d.id,
-        code: d.code,
-        trade: d.trade,
-        budget: Number(d.budget),
-        billed,
-        remaining: Number(d.budget) - billed,
-        subcontractorName: d.subcontractorName,
-        linkedSub: linkedSub?.name ?? null,
-      };
-    }),
-    tasks: projectData.tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      status: t.status,
-      priority: t.priority,
-      dueDate: t.dueDate,
-      assignee: t.assignee?.name ?? null,
-    })),
-    projectMeta: {
-      code: projectData.code,
-      clientName: projectData.client?.name ?? null,
-      address: projectData.address,
-      city: projectData.city,
-      state: projectData.state,
-    },
-    permits: { overdueCount: permitSummary.overdueInspections },
-  };
-
-  // DeepSeek: in-depth analysis. Only run on the AI tab to avoid
-  // burning API credits on every page load. Runs in parallel.
-  let deepAnalysis = null;
-  let deepInsights: Awaited<ReturnType<typeof generateDeepInsights>> = [];
-  if (tab === 'ai') {
-    [deepAnalysis, deepInsights] = await Promise.all([
-      analyzeProjectDeep(projectForInsights, params.workspace, projectData.id, aiExtras),
-      generateDeepInsights(projectForInsights, params.workspace, projectData.id, aiExtras),
-    ]);
-  }
+  // Deep AI analysis: now loaded CLIENT-SIDE via /api/ai/project-analysis.
+  // The page no longer blocks on the NVIDIA call (which can be slow).
+  // AIBoard fires the API itself and shows a loading skeleton until it
+  // returns. The rule-based insights below are always available
+  // instantly and give the page something useful to show.
+  // (The rich context object is built in the API route instead, so we
+  // no longer build aiExtras in the server component.)
+  const deepAnalysis = null;
+  const deepInsights: Awaited<ReturnType<typeof generateDeepInsights>> = [];
 
   // Build tabs
   const tabs = [
@@ -433,8 +386,9 @@ export default async function ProjectDetailPage({
           </div>
           <AIBoard
             ruleInsights={insights}
-            deepInsights={deepInsights}
-            deepAnalysis={deepAnalysis}
+            initialDeepInsights={deepInsights}
+            initialDeepAnalysis={deepAnalysis}
+            projectId={projectData.id}
           />
           <div className="mt-5 text-[11px] font-mono uppercase tracking-[0.1em] text-ink-30 text-center">
             Based on {projectData.tasks.length} task{projectData.tasks.length === 1 ? '' : 's'} ·
