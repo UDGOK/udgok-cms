@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { FilesPageClient } from './FilesPageClient';
 import { FILE_CATEGORIES } from '@/lib/files/categories';
+import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,8 @@ export default async function FilesPage({
   params: { workspace: string };
 }) {
   const { workspace } = await requireMembership(params.workspace);
+  const { userId } = await auth();
+  if (!userId) throw new Error('Not signed in');
 
   const [files, clients, projects] = await Promise.all([
     listWorkspaceFiles(workspace.id),
@@ -37,7 +40,8 @@ export default async function FilesPage({
   return (
     <div className="p-4 md:p-8 max-w-7xl">
       <FilesPageClient
-        workspaceSlug={params.workspace}
+        workspaceId={workspace.id}
+        userId={userId}
         initialFiles={files.map((f) => ({
           id: f.id,
           url: f.url,

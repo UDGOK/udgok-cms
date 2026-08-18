@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { auth } from '@clerk/nextjs/server';
 import { getClient } from '@/lib/clients/queries';
 import { listEntityActivity } from '@/lib/activity/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
@@ -54,6 +55,8 @@ export default async function ClientDetailPage({
   searchParams: { tab?: string };
 }) {
   const { workspace } = await requireMembership(params.workspace);
+  const { userId } = await auth();
+  if (!userId) throw new Error('Not signed in');
   const client = await getClient(workspace.id, params.id);
   if (!client) notFound();
 
@@ -373,6 +376,8 @@ export default async function ClientDetailPage({
             </div>
             <ClientFileUpload
               clientId={client.id}
+              workspaceId={workspace.id}
+              uploaderId={userId!}
             />
             {client.files.length === 0 ? (
               <div className="p-12 text-center text-ink-50">

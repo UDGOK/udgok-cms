@@ -113,8 +113,9 @@ export default async function SubDetailPage({
         <div className="md:col-span-2 space-y-4">
           {/* Onboarding scanner — ID + W-9 from phone camera */}
           <SubOnboardingScanner
-            workspaceSlug={ctx.workspace.slug}
             subId={sub.id}
+            workspaceId={ctx.workspace.id}
+            uploaderId={ctx.userId!}
             initialIdScanned={sub.idScanned}
             initialIdScannedAt={sub.idScannedAt?.toISOString() ?? null}
             initialW9Scanned={sub.w9OnFile}

@@ -125,13 +125,15 @@ function FileTypeIcon({ kind }: { kind: FileTypeBadge['icon'] }) {
 }
 
 export function FilesPageClient({
-  workspaceSlug,
+  workspaceId,
+  userId,
   initialFiles,
   counts,
   clients,
   projects,
 }: {
-  workspaceSlug: string;
+  workspaceId: string;
+  userId: string;
   initialFiles: FileItem[];
   counts: Record<string, number>;
   clients: { id: string; name: string }[];
@@ -340,7 +342,12 @@ export function FilesPageClient({
 
         {/* Upload form (scroll target) */}
         <div id="upload-form" className="mt-10 scroll-mt-8">
-          <UploadForm workspaceSlug={workspaceSlug} clients={clients} projects={projects} />
+          <UploadForm
+            workspaceId={workspaceId}
+            userId={userId}
+            clients={clients}
+            projects={projects}
+          />
         </div>
       </div>
     </div>

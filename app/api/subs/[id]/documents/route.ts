@@ -1,21 +1,32 @@
+/**
+ * Subcontractor document upload. Direct browser → Vercel Blob via
+ * `handleUpload` token — bypasses the 4.5MB function body limit.
+ *
+ * Replaces the old `multipart/form-data` POST → `put()` pattern
+ * that silently failed for files >4.5MB.
+ *
+ * Metadata: subcontractorId + document kind (ID_CARD, W9, etc.)
+ * are passed in the clientPayload → onUploadCompleted creates the
+ * File row with the right kind, and the onUploadCompleted hook
+ * updates the Subcontractor's `idScanned` / `w9OnFile` / timestamps.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { prisma } from '@/lib/db/client';
 import { requireRole } from '@/lib/auth/require-role';
-import { put } from '@vercel/blob';
 
-const MAX_SIZE = 50 * 1024 * 1024; // 50 MB (camera shots can be big)
+const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
 
 const DOC_KINDS = ['ID_CARD', 'W9', 'INSURANCE', 'LICENSE', 'OTHER'] as const;
 type DocKind = (typeof DOC_KINDS)[number];
 
-const labelByKind: Record<DocKind, string> = {
-  ID_CARD: 'ID card',
-  W9: 'W-9',
-  INSURANCE: 'Insurance certificate',
-  LICENSE: 'License',
-  OTHER: 'Other',
-};
+interface SubDocTokenPayload {
+  workspaceId: string;
+  uploaderId: string;
+  subcontractorId: string;
+  kind: DocKind;
+}
 
 export async function POST(
   req: NextRequest,
@@ -24,77 +35,87 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
 
-  const url = new URL(req.url);
-  const workspaceSlug = url.searchParams.get('workspace');
-  if (!workspaceSlug) {
-    return NextResponse.json({ error: 'workspace is required' }, { status: 400 });
-  }
+  const body = (await req.json()) as HandleUploadBody;
+  try {
+    const json = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+        if (!clientPayload) throw new Error('Missing client payload');
+        const meta = JSON.parse(clientPayload) as Partial<SubDocTokenPayload>;
+        if (!meta.workspaceId) throw new Error('workspaceId required');
+        if (!meta.kind || !(DOC_KINDS as readonly string[]).includes(meta.kind)) {
+          throw new Error(`Invalid document kind: ${meta.kind}`);
+        }
+        if (meta.subcontractorId !== params.id) {
+          throw new Error('Subcontractor ID mismatch');
+        }
+        // Confirm sub exists in workspace
+        const sub = await prisma.subcontractor.findFirst({
+          where: { id: params.id, workspaceId: meta.workspaceId },
+          select: { id: true },
+        });
+        if (!sub) throw new Error('Sub not found in workspace');
+        await requireRole(meta.workspaceId, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
 
-  const fd = await req.formData();
-  const file = fd.get('file');
-  const kind = (fd.get('kind') as DocKind) ?? 'OTHER';
-
-  if (!(file instanceof File) || file.size === 0) {
-    return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-  }
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: 'File too large (max 50 MB)' }, { status: 400 });
-  }
-  if (!DOC_KINDS.includes(kind)) {
-    return NextResponse.json({ error: 'Invalid document kind' }, { status: 400 });
-  }
-
-  // Resolve workspace via the subcontractor
-  const sub = await prisma.subcontractor.findFirst({
-    where: { id: params.id },
-    select: { id: true, workspaceId: true, name: true },
-  });
-  if (!sub) return NextResponse.json({ error: 'Sub not found' }, { status: 404 });
-  await requireRole(sub.workspaceId, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR']);
-
-  // Upload to Vercel Blob under the sub's path so cleanup is easy
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const blob = await put(
-    `${sub.workspaceId}/subs/${sub.id}/${kind.toLowerCase()}-${Date.now()}-${safeName}`,
-    file,
-    { access: 'public' },
-  );
-
-  // Create the File row
-  const record = await prisma.file.create({
-    data: {
-      workspaceId: sub.workspaceId,
-      uploaderId: userId,
-      subcontractorId: sub.id,
-      url: blob.url,
-      filename: file.name,
-      mimeType: file.type,
-      size: file.size,
-      kind: 'DOCUMENT',
-      category: kind, // ID_CARD / W9 / etc.
-    },
-    select: { id: true, url: true, category: true },
-  });
-
-  // Update the sub's flags + timestamps
-  const now = new Date();
-  if (kind === 'W9') {
-    await prisma.subcontractor.update({
-      where: { id: sub.id },
-      data: { w9OnFile: true, w9ScannedAt: now },
+        return {
+          allowedContentTypes: [
+            'application/pdf',
+            'image/jpeg', 'image/png', 'image/heic', 'image/webp',
+            'application/octet-stream',
+          ],
+          maximumSizeInBytes: MAX_BYTES,
+          addRandomSuffix: true,
+          tokenPayload: clientPayload,
+        };
+      },
+      onUploadCompleted: async ({ blob, tokenPayload }) => {
+        if (!tokenPayload) return;
+        const meta = JSON.parse(tokenPayload) as SubDocTokenPayload;
+        const filename = blob.pathname.split('/').pop() ?? 'file';
+        let size = 0;
+        try {
+          const head = await fetch(blob.url, { method: 'HEAD' });
+          const cl = head.headers.get('content-length');
+          if (cl) size = Number(cl);
+        } catch {
+          // best-effort
+        }
+        await prisma.file.create({
+          data: {
+            workspaceId: meta.workspaceId,
+            uploaderId: meta.uploaderId,
+            subcontractorId: meta.subcontractorId,
+            url: blob.url,
+            filename,
+            mimeType: blob.contentType ?? 'application/octet-stream',
+            size,
+            kind: 'DOCUMENT',
+            // Use a category that signals what kind of doc this is
+            category: meta.kind.toLowerCase(),
+          },
+        });
+        // Update sub flags + timestamps based on kind
+        const now = new Date();
+        const updates: Record<string, unknown> = {};
+        if (meta.kind === 'ID_CARD') {
+          updates.idScanned = true;
+          updates.idScannedAt = now;
+        } else if (meta.kind === 'W9') {
+          updates.w9OnFile = true;
+          updates.w9ScannedAt = now;
+        }
+        if (Object.keys(updates).length > 0) {
+          await prisma.subcontractor.updateMany({
+            where: { id: meta.subcontractorId, workspaceId: meta.workspaceId },
+            data: updates,
+          });
+        }
+      },
     });
-  } else if (kind === 'ID_CARD') {
-    await prisma.subcontractor.update({
-      where: { id: sub.id },
-      data: { idScanned: true, idScannedAt: now },
-    });
+    return NextResponse.json(json);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Upload failed';
+    return NextResponse.json({ error: msg.slice(0, 500) }, { status: 400 });
   }
-
-  return NextResponse.json({
-    id: record.id,
-    url: record.url,
-    kind: record.category,
-    label: labelByKind[kind],
-    subName: sub.name,
-  });
 }

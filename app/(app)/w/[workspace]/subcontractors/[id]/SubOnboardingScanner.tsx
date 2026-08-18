@@ -1,8 +1,9 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { compressImage, formatBytes } from '@/lib/images/compress';
+import { useBlobUpload } from '@/lib/blob/client-upload';
 
 type DocKind = 'ID_CARD' | 'W9' | 'INSURANCE' | 'LICENSE' | 'OTHER';
 
@@ -39,16 +40,18 @@ interface ExistingDoc {
 }
 
 export function SubOnboardingScanner({
-  workspaceSlug,
   subId,
+  workspaceId,
+  uploaderId,
   initialIdScanned,
   initialIdScannedAt,
   initialW9Scanned,
   initialW9ScannedAt,
   initialDocuments,
 }: {
-  workspaceSlug: string;
   subId: string;
+  workspaceId: string;
+  uploaderId: string;
   initialIdScanned: boolean;
   initialIdScannedAt: string | null;
   initialW9Scanned: boolean;
@@ -58,81 +61,71 @@ export function SubOnboardingScanner({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeKind, setActiveKind] = useState<DocKind | null>(null);
-  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [idScanned, setIdScanned] = useState(initialIdScanned);
   const [idScannedAt, setIdScannedAt] = useState(initialIdScannedAt);
   const [w9Scanned, setW9Scanned] = useState(initialW9Scanned);
   const [w9ScannedAt, setW9ScannedAt] = useState(initialW9ScannedAt);
+  const { upload, state } = useBlobUpload({
+    handleUploadUrl: `/api/subs/${subId}/documents`,
+  });
 
   function startScan(kind: DocKind) {
     setActiveKind(kind);
     setError(null);
-    setStatus(null);
     setPreview(null);
     fileInputRef.current?.click();
   }
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !activeKind) return;
-    if (file.size > 50 * 1024 * 1024) {
-      setError('Photo too large (max 50 MB)');
-      return;
-    }
-    // Show a local preview while uploading
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    setStatus('Compressing…');
-
     const kind = activeKind;
-    start(async () => {
-      try {
-        // Compress phone-camera photos (5-10 MB) so the upload fits
-        // the 4.5 MB Vercel function payload limit. ID-card / W-9
-        // images stay readable at 2048 px JPEG q=0.85.
-        const compressed = await compressImage(file);
-        const wasCompressed = compressed.size < file.size;
-        setStatus(
-          wasCompressed
-            ? `Uploading ${formatBytes(compressed.size)} (was ${formatBytes(file.size)})…`
-            : `Uploading ${formatBytes(file.size)}…`,
-        );
 
-        const fd = new FormData();
-        fd.set('file', compressed);
-        fd.set('kind', kind);
-        const res = await fetch(
-          `/api/subs/${subId}/documents?workspace=${encodeURIComponent(workspaceSlug)}`,
-          { method: 'POST', body: fd },
-        );
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? `HTTP ${res.status}`);
-        }
-        const now = new Date().toISOString();
-        if (kind === 'ID_CARD') {
-          setIdScanned(true);
-          setIdScannedAt(now);
-        } else if (kind === 'W9') {
-          setW9Scanned(true);
-          setW9ScannedAt(now);
-        }
-        setStatus(`${KIND_LABEL[kind]} uploaded ✓`);
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed');
+    // Show local preview while we compress + upload
+    const previewUrl = URL.createObjectURL(file);
+    setPreview(previewUrl);
+
+    try {
+      // Compress phone-camera photos so they're faster to upload
+      // and cheaper to store. The new direct-to-Blob path can
+      // handle the original 5-10 MB HEIC, but compressing still
+      // saves bandwidth.
+      const compressed = await compressImage(file);
+      setError(null);
+      await upload(compressed, {
+        workspaceId,
+        uploaderId,
+        subcontractorId: subId,
+        kind,
+      });
+      // Update the local badges optimistically. The server already
+      // set the flags; this just refreshes the UI without a router
+      // round-trip.
+      const now = new Date().toISOString();
+      if (kind === 'ID_CARD') {
+        setIdScanned(true);
+        setIdScannedAt(now);
+      } else if (kind === 'W9') {
+        setW9Scanned(true);
+        setW9ScannedAt(now);
       }
-    });
-    if (fileInputRef.current) fileInputRef.current.value = '';
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      setPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setActiveKind(null);
+    }
   }
 
-  const idDocs = initialDocuments.filter((d) => d.category === 'ID_CARD');
-  const w9Docs = initialDocuments.filter((d) => d.category === 'W9');
+  const idDocs = initialDocuments.filter((d) => d.category === 'id_card');
+  const w9Docs = initialDocuments.filter((d) => d.category === 'w9');
   const otherDocs = initialDocuments.filter(
-    (d) => d.category !== 'ID_CARD' && d.category !== 'W9',
+    (d) => d.category !== 'id_card' && d.category !== 'w9',
   );
 
   return (
@@ -141,9 +134,6 @@ export function SubOnboardingScanner({
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        // Phone camera capture attribute — opens the rear camera directly
-        // on iOS/Android. The user just snaps the photo, the file gets
-        // uploaded, and we save it to Vercel Blob.
         capture="environment"
         onChange={onFile}
         className="hidden"
@@ -179,11 +169,10 @@ export function SubOnboardingScanner({
 
       {/* Primary action cards — ID + W-9 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-        {/* ID Card */}
         <button
           type="button"
           onClick={() => startScan('ID_CARD')}
-          disabled={pending}
+          disabled={state.isUploading}
           className="text-left bg-cream-2 border-2 border-line hover:border-ink p-4 transition-colors disabled:opacity-50"
         >
           <div className="flex items-center gap-3 mb-2">
@@ -204,11 +193,10 @@ export function SubOnboardingScanner({
           </p>
         </button>
 
-        {/* W-9 */}
         <button
           type="button"
           onClick={() => startScan('W9')}
-          disabled={pending}
+          disabled={state.isUploading}
           className="text-left bg-cream-2 border-2 border-line hover:border-ink p-4 transition-colors disabled:opacity-50"
         >
           <div className="flex items-center gap-3 mb-2">
@@ -230,7 +218,7 @@ export function SubOnboardingScanner({
         </button>
       </div>
 
-      {/* Secondary scans — Insurance / License / Other */}
+      {/* Secondary scans */}
       <details className="text-[12px]">
         <summary className="cursor-pointer font-extrabold text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 hover:text-ink py-2">
           + Scan insurance, license, or other document
@@ -241,7 +229,7 @@ export function SubOnboardingScanner({
               key={k}
               type="button"
               onClick={() => startScan(k)}
-              disabled={pending}
+              disabled={state.isUploading}
               className="px-3 py-3 bg-paper border-2 border-line hover:border-ink flex flex-col items-center gap-1 disabled:opacity-50"
             >
               <span className="text-xl">{KIND_ICON[k]}</span>
@@ -254,18 +242,33 @@ export function SubOnboardingScanner({
       </details>
 
       {/* Status row */}
-      {(status || error) && (
+      {(state.phase === 'uploading' || state.phase === 'done' || error) && (
         <div className="mt-4 flex items-center gap-3 flex-wrap">
-          {status ? (
-            <span className="text-[11px] font-mono text-success">{status}</span>
+          {state.phase === 'uploading' ? (
+            <div className="flex-1 min-w-[180px]">
+              <div className="flex items-center justify-between text-[10px] font-mono mb-0.5">
+                <span className="text-ink-70">
+                  {activeKind ? `Uploading ${KIND_LABEL[activeKind]}` : 'Uploading'}… {formatBytes(state.uploadedBytes)}
+                </span>
+                <span className="text-ink-50">{state.progress}%</span>
+              </div>
+              <div className="h-1 bg-line">
+                <div className="h-full bg-ink transition-[width] duration-100" style={{ width: `${state.progress}%` }} />
+              </div>
+            </div>
+          ) : null}
+          {state.phase === 'done' ? (
+            <span className="text-[11px] font-mono text-success">
+              {activeKind ? KIND_LABEL[activeKind] : 'Document'} uploaded ✓
+            </span>
           ) : null}
           {error ? (
-            <span className="text-[11px] font-mono text-error">{error}</span>
+            <span className="text-[11px] font-mono text-error">⚠ {error}</span>
           ) : null}
         </div>
       )}
 
-      {/* Live preview while uploading */}
+      {/* Live preview while compressing / uploading */}
       {preview ? (
         <div className="mt-4">
           <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-2">
