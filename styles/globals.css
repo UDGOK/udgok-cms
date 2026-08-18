@@ -75,6 +75,17 @@ body {
   .animate-fade-in {
     animation: fade-in 180ms ease-out;
   }
+  /* Hide the horizontal scrollbar on the project tab nav and
+   * any other horizontal-scroll containers. The scroll-snap
+   * behavior still works; only the visual scrollbar is hidden.
+   * Works in WebKit + Firefox + modern Chromium. */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @keyframes slide-in-left {
