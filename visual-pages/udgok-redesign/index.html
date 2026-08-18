@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UDGOK CMS — Pick Your Design Direction</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: #f5f1ea; color: #1e2a3a; line-height: 1.5; padding: 60px 24px; -webkit-font-smoothing: antialiased; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: #f06a2d; margin-bottom: 16px; }
+    h1 { font-size: 64px; line-height: 1; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 20px; }
+    h1 .accent { font-family: 'DM Serif Display', serif; font-style: italic; color: #f06a2d; }
+    .lead { font-size: 20px; color: #5a6677; max-width: 720px; margin-bottom: 50px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .card { display: block; background: #fff; border: 2px solid #1e2a3a; padding: 24px; text-decoration: none; color: inherit; transition: all 200ms; }
+    .card:hover { transform: translate(-3px, -3px); box-shadow: 6px 6px 0 #1e2a3a; }
+    .card .letter { display: inline-block; width: 48px; height: 48px; background: #1e2a3a; color: #f5f1ea; font-weight: 900; font-size: 22px; line-height: 48px; text-align: center; margin-bottom: 16px; }
+    .card .letter.b { background: #1e2a3a; }
+    .card .letter.c { background: #2b1810; }
+    .card h2 { font-size: 24px; font-weight: 900; letter-spacing: -0.01em; margin-bottom: 8px; }
+    .card .desc { font-size: 14px; color: #5a6677; margin-bottom: 16px; }
+    .card .vibe { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .card .vibe span { font-size: 10px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em; padding: 4px 8px; background: #f5f1ea; border: 1px solid #d8d2c5; }
+    .card .preview { display: block; width: 100%; height: 220px; background: #ebe5d9; border: 1px solid #d8d2c5; margin-bottom: 16px; position: relative; overflow: hidden; }
+    .card .preview .iframe-wrap { position: absolute; top: 0; left: 0; width: 200%; height: 100%; transform: scale(0.5); transform-origin: top left; pointer-events: none; }
+    .card .open { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: #f06a2d; }
+    .card .open::after { content: '→'; transition: transform 200ms; }
+    .card:hover .open::after { transform: translateX(4px); }
+
+    /* Mini mockups for each direction */
+    .mini-a { background: #f5f1ea; padding: 16px; }
+    .mini-a .nav { background: #fff; border-bottom: 2px solid #1e2a3a; padding: 8px 12px; font-size: 9px; font-weight: 900; display: flex; justify-content: space-between; }
+    .mini-a .nav .orange { color: #f06a2d; }
+    .mini-a .hero { padding: 20px 16px; }
+    .mini-a .hero h1 { font-size: 28px; line-height: 1; font-weight: 900; }
+    .mini-a .hero .italic { font-family: 'DM Serif Display', serif; font-style: italic; color: #f06a2d; }
+    .mini-a .hero .sub { font-size: 10px; color: #5a6677; margin-top: 8px; max-width: 80%; }
+    .mini-a .cta { display: inline-block; margin-top: 12px; padding: 6px 10px; background: #f06a2d; color: #fff; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+    .mini-a .preview { background: #fff; border: 2px solid #1e2a3a; margin-top: 16px; padding: 8px; }
+    .mini-a .preview .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 8px; }
+    .mini-a .prices { display: flex; gap: 6px; margin-top: 12px; }
+    .mini-a .price { flex: 1; background: #fff; border: 2px solid #1e2a3a; padding: 8px; font-size: 8px; }
+    .mini-a .price.featured { background: #1e2a3a; color: #f5f1ea; }
+    .mini-a .price .amt { font-size: 14px; font-weight: 900; }
+
+    .mini-b { background: #fff; padding: 0; }
+    .mini-b .nav { background: rgba(255,255,255,0.85); border-bottom: 1px solid #ececec; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; }
+    .mini-b .nav .logo { display: flex; align-items: center; gap: 4px; font-weight: 700; }
+    .mini-b .nav .logo .mark { width: 12px; height: 12px; background: #0a0a0a; border-radius: 3px; }
+    .mini-b .hero { padding: 24px 16px; text-align: center; background: linear-gradient(180deg, #fff 0%, #fafafa 100%); }
+    .mini-b .announce { display: inline-block; font-size: 8px; padding: 3px 8px; border: 1px solid #ececec; border-radius: 999px; background: #fff; margin-bottom: 12px; }
+    .mini-b .announce .tag { background: #ff5722; color: white; padding: 1px 4px; border-radius: 3px; font-size: 7px; font-weight: 700; }
+    .mini-b h1 { font-size: 20px; line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; }
+    .mini-b h1 .gradient { background: linear-gradient(135deg, #0a0a0a 0%, #ff5722 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .mini-b .sub { font-size: 9px; color: #4a4a4a; margin: 8px 0 12px; }
+    .mini-b .cta { display: inline-block; padding: 5px 10px; background: #ff5722; color: #fff; font-size: 8px; font-weight: 600; border-radius: 4px; }
+    .mini-b .app { background: #fff; border: 1px solid #ececec; border-radius: 8px; margin-top: 16px; box-shadow: 0 8px 20px -8px rgba(0,0,0,0.1); }
+    .mini-b .app .row { display: flex; justify-content: space-between; padding: 4px 8px; font-size: 8px; border-bottom: 1px solid #f0f0f0; }
+    .mini-b .features { padding: 20px 16px; background: #fafafa; }
+    .mini-b .feature { background: #fff; border: 1px solid #ececec; border-radius: 6px; padding: 8px; margin-bottom: 6px; }
+    .mini-b .feature .ico { width: 16px; height: 16px; background: #0a0a0a; border-radius: 4px; margin-bottom: 4px; }
+    .mini-b .feature .name { font-size: 9px; font-weight: 600; }
+    .mini-b .feature .desc { font-size: 8px; color: #888; }
+    .mini-b .prices { display: flex; gap: 6px; padding: 16px; }
+    .mini-b .price { flex: 1; background: #fff; border: 1px solid #ececec; border-radius: 6px; padding: 8px; font-size: 8px; }
+    .mini-b .price.featured { background: #0a0a0a; color: #fff; }
+    .mini-b .price .amt { font-size: 14px; font-weight: 700; }
+
+    .mini-c { background: #fef6ec; padding: 16px; }
+    .mini-c .nav { background: #fff; border-bottom: 2px solid #2b1810; padding: 8px 12px; display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; }
+    .mini-c .nav .logo { display: flex; align-items: center; gap: 4px; }
+    .mini-c .nav .logo .icon { width: 16px; height: 16px; background: #c84a1f; color: #fff; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+    .mini-c .hero { padding: 24px 12px; }
+    .mini-c .eyebrow { display: inline-block; font-size: 8px; padding: 3px 8px; background: #fff; border: 2px solid #2b1810; border-radius: 999px; margin-bottom: 12px; }
+    .mini-c h1 { font-size: 24px; line-height: 0.95; font-weight: 900; letter-spacing: -0.02em; }
+    .mini-c h1 .highlight { background: linear-gradient(180deg, transparent 60%, #d4a14a 60%); padding: 0 4px; }
+    .mini-c h1 .warm { color: #c84a1f; }
+    .mini-c .sub { font-size: 9px; color: #4d3a30; margin-top: 8px; max-width: 90%; }
+    .mini-c .cta { display: inline-block; margin-top: 12px; padding: 5px 10px; background: #c84a1f; color: #fff; font-size: 8px; font-weight: 700; border-radius: 6px; }
+    .mini-c .cards { display: flex; gap: 6px; margin-top: 16px; }
+    .mini-c .card-mini { flex: 1; background: #fff; border: 2px solid #2b1810; border-radius: 8px; padding: 6px; font-size: 8px; box-shadow: 3px 3px 0 #2b1810; }
+    .mini-c .card-mini.warm { background: #faead3; }
+    .mini-c .card-mini.dark { background: #2b1810; color: #faead3; box-shadow: 3px 3px 0 #c84a1f; }
+    .mini-c .card-mini .val { font-size: 14px; font-weight: 900; }
+    .mini-c .card-mini .val .warm { color: #c84a1f; }
+    .mini-c .features { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 16px 0; }
+    .mini-c .feature { background: #fef6ec; border: 2px solid #2b1810; border-radius: 10px; padding: 8px; font-size: 8px; }
+    .mini-c .feature .ico { width: 20px; height: 20px; background: #2b1810; color: #fff; border-radius: 5px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+    .mini-c .feature .name { font-weight: 800; }
+    .mini-c .prices { display: flex; gap: 6px; }
+    .mini-c .price { flex: 1; background: #fff; border: 2px solid #2b1810; border-radius: 10px; padding: 8px; font-size: 8px; }
+    .mini-c .price.featured { background: #2b1810; color: #fff; }
+    .mini-c .price .amt { font-size: 14px; font-weight: 900; }
+
+    @media (max-width: 900px) {
+      h1 { font-size: 40px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <div class="eyebrow">// UDGOK CMS · Design exploration</div>
+    <h1>Three ways to <span class="accent">rebrand</span>.<br>Pick the one you love.</h1>
+    <p class="lead">Below are three complete takes on the redesigned UDGOK customer-facing site — hero, features, pricing, signup. Same features, different vibes. Click into each to see the full thing.</p>
+
+    <div class="grid">
+      <a href="direction-a.html" class="card">
+        <div class="letter">A</div>
+        <h2>Bold Industrial</h2>
+        <p class="desc">Refined version of the current UDGOK Bold. Cream + ink + orange. Big black headlines, italic serif accents, hard shadows, mono labels. Stays true to your existing brand.</p>
+        <div class="vibe">
+          <span>Cream + orange</span>
+          <span>Hard shadows</span>
+          <span>Serif italic accents</span>
+          <span>Brutalist</span>
+        </div>
+        <div class="preview">
+          <div class="mini-a">
+            <div class="nav"><span>UDG<span class="orange">OK</span></span><span style="font-size: 8px;">▢ MENU</span></div>
+            <div class="hero">
+              <h1>Run your <span class="italic">jobs.</span><br>Not your <span class="italic">sheets.</span></h1>
+              <p class="sub">The construction management CMS that handles clients, projects, pay apps, photos, and your entire team.</p>
+              <span class="cta">Start free →</span>
+              <div class="preview">
+                <div class="row"><span>Active jobs</span><span style="color: #f06a2d; font-weight: 900;">2</span></div>
+                <div class="row"><span>Billed MTD</span><span style="color: #f06a2d; font-weight: 900;">$12,500</span></div>
+                <div class="row"><span>On-site now</span><span>3</span></div>
+              </div>
+              <div class="prices">
+                <div class="price"><div class="amt">$0</div>Starter</div>
+                <div class="price featured"><div class="amt">$49</div>Pro</div>
+                <div class="price"><div class="amt">Custom</div>Ent</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <span class="open">View full design</span>
+      </a>
+
+      <a href="direction-b.html" class="card">
+        <div class="letter b">B</div>
+        <h2>Clean Linear</h2>
+        <p class="desc">Modern minimal SaaS look (think Linear, Vercel, Stripe). White + light gray + single accent. Lots of whitespace, soft shadows, glassmorphism nav. Premium tech feel.</p>
+        <div class="vibe">
+          <span>White + grays</span>
+          <span>Soft shadows</span>
+          <span>Generous whitespace</span>
+          <span>Premium</span>
+        </div>
+        <div class="preview">
+          <div class="mini-b">
+            <div class="nav">
+              <div class="logo"><span class="mark"></span> UDGOK</div>
+              <span style="font-size: 7px; color: #888;">Sign in</span>
+            </div>
+            <div class="hero">
+              <div class="announce"><span class="tag">New</span> GPS photos &amp; barcode</div>
+              <h1>Construction <span class="gradient">management</span></h1>
+              <p class="sub">Built for builders who run jobs in the field and quotes in the office.</p>
+              <span class="cta">Start free →</span>
+              <div class="app">
+                <div class="row"><span>Coldstone Renovation</span><span style="color: #ff5722; font-weight: 700;">$125K</span></div>
+                <div class="row"><span>This draw</span><span style="color: #ff5722; font-weight: 700;">$12,500</span></div>
+                <div class="row"><span>On-site</span><span>3</span></div>
+              </div>
+            </div>
+            <div class="features">
+              <div class="feature"><div class="ico"></div><div class="name">CRM + Deals</div><div class="desc">Track leads</div></div>
+              <div class="feature"><div class="ico"></div><div class="name">Pay apps</div><div class="desc">Generate + send</div></div>
+            </div>
+            <div class="prices">
+              <div class="price"><div class="amt">$0</div>Starter</div>
+              <div class="price featured"><div class="amt">$39</div>Pro</div>
+              <div class="price"><div class="amt">Custom</div>Ent</div>
+            </div>
+          </div>
+        </div>
+        <span class="open">View full design</span>
+      </a>
+
+      <a href="direction-c.html" class="card">
+        <div class="letter c">C</div>
+        <h2>Field-friendly Builder</h2>
+        <p class="desc">Warm, approachable, contractor-focused. Terracotta + cream + brown. Bigger type, bigger buttons, 2xl rounded corners, hand-scripted "Caveat" accents. Feels human, not corporate.</p>
+        <div class="vibe">
+          <span>Terracotta + cream</span>
+          <span>Rounded corners</span>
+          <span>Hand-script accents</span>
+          <span>Warm &amp; human</span>
+        </div>
+        <div class="preview">
+          <div class="mini-c">
+            <div class="nav">
+              <div class="logo"><span class="icon">🏗</span> UDGOK</div>
+              <span style="font-size: 8px;">☰</span>
+            </div>
+            <div class="hero">
+              <div class="eyebrow">👋 Built for builders</div>
+              <h1>Your <span class="highlight">jobs</span>,<br>your <span class="warm">crew</span>,<br>all in <span class="highlight">one app</span>.</h1>
+              <p class="sub">Stop chasing texts, photos in group chats, and pay apps buried in email.</p>
+              <span class="cta">Try free →</span>
+              <div class="cards">
+                <div class="card-mini"><div class="val">2 <span class="warm">on schedule</span></div><div>Active jobs</div></div>
+                <div class="card-mini warm"><div class="val">$12.5K <span class="warm">↑</span></div><div>Billed</div></div>
+                <div class="card-mini dark"><div class="val">3</div><div>On-site</div></div>
+              </div>
+            </div>
+            <div class="features">
+              <div class="feature"><div class="ico">📸</div><div class="name">GPS Photos</div></div>
+              <div class="feature"><div class="ico">💰</div><div class="name">Pay Apps</div></div>
+              <div class="feature"><div class="ico">📡</div><div class="name">QR Scan</div></div>
+              <div class="feature"><div class="ico">👥</div><div class="name">Presence</div></div>
+            </div>
+            <div class="prices">
+              <div class="price"><div class="amt">$0</div>Starter</div>
+              <div class="price featured"><div class="amt">$49</div>Pro</div>
+              <div class="price"><div class="amt">Custom</div>Ent</div>
+            </div>
+          </div>
+        </div>
+        <span class="open">View full design</span>
+      </a>
+    </div>
+
+    <div style="margin-top: 60px; padding: 30px; background: #fff; border: 2px solid #1e2a3a;">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; color: #f06a2d; margin-bottom: 12px;">// Tell me which one (or mix and match)</div>
+      <p style="font-size: 18px; line-height: 1.6;">
+        Reply with the letter (<strong>A</strong>, <strong>B</strong>, or <strong>C</strong>) and any tweaks you want.
+        <br><br>
+        <strong>Common asks:</strong> "C but with A's hero" · "B but warmer" · "A but mobile-first like B" · etc.
+        <br><br>
+        Once you pick, I'll implement the chosen design across the whole app — landing page, sign-up, sign-in, app shell, settings, every page. It will replace the current UDGOK Bold with the new style.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

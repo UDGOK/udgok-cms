@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UDGOK CMS — Direction B: Clean Linear</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --white: #ffffff;
+      --bg: #fafafa;
+      --border: #ececec;
+      --border-2: #e0e0e0;
+      --text: #0a0a0a;
+      --text-2: #4a4a4a;
+      --text-3: #888888;
+      --text-4: #b8b8b8;
+      --accent: #ff5722;
+      --accent-2: #ff7043;
+      --success: #16a34a;
+    }
+    body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--white); color: var(--text); line-height: 1.55; -webkit-font-smoothing: antialiased; font-feature-settings: 'cv11', 'ss01'; }
+    .mono { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; }
+
+    /* Nav */
+    nav { background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; }
+    .nav-inner { max-width: 1200px; margin: 0 auto; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .logo-mark { width: 24px; height: 24px; background: var(--text); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 11px; }
+    .nav-links { display: flex; gap: 32px; align-items: center; }
+    .nav-links a { color: var(--text-2); text-decoration: none; font-size: 14px; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 13px; font-weight: 500; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; transition: all 150ms; }
+    .btn-primary { background: var(--text); color: white; }
+    .btn-primary:hover { background: #222; }
+    .btn-accent { background: var(--accent); color: white; }
+    .btn-accent:hover { background: var(--accent-2); }
+    .btn-ghost { background: transparent; color: var(--text-2); }
+    .btn-ghost:hover { background: var(--bg); color: var(--text); }
+    .btn-outline { background: transparent; color: var(--text); border-color: var(--border-2); }
+    .btn-outline:hover { border-color: var(--text); }
+
+    /* Hero */
+    .hero { padding: 80px 32px 100px; text-align: center; background: linear-gradient(180deg, var(--white) 0%, var(--bg) 100%); }
+    .hero-inner { max-width: 1100px; margin: 0 auto; }
+    .announce { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background: white; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--text-2); margin-bottom: 32px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .announce .tag { background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    h1 { font-size: clamp(48px, 6vw, 72px); line-height: 1.05; font-weight: 700; letter-spacing: -0.04em; margin-bottom: 24px; }
+    h1 .gradient { background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-sub { font-size: 19px; color: var(--text-2); max-width: 640px; margin: 0 auto 40px; }
+    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero-trust { margin-top: 32px; font-size: 13px; color: var(--text-3); }
+    .hero-trust span { color: var(--text-2); }
+
+    /* App preview */
+    .app-preview { max-width: 1100px; margin: 60px auto 0; position: relative; }
+    .app-preview-frame { background: white; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 30px 60px -15px rgba(0,0,0,0.15), 0 18px 36px -18px rgba(0,0,0,0.1); overflow: hidden; }
+    .preview-titlebar { display: flex; align-items: center; gap: 8px; padding: 14px 18px; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .preview-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .preview-dot.r { background: #ff5f57; }
+    .preview-dot.y { background: #febc2e; }
+    .preview-dot.g { background: #28c840; }
+    .preview-url { flex: 1; max-width: 400px; margin: 0 auto; padding: 4px 12px; background: white; border-radius: 6px; font-size: 12px; color: var(--text-3); text-align: center; }
+    .preview-body { display: grid; grid-template-columns: 220px 1fr; min-height: 480px; }
+    .preview-sidebar { background: var(--bg); border-right: 1px solid var(--border); padding: 16px; }
+    .preview-side-section { margin-bottom: 20px; }
+    .preview-side-section .head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 8px; padding-left: 8px; }
+    .preview-link { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; font-size: 13px; color: var(--text-2); margin-bottom: 1px; }
+    .preview-link.active { background: white; color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .preview-link .ico { width: 14px; height: 14px; opacity: 0.6; }
+    .preview-main { padding: 24px; }
+    .preview-h { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .preview-sub { font-size: 13px; color: var(--text-3); margin-bottom: 20px; }
+    .preview-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .preview-kpi { padding: 14px; background: var(--bg); border-radius: 8px; }
+    .preview-kpi .l { font-size: 11px; color: var(--text-3); margin-bottom: 4px; }
+    .preview-kpi .v { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .preview-kpi .v.accent { color: var(--accent); }
+    .preview-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .preview-th { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 10px 14px; background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); font-weight: 600; }
+    .preview-tr { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 12px 14px; border-top: 1px solid var(--border); font-size: 13px; align-items: center; }
+    .preview-tr .name { font-weight: 600; }
+    .preview-tr .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pill.sent { background: rgba(255,87,34,0.1); color: var(--accent); }
+    .pill.paid { background: rgba(22,163,74,0.1); color: var(--success); }
+    .pill.draft { background: var(--border); color: var(--text-2); }
+    .pill.active { background: rgba(0,0,0,0.06); color: var(--text); }
+
+    /* Logo strip */
+    .logo-strip { padding: 40px 32px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--white); }
+    .logo-strip-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+    .logo-strip-label { font-size: 12px; color: var(--text-3); }
+    .logo-marks { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+    .logo-mark { font-weight: 700; font-size: 15px; color: var(--text-3); opacity: 0.6; letter-spacing: -0.02em; }
+
+    /* Section base */
+    section { padding: 100px 32px; }
+    .section-inner { max-width: 1200px; margin: 0 auto; }
+    .section-eyebrow { font-size: 12px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+    .section-title { font-size: clamp(32px, 4vw, 48px); line-height: 1.1; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 16px; }
+    .section-sub { font-size: 17px; color: var(--text-2); max-width: 600px; }
+    .center { text-align: center; }
+    .center .section-sub { margin-left: auto; margin-right: auto; }
+
+    /* Features */
+    .features { background: var(--bg); }
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 60px; }
+    .feature { padding: 28px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; transition: all 200ms; }
+    .feature:hover { border-color: var(--text); transform: translateY(-2px); box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1); }
+    .feature-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--text) 0%, #333 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 18px; color: white; }
+    .feature-icon.accent { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); }
+    .feature h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
+    .feature p { color: var(--text-2); font-size: 14px; line-height: 1.6; }
+    .feature .pill { display: inline-block; margin-top: 10px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; background: var(--accent); color: white; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* Bento grid */
+    .bento { background: var(--white); }
+    .bento-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 16px; margin-top: 60px; min-height: 500px; }
+    .bento-item { padding: 28px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; position: relative; overflow: hidden; }
+    .bento-item.dark { background: var(--text); color: var(--white); border-color: var(--text); }
+    .bento-item.accent { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); color: white; border-color: transparent; }
+    .bento-item.lg { grid-row: span 2; }
+    .bento-item h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
+    .bento-item p { color: var(--text-2); font-size: 14px; line-height: 1.6; }
+    .bento-item.dark p, .bento-item.accent p { color: rgba(255,255,255,0.8); }
+    .bento-item.dark h3, .bento-item.accent h3 { color: white; }
+    .bento-vis { margin-top: 20px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .bento-vis .row { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(0,0,0,0.06); }
+    .bento-item.dark .bento-vis .row { border-color: rgba(255,255,255,0.1); }
+    .bento-item.accent .bento-vis .row { border-color: rgba(255,255,255,0.2); }
+    .pill-soft { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pill-soft.rough { background: rgba(255,193,7,0.15); color: #b8860b; }
+    .pill-soft.final { background: rgba(22,163,74,0.15); color: var(--success); }
+    .bento-item.dark .pill-soft.rough { background: rgba(255,193,7,0.2); color: #ffd54f; }
+    .bento-item.dark .pill-soft.final { background: rgba(22,163,74,0.3); color: #4ade80; }
+    .bento-mock-app { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 16px; color: var(--text); }
+    .bento-mock-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .bento-mock-row:last-child { border-bottom: 0; }
+    .bento-mock-row .name { font-weight: 600; }
+    .bento-mock-row .price { font-family: 'JetBrains Mono', monospace; }
+    .bento-stat { font-size: 64px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; margin: 12px 0; }
+    .bento-stat small { font-size: 18px; color: var(--text-3); font-weight: 500; }
+
+    /* Pricing */
+    .pricing { background: var(--bg); }
+    .pricing-toggle { display: inline-flex; background: white; border: 1px solid var(--border); border-radius: 999px; padding: 4px; margin: 30px 0 50px; }
+    .pricing-toggle button { padding: 6px 14px; border: 0; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-2); border-radius: 999px; }
+    .pricing-toggle button.active { background: var(--text); color: white; }
+    .pricing-toggle .save { font-size: 11px; color: var(--success); margin-left: 6px; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 32px; position: relative; transition: all 200ms; }
+    .price-card:hover { border-color: var(--text); }
+    .price-card.featured { background: var(--text); color: var(--white); border-color: var(--text); transform: scale(1.02); box-shadow: 0 30px 60px -15px rgba(0,0,0,0.2); }
+    .price-card.featured:hover { transform: scale(1.03); }
+    .price-name { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+    .price-amount { font-size: 48px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+    .price-amount .per { font-size: 15px; color: var(--text-3); font-weight: 500; }
+    .price-card.featured .price-amount .per { color: rgba(255,255,255,0.6); }
+    .price-tagline { font-size: 14px; color: var(--text-2); margin: 12px 0 24px; min-height: 42px; }
+    .price-card.featured .price-tagline { color: rgba(255,255,255,0.7); }
+    .price-features { list-style: none; margin-bottom: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+    .price-card.featured .price-features { border-color: rgba(255,255,255,0.1); }
+    .price-features li { padding: 6px 0; font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+    .price-features li .check { color: var(--success); font-weight: 700; flex-shrink: 0; }
+    .price-card.featured .price-features li .check { color: #4ade80; }
+    .price-features li .x { color: var(--text-4); flex-shrink: 0; }
+    .price-card.featured .price-features li .x { color: rgba(255,255,255,0.3); }
+    .price-features li.disabled { color: var(--text-4); }
+    .price-card.featured .price-features li.disabled { color: rgba(255,255,255,0.4); }
+    .price-cta { display: block; text-align: center; padding: 12px 20px; font-size: 14px; font-weight: 500; border-radius: 8px; text-decoration: none; }
+    .price-card:not(.featured) .price-cta { background: white; color: var(--text); border: 1px solid var(--border-2); }
+    .price-card:not(.featured) .price-cta:hover { background: var(--text); color: white; border-color: var(--text); }
+    .price-card.featured .price-cta { background: var(--accent); color: white; }
+    .price-card.featured .price-cta:hover { background: var(--accent-2); }
+    .price-cta.full { background: var(--text); color: white; }
+
+    /* CTA */
+    .cta-banner { background: var(--text); color: white; padding: 80px 32px; text-align: center; border-radius: 24px; margin: 0 32px 80px; max-width: calc(1200px - 64px); margin-left: auto; margin-right: auto; }
+    .cta-banner h2 { font-size: clamp(36px, 4vw, 56px); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 16px; }
+    .cta-banner p { color: rgba(255,255,255,0.6); font-size: 17px; margin-bottom: 32px; }
+    .cta-banner .btn-primary { background: white; color: var(--text); }
+    .cta-banner .btn-primary:hover { background: var(--accent); color: white; }
+    .cta-banner .btn-outline { color: white; border-color: rgba(255,255,255,0.2); }
+    .cta-banner .btn-outline:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.4); }
+
+    /* Footer */
+    footer { padding: 60px 32px 30px; border-top: 1px solid var(--border); background: var(--white); }
+    .footer-inner { max-width: 1200px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+    .footer-col h4 { font-size: 12px; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+    .footer-col a { display: block; font-size: 13px; color: var(--text-2); text-decoration: none; padding: 4px 0; }
+    .footer-col a:hover { color: var(--text); }
+    .footer-bottom { padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); }
+
+    @media (max-width: 900px) {
+      .hero-inner { padding: 0 8px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .bento-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
+      .bento-item.lg { grid-row: span 1; }
+      .pricing-grid { grid-template-columns: 1fr; }
+      .price-card.featured { transform: none; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .preview-body { grid-template-columns: 1fr; }
+      .preview-sidebar { display: none; }
+      .nav-links { display: none; }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="logo">
+        <span class="logo-mark">U</span>
+        UDGOK
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#">Changelog</a>
+        <a href="#">Docs</a>
+        <a href="#">Customers</a>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <a href="#" class="btn btn-ghost">Sign in</a>
+        <a href="#" class="btn btn-primary">Start free →</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="announce">
+        <span class="tag">New</span>
+        GPS-tagged site photos + barcode scanning for field crews
+      </div>
+      <h1>Construction <span class="gradient">management</span><br>built for builders.</h1>
+      <p class="hero-sub">CRM, projects, pay apps, photos, and team — all in one place. Built for contractors who run jobs in the field and quotes in the office.</p>
+      <div class="hero-ctas">
+        <a href="#" class="btn btn-accent" style="padding: 12px 20px; font-size: 14px;">Start free →</a>
+        <a href="#" class="btn btn-outline" style="padding: 12px 20px; font-size: 14px;">Book demo</a>
+      </div>
+      <p class="hero-trust"><span>Free forever</span> · <span>No credit card</span> · <span>5-minute setup</span></p>
+
+      <div class="app-preview">
+        <div class="app-preview-frame">
+          <div class="preview-titlebar">
+            <span class="preview-dot r"></span>
+            <span class="preview-dot y"></span>
+            <span class="preview-dot g"></span>
+            <div class="preview-url">udgok.com/w/coldstone-renovation</div>
+          </div>
+          <div class="preview-body">
+            <div class="preview-sidebar">
+              <div class="preview-side-section">
+                <div class="head">Workspace</div>
+                <div class="preview-link active">🏠 Dashboard</div>
+                <div class="preview-link">📁 Projects</div>
+                <div class="preview-link">📋 Tasks</div>
+                <div class="preview-link">📄 Files</div>
+              </div>
+              <div class="preview-side-section">
+                <div class="head">Sales</div>
+                <div class="preview-link">👥 Clients</div>
+                <div class="preview-link">💼 Deals</div>
+              </div>
+              <div class="preview-side-section">
+                <div class="head">Team</div>
+                <div class="preview-link">🔨 Subs</div>
+                <div class="preview-link">👷 Crew</div>
+              </div>
+            </div>
+            <div class="preview-main">
+              <div class="preview-h">Coldstone Renovation</div>
+              <div class="preview-sub">Active · 3 milestones · Updated 2 hrs ago</div>
+              <div class="preview-kpis">
+                <div class="preview-kpi"><div class="l">Contract</div><div class="v">$125K</div></div>
+                <div class="preview-kpi"><div class="l">Billed</div><div class="v">$12.5K</div></div>
+                <div class="preview-kpi"><div class="l">Remaining</div><div class="v accent">$112.5K</div></div>
+                <div class="preview-kpi"><div class="l">On-site</div><div class="v accent">3</div></div>
+              </div>
+              <div class="preview-table">
+                <div class="preview-th"><span>Item</span><span>Budget</span><span>Status</span><span>Photos</span></div>
+                <div class="preview-tr"><span class="name">Site prep &amp; demo</span><span>$15,000</span><span><span class="pill active">Active</span></span><span>3</span></div>
+                <div class="preview-tr"><span class="name">Concrete &amp; framing</span><span>$32,000</span><span><span class="pill draft">Draft</span></span><span>0</span></div>
+                <div class="preview-tr"><span class="name">Plumbing rough-in</span><span>$8,000</span><span><span class="pill paid">Paid</span></span><span>5</span></div>
+                <div class="preview-tr"><span class="name">Electrical rough-in</span><span>$12,000</span><span><span class="pill active">Active</span></span><span>2</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="logo-strip">
+    <div class="logo-strip-inner">
+      <div class="logo-strip-label">Trusted by builders across the U.S.</div>
+      <div class="logo-marks">
+        <span class="logo-mark">Riverside</span>
+        <span class="logo-mark">Field &amp; Co.</span>
+        <span class="logo-mark">Meridian</span>
+        <span class="logo-mark">Blackwater</span>
+        <span class="logo-mark">Summit</span>
+        <span class="logo-mark">Oak + Iron</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="features" id="features">
+    <div class="section-inner">
+      <div class="center">
+        <div class="section-eyebrow">Features</div>
+        <h2 class="section-title">Everything you need.<br>Nothing you don't.</h2>
+        <p class="section-sub">One platform that handles your clients, projects, pay apps, photos, and team — so you can stop paying for 5 different tools.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature">
+          <div class="feature-icon">📋</div>
+          <h3>CRM + Deals</h3>
+          <p>Track leads from first call to signed contract with a Kanban-style deal pipeline, contact history, and notes.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon accent">📅</div>
+          <h3>Project Tracking</h3>
+          <p>Gantt timelines, schedules of values, and progress dashboards. Always know where every job stands.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">💰</div>
+          <h3>Pay Applications</h3>
+          <p>Generate, send, and track draw requests. Clients view and sign from a public link.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon accent">📷</div>
+          <h3>GPS Site Photos</h3>
+          <p>Foremen snap rough-in and final photos from the field, GPS-tagged and room-categorized.</p>
+          <span class="pill">Pro</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">📊</div>
+          <h3>Barcode &amp; QR Scan</h3>
+          <p>Scan equipment, materials, and badges. Find anything in seconds from your phone.</p>
+          <span class="pill">Pro</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon accent">👥</div>
+          <h3>Team Presence</h3>
+          <p>See who's online right now with real-time green dots on every crew member.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">💬</div>
+          <h3>Internal Messages</h3>
+          <p>Per-entity comment threads on every project, client, and deal. With replies, edits, and tracking.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon accent">📱</div>
+          <h3>PWA + Offline</h3>
+          <p>Install as a native app on any phone. Form drafts persist offline.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">🔄</div>
+          <h3>Backup &amp; Restore</h3>
+          <p>Export and import your full workspace as JSON. Your data stays portable.</p>
+          <span class="pill">Pro</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bento">
+    <div class="section-inner">
+      <div class="center">
+        <div class="section-eyebrow">Built for the field</div>
+        <h2 class="section-title">The only CMS your foremen<br>will <em style="font-style: italic; color: var(--accent);">actually</em> use.</h2>
+        <p class="section-sub">Every feature is built mobile-first. The foreman on site has the same tools as the PM in the office.</p>
+      </div>
+      <div class="bento-grid">
+        <div class="bento-item lg">
+          <h3>📸 Snap a photo, tag the room. Done.</h3>
+          <p>No more texting photos to the office. No more "where's the master bath rough-in?" Take a pic, pick "Rough-in" and "Master Bath" — it's filed with GPS coordinates before you walk back to the truck.</p>
+          <div class="bento-vis">
+            <div class="row"><span class="pill-soft rough">Rough</span> Master Bath — plumbing <span style="margin-left: auto; opacity: 0.5;">📍 36.154</span></div>
+            <div class="row"><span class="pill-soft rough">Rough</span> Kitchen — electrical <span style="margin-left: auto; opacity: 0.5;">📍 36.154</span></div>
+            <div class="row"><span class="pill-soft final">Final</span> Living room — paint <span style="margin-left: auto; opacity: 0.5;">📍 36.154</span></div>
+            <div class="row"><span class="pill-soft rough">Rough</span> Master Bath — framing <span style="margin-left: auto; opacity: 0.5;">📍 36.154</span></div>
+            <div class="row"><span class="pill-soft final">Final</span> Kitchen — tile <span style="margin-left: auto; opacity: 0.5;">📍 36.154</span></div>
+          </div>
+        </div>
+        <div class="bento-item accent">
+          <div class="bento-stat">5<small>min</small></div>
+          <h3>Setup time</h3>
+          <p>Create a workspace, add a client, log a job. You're working in 5 minutes.</p>
+        </div>
+        <div class="bento-item dark">
+          <h3>📡 Offline-first</h3>
+          <p>Form drafts persist in localStorage. Sync when you reconnect.</p>
+          <div style="margin-top: 14px; padding: 10px 14px; background: rgba(255,255,255,0.1); border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+            <div style="opacity: 0.6;">draft saved · 2 min ago</div>
+            <div style="margin-top: 4px;">📍 Coldstone · Master Bath</div>
+          </div>
+        </div>
+        <div class="bento-item">
+          <h3>👥 Team presence</h3>
+          <p>Green dots show who's online. See your crew without scheduling a meeting.</p>
+          <div style="margin-top: 14px; display: flex; gap: 6px;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--success); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">YK</span>
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">YF</span>
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--text-2); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">U</span>
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: var(--border-2); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">+2</span>
+          </div>
+        </div>
+        <div class="bento-item">
+          <h3>📨 Pay apps in one click</h3>
+          <p>From schedule of values to signed draw request in under a minute.</p>
+          <div class="bento-mock-app">
+            <div class="bento-mock-row"><span class="name">Total contract</span><span class="price">$125,000</span></div>
+            <div class="bento-mock-row"><span class="name">Previous</span><span class="price">$0</span></div>
+            <div class="bento-mock-row"><span class="name">This draw</span><span class="price" style="color: var(--accent); font-weight: 700;">$12,500</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pricing" id="pricing">
+    <div class="section-inner">
+      <div class="center">
+        <div class="section-eyebrow">Pricing</div>
+        <h2 class="section-title">Simple. Honest. Built for builders.</h2>
+        <p class="section-sub">Start free. Upgrade when you need more power. Cancel any time.</p>
+        <div class="pricing-toggle">
+          <button>Monthly</button>
+          <button class="active">Annual <span class="save">Save 20%</span></button>
+        </div>
+      </div>
+      <div class="pricing-grid">
+        <div class="price-card">
+          <div class="price-name">Starter</div>
+          <div class="price-amount">$0<span class="per">/forever</span></div>
+          <p class="price-tagline">Solo or small crews getting started.</p>
+          <ul class="price-features">
+            <li><span class="check">✓</span> Unlimited projects &amp; clients</li>
+            <li><span class="check">✓</span> Pay apps + PDF generation</li>
+            <li><span class="check">✓</span> Team presence + activity log</li>
+            <li><span class="check">✓</span> PWA install + offline drafts</li>
+            <li><span class="check">✓</span> Internal messages</li>
+            <li class="disabled"><span class="x">×</span> GPS-tagged site photos</li>
+            <li class="disabled"><span class="x">×</span> Barcode &amp; QR scanning</li>
+            <li class="disabled"><span class="x">×</span> Export &amp; backup</li>
+          </ul>
+          <a href="#" class="price-cta">Start free</a>
+        </div>
+        <div class="price-card featured">
+          <div class="price-name">Pro</div>
+          <div class="price-amount">$39<span class="per">/user/mo</span></div>
+          <p class="price-tagline">For active contractors running multiple jobs.</p>
+          <ul class="price-features">
+            <li><span class="check">✓</span> Everything in Starter</li>
+            <li><span class="check">✓</span> GPS-tagged site photos</li>
+            <li><span class="check">✓</span> Barcode &amp; QR scanning</li>
+            <li><span class="check">✓</span> Export &amp; import (JSON)</li>
+            <li><span class="check">✓</span> Backup &amp; restore</li>
+            <li><span class="check">✓</span> Priority support</li>
+            <li><span class="check">✓</span> Custom domain (soon)</li>
+          </ul>
+          <a href="#" class="price-cta">Start 14-day trial</a>
+        </div>
+        <div class="price-card">
+          <div class="price-name">Enterprise</div>
+          <div class="price-amount">Custom</div>
+          <p class="price-tagline">Multi-crew builders with custom needs.</p>
+          <ul class="price-features">
+            <li><span class="check">✓</span> Everything in Pro</li>
+            <li><span class="check">✓</span> Single sign-on (SSO)</li>
+            <li><span class="check">✓</span> Audit log export</li>
+            <li><span class="check">✓</span> Custom branding</li>
+            <li><span class="check">✓</span> Dedicated success manager</li>
+            <li><span class="check">✓</span> SLA + 99.9% uptime</li>
+          </ul>
+          <a href="#" class="price-cta full">Contact sales</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-banner">
+    <h2>Ready to leave the spreadsheets behind?</h2>
+    <p>14 days free. No credit card. Cancel any time.</p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <a href="#" class="btn btn-primary" style="padding: 12px 20px; font-size: 14px;">Start free →</a>
+      <a href="#" class="btn btn-outline" style="padding: 12px 20px; font-size: 14px;">Talk to us</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div class="logo" style="font-size: 16px; margin-bottom: 8px;">
+            <span class="logo-mark">U</span>
+            UDGOK
+          </div>
+          <p style="font-size: 13px; color: var(--text-2); max-width: 280px; line-height: 1.6;">Construction management CMS for builders who want to run their business, not their spreadsheets.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="#">Features</a>
+          <a href="#">Pricing</a>
+          <a href="#">Changelog</a>
+          <a href="#">Roadmap</a>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <a href="#">Docs</a>
+          <a href="#">Help center</a>
+          <a href="#">API</a>
+          <a href="#">Status</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="#">About</a>
+          <a href="#">Blog</a>
+          <a href="#">Customers</a>
+          <a href="#">Contact</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Security</a>
+          <a href="#">DPA</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 UDGOK Construction</span>
+        <span>Made for builders</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
