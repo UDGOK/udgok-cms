@@ -35,6 +35,8 @@ model Workspace {
   activity ActivityLog[]
   messages Message[]
   projectPhotos ProjectPhoto[]
+  permits       Permit[]
+  inspections   Inspection[]
 
   @@index([slug])
 }
@@ -259,6 +261,7 @@ model Project {
   payApps   PayApp[]
   subAssignments ProjectSubcontractorAssignment[]
   photos    ProjectPhoto[]
+  permits   Permit[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
@@ -311,6 +314,107 @@ enum ProjectStatus {
   ON_HOLD
   COMPLETED
   CANCELLED
+}
+
+// =========================================
+// PERMITS & INSPECTIONS
+// =========================================
+
+enum PermitStatus {
+  NOT_APPLIED
+  APPLIED
+  ISSUED
+  INSPECTION_SCHEDULED
+  PASSED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum InspectionType {
+  // Pre-cover / structural
+  FOOTING
+  FOUNDATION
+  SLAB
+  // Framing
+  FRAMING
+  SHEATHING
+  // MEP rough
+  ROUGH_PLUMBING
+  ROUGH_ELECTRICAL
+  ROUGH_MECHANICAL
+  ROUGH_GAS
+  // Insulation / drywall
+  INSULATION
+  DRYWALL
+  // Exterior
+  ROOFING
+  WINDOW
+  SIDING
+  // Final
+  FINAL_PLUMBING
+  FINAL_ELECTRICAL
+  FINAL_MECHANICAL
+  FINAL_BUILDING
+  // Specialty
+  FIRE
+  UTILITY
+  CUSTOM
+}
+
+enum InspectionResult {
+  PENDING
+  PASSED
+  FAILED
+  PARTIAL
+  CANCELLED
+}
+
+model Permit {
+  id            String       @id @default(cuid())
+  workspaceId   String
+  projectId     String
+  permitNumber  String?      // e.g. "BLD-2026-04812"
+  type          String       // e.g. "Building", "Electrical", "Plumbing", "Mechanical", "Demolition"
+  status        PermitStatus @default(NOT_APPLIED)
+  jurisdiction  String?      // e.g. "City of Tulsa", "City of Austin"
+  appliedDate   DateTime?
+  issuedDate    DateTime?
+  expirationDate DateTime?
+  fee           Decimal?     @db.Decimal(10, 2)
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inspections Inspection[]
+
+  @@index([projectId])
+  @@index([workspaceId])
+  @@index([status])
+}
+
+model Inspection {
+  id             String           @id @default(cuid())
+  workspaceId    String
+  permitId       String
+  type           InspectionType
+  scheduledDate  DateTime?
+  result         InspectionResult @default(PENDING)
+  inspectorName  String?
+  scheduledBy    String?          // e.g. "Foreman Bob", "PM Sarah"
+  notes          String?
+  completedDate  DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  permit    Permit    @relation(fields: [permitId], references: [id], onDelete: Cascade)
+
+  @@index([permitId])
+  @@index([scheduledDate])
+  @@index([result])
 }
 
 model ProjectMember {

@@ -22,6 +22,11 @@ import { AddProjectTaskForm } from './AddProjectTaskForm';
 import { ProjectTaskRow } from './ProjectTaskRow';
 import { RemoveProjectMemberButton } from './RemoveProjectMemberButton';
 import { EditProjectDetailsButton } from './EditProjectDetailsButton';
+import { WeatherWidget } from './WeatherWidget';
+import { JurisdictionCard } from './JurisdictionCard';
+import { AddPermitForm } from './AddPermitForm';
+import { PermitCard } from './PermitCard';
+import { listProjectPermits, summarizePermits } from '@/lib/permits/queries';
 
 interface ProjectUser {
   id: string;
@@ -100,6 +105,31 @@ interface ProjectData {
   notes: { id: string; body: string; createdAt: Date }[];
 }
 
+interface PermitInspection {
+  id: string;
+  type: string;
+  result: string;
+  scheduledDate: Date | null;
+  completedDate: Date | null;
+  inspectorName: string | null;
+  scheduledBy: string | null;
+  notes: string | null;
+}
+
+interface PermitWithInspections {
+  id: string;
+  permitNumber: string | null;
+  type: string;
+  status: string;
+  jurisdiction: string | null;
+  appliedDate: Date | null;
+  issuedDate: Date | null;
+  expirationDate: Date | null;
+  fee: number | { toString(): string } | null;
+  notes: string | null;
+  inspections: PermitInspection[];
+}
+
 const SUB_STATUS_LABEL: Record<string, string> = {
   PROPOSED: 'Proposed',
   CONTRACTED: 'Contracted',
@@ -127,7 +157,7 @@ export default async function ProjectDetailPage({
   const { userId } = await auth();
   const tab = searchParams.tab ?? 'overview';
 
-  const [project, subs, messages, activity, photoCounts, workspaceMembers, projectMembers, myRole] = await Promise.all([
+  const [project, subs, messages, activity, photoCounts, workspaceMembers, projectMembers, myRole, permits] = await Promise.all([
     getProjectWithRelations(workspace.id, params.id),
     prisma.subcontractor.findMany({
       where: { workspaceId: workspace.id },
@@ -151,6 +181,7 @@ export default async function ProjectDetailPage({
       where: { userId_workspaceId: { userId: userId!, workspaceId: workspace.id } },
       select: { role: true },
     }),
+    listProjectPermits(params.id),
   ]);
   if (!project) notFound();
   const projectData = project as unknown as ProjectData;
@@ -202,6 +233,12 @@ export default async function ProjectDetailPage({
 
   // Build tabs
   const base = `/w/${params.workspace}/projects/${projectData.id}`;
+  const permitSummary = summarizePermits(permits);
+  const permitsBadge = permitSummary.overdueInspections > 0
+    ? permitSummary.overdueInspections
+    : permits.length > 0
+      ? permits.length
+      : undefined;
   const tabs = [
     { key: 'overview', label: 'Overview', href: base },
     {
@@ -216,6 +253,7 @@ export default async function ProjectDetailPage({
     { key: 'tasks', label: 'Tasks', href: `${base}?tab=tasks`, badge: projectData.tasks.length || undefined },
     { key: 'team', label: 'Team', href: `${base}?tab=team`, badge: projectMembers.length || undefined },
     { key: 'schedule', label: 'Schedule', href: `${base}?tab=schedule` },
+    { key: 'permits', label: 'Permits', href: `${base}?tab=permits`, badge: permitsBadge },
     { key: 'pay-apps', label: 'Pay apps', href: `${base}/pay-apps`, badge: projectData.payApps.length || undefined },
     { key: 'subs', label: 'Subs', href: `${base}?tab=subs`, badge: projectData.subAssignments.length || undefined },
   ];
@@ -371,6 +409,16 @@ export default async function ProjectDetailPage({
         />
       ) : null}
 
+      {tab === 'permits' ? (
+        <PermitsTab
+          projectId={projectData.id}
+          workspace={params.workspace}
+          project={projectData}
+          permits={permits as unknown as PermitWithInspections[]}
+          summary={permitSummary}
+        />
+      ) : null}
+
       {tab === 'pay-apps' ? (
         <PayAppsTab
           projectId={projectData.id}
@@ -487,7 +535,7 @@ function OverviewTab({
       </div>
 
       {/* Quick-action cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         <Link
           href={`${base}/photos`}
           className="bg-paper border-2 border-line hover:border-ink p-4 transition-colors"
@@ -496,7 +544,7 @@ function OverviewTab({
             {'// Photos'}
           </div>
           <div className="text-[13px] font-extrabold mt-1">
-            {totalPhotos} photo{totalPhotos === 1 ? '' : 's'} on file
+            {totalPhotos} photo{totalPhotos === 1 ? '' : 's'}
           </div>
           <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d mt-2">
             View gallery →
@@ -517,6 +565,20 @@ function OverviewTab({
           </div>
         </Link>
         <Link
+          href={`${base}?tab=permits`}
+          className="bg-paper border-2 border-line hover:border-ink p-4 transition-colors"
+        >
+          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+            {'// Permits'}
+          </div>
+          <div className="text-[13px] font-extrabold mt-1">
+            {project.address ? 'Track permits' : 'Add address'}
+          </div>
+          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d mt-2">
+            View permits →
+          </div>
+        </Link>
+        <Link
           href={`${base}?tab=ai`}
           className="bg-paper border-2 border-line hover:border-ink p-4 transition-colors"
         >
@@ -530,6 +592,12 @@ function OverviewTab({
             Open AI board →
           </div>
         </Link>
+      </div>
+
+      {/* Weather + Permit office (location-aware) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-6">
+        <WeatherWidget project={project} />
+        <JurisdictionCard project={project} />
       </div>
 
       {/* SOV summary */}
@@ -1071,6 +1139,97 @@ function PayAppsTab({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// =========================================
+// TAB: Permits
+// =========================================
+
+function PermitsTab({
+  projectId,
+  workspace,
+  project,
+  permits,
+  summary,
+}: {
+  projectId: string;
+  workspace: string;
+  project: ProjectData;
+  permits: PermitWithInspections[];
+  summary: ReturnType<typeof summarizePermits>;
+}) {
+  const suggestedJurisdiction = project.city ? `City of ${project.city}` : null;
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div>
+          <h2 className="font-black text-xl md:text-2xl tracking-tight">Permits & inspections</h2>
+          <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
+            {permits.length} permit{permits.length === 1 ? '' : 's'}
+            {summary.issued > 0 ? ` · ${summary.issued} issued` : ''}
+            {summary.upcomingInspections > 0 ? ` · ${summary.upcomingInspections} upcoming` : ''}
+            {summary.overdueInspections > 0 ? ` · ${summary.overdueInspections} OVERDUE` : ''}
+          </p>
+        </div>
+        <AddPermitForm
+          workspaceSlug={workspace}
+          projectId={projectId}
+          suggestedJurisdiction={suggestedJurisdiction}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3 md:gap-4">
+        <div>
+          {permits.length === 0 ? (
+            <div className="bg-paper border-2 border-line p-12 text-center text-ink-50">
+              <p className="mb-2">No permits yet.</p>
+              <p className="text-[12px]">
+                Click &ldquo;+ Add permit&rdquo; to track building, electrical, plumbing, mechanical, or any other permit for this project.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {permits.map((p) => (
+                <PermitCard
+                  key={p.id}
+                  workspaceSlug={workspace}
+                  projectId={projectId}
+                  permit={p as unknown as {
+                    id: string;
+                    permitNumber: string | null;
+                    type: string;
+                    status: string;
+                    jurisdiction: string | null;
+                    appliedDate: Date | null;
+                    issuedDate: Date | null;
+                    expirationDate: Date | null;
+                    fee: number | null;
+                    notes: string | null;
+                    inspections: {
+                      id: string;
+                      type: string;
+                      result: string;
+                      scheduledDate: Date | null;
+                      completedDate: Date | null;
+                      inspectorName: string | null;
+                      scheduledBy: string | null;
+                      notes: string | null;
+                    }[];
+                  }}
+                  canEdit={true}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3 lg:sticky lg:top-32 self-start">
+          <JurisdictionCard project={project} />
+          <WeatherWidget project={project} />
+        </div>
+      </div>
     </div>
   );
 }
