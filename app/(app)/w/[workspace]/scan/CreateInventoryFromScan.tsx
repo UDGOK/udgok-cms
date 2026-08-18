@@ -14,6 +14,13 @@ export interface CreateInventoryFromScanProps {
   workspaceSlug: string;
   scannedCode: string;
   projects: ProjectOption[];
+  /**
+   * Optional pre-fill values. Used by the product-catalog flow:
+   * if we found a product in UPCitemdb / the local cache, the
+   * scan page passes its name + description here so the user
+   * doesn't have to retype what we already know.
+   */
+  prefilled?: { name?: string; description?: string };
 }
 
 type FormState =
@@ -44,6 +51,7 @@ export function CreateInventoryFromScan({
   workspaceSlug,
   scannedCode,
   projects,
+  prefilled,
 }: CreateInventoryFromScanProps) {
   const router = useRouter();
   const [kind, setKind] = useState<'material' | 'equipment'>('material');
@@ -162,8 +170,23 @@ export function CreateInventoryFromScan({
               name="name"
               required
               maxLength={200}
+              defaultValue={prefilled?.name ?? ''}
               placeholder={kind === 'material' ? 'e.g. 2x4 stud, 8ft' : 'e.g. Cordless drill, Makita XPH07'}
               className="w-full px-2 py-1.5 border-2 border-ink bg-cream-2 text-[13px]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+              Description (optional)
+            </label>
+            <textarea
+              name="description"
+              maxLength={2000}
+              rows={2}
+              defaultValue={prefilled?.description ?? ''}
+              placeholder="What is this product? (auto-filled from product catalog when available)"
+              className="w-full px-2 py-1.5 border-2 border-ink bg-cream-2 text-[12px]"
             />
           </div>
 

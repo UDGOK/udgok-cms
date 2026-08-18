@@ -43,6 +43,7 @@ model Workspace {
   scanEvents    ScanEvent[]
   materials     Material[]
   equipment     Equipment[]
+  productCatalog ProductCatalogItem[]
 
   @@index([slug])
 }
@@ -387,6 +388,56 @@ enum EquipmentCondition {
   GOOD
   FAIR
   POOR
+}
+
+// =========================================
+// PRODUCT CATALOG — workspace-scoped barcode cache
+// =========================================
+
+/**
+ * Master catalog of products that have been seen in this
+ * workspace. We don't ship a product database with the CMS —
+ * we use online APIs (UPCitemdb, Open Food Facts) on cache miss
+ * and persist the result here. Future scans of the same
+ * barcode hit the local DB, no API call needed.
+ *
+ * Scope is workspace-wide: every project in a workspace
+ * shares the same catalog. A drywall SKU used on three jobs
+ * is one row here, three rows in `Material` (one per job).
+ *
+ * `source` records where the data came from:
+ *   - 'upcitemdb' — UPCitemdb trial API (general-purpose, works
+ *     for most consumer products including construction supplies)
+ *   - 'openfoodfacts' — Open Food Facts (food products only,
+ *     richer nutrition data)
+ *   - 'manual' — user typed in the details by hand
+ *
+ * `lastFetchedAt` is bumped every time we re-validate against
+ * the online source. If the source data changes, we update
+ * the row rather than create a duplicate. (A barcode is
+ * globally unique per product, so uniqueness on
+ * (workspaceId, code) makes sense.)
+ */
+model ProductCatalogItem {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  code            String   // barcode (UPC, EAN, QR-encoded SKU, etc.)
+  name            String
+  description     String?
+  brand           String?
+  manufacturer    String?
+  category        String?
+  imageUrl        String?
+  source          String   // 'upcitemdb' | 'openfoodfacts' | 'manual'
+  sourceMetadata  Json?    // the full API response for debugging / future use
+  lastFetchedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, code], name: "product_per_workspace")
+  @@index([workspaceId, name])
 }
 
 // Per-construction-phase photos. Categorized by:
