@@ -46,3 +46,6 @@ attachments/
 .pnpm-store/
 .home/
 node_modules/.cache/
+
+# clerk configuration (can include secrets)
+/.clerk/

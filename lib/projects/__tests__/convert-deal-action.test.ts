@@ -36,7 +36,6 @@ const transactionMock = vi.fn(async (cb: (tx: unknown) => unknown) => {
   };
   return cb(tx);
 });
-const projectCreateWrapper = vi.fn((args: unknown) => projectCreate(args));
 
 vi.mock('@/lib/db/client', () => ({
   prisma: {
