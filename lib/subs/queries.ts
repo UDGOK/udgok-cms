@@ -54,10 +54,21 @@ export interface SubcontractorDetail {
   licenseNumber: string | null;
   insuranceExpiry: Date | null;
   w9OnFile: boolean;
+  idScanned: boolean;
+  idScannedAt: Date | null;
+  w9ScannedAt: Date | null;
   hourlyRate: number | null;
   notes: string | null;
   rating: number | null;
   createdAt: Date;
+  /** Compliance documents (ID card, W-9, insurance, license) attached to this sub */
+  documents: Array<{
+    id: string;
+    url: string;
+    filename: string;
+    category: string | null;
+    uploadedAt: string;
+  }>;
   assignments: Array<{
     id: string;
     contractAmount: number;
@@ -82,6 +93,10 @@ export async function getSubcontractor(workspaceId: string, id: string): Promise
         },
         orderBy: { createdAt: 'desc' },
       },
+      documents: {
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, url: true, filename: true, category: true, createdAt: true },
+      },
     },
   });
   if (!sub) return null;
@@ -96,10 +111,20 @@ export async function getSubcontractor(workspaceId: string, id: string): Promise
     licenseNumber: sub.licenseNumber,
     insuranceExpiry: sub.insuranceExpiry,
     w9OnFile: sub.w9OnFile,
+    idScanned: sub.idScanned,
+    idScannedAt: sub.idScannedAt,
+    w9ScannedAt: sub.w9ScannedAt,
     hourlyRate: sub.hourlyRate ? Number(sub.hourlyRate) : null,
     notes: sub.notes,
     rating: sub.rating,
     createdAt: sub.createdAt,
+    documents: sub.documents.map((d) => ({
+      id: d.id,
+      url: d.url,
+      filename: d.filename,
+      category: d.category,
+      uploadedAt: d.createdAt.toISOString(),
+    })),
     assignments: sub.assignments.map((a) => ({
       id: a.id,
       contractAmount: Number(a.contractAmount),

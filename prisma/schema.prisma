@@ -531,6 +531,10 @@ model File {
   dealId      String?
   projectId   String?
   taskId      String?
+  // For ID-card / W-9 / insurance scans tied to a subcontractor's
+  // onboarding. Set when the file is uploaded from the sub's
+  // onboarding scanner (phone camera → Vercel Blob → this row).
+  subcontractorId String?
   // GPS coordinates captured at upload time. Used for "GPS-tagged site
   // photos" feature — lets you see exactly where on the job site a
   // photo was taken.
@@ -539,12 +543,13 @@ model File {
   takenAt    DateTime?
   createdAt   DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  uploader  User      @relation("uploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
-  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  deal      Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  task      Task?     @relation("taskFiles", fields: [taskId], references: [id], onDelete: Cascade)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploader      User           @relation("uploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  client        Client?        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deal          Deal?          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  project       Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task          Task?          @relation("taskFiles", fields: [taskId], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor? @relation("subcontractorDocuments", fields: [subcontractorId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, kind])
   @@index([workspaceId, category])
@@ -714,6 +719,9 @@ model Subcontractor {
   licenseNumber   String?
   insuranceExpiry DateTime?
   w9OnFile        Boolean   @default(false)
+  w9ScannedAt     DateTime? // when the W-9 photo was last uploaded
+  idScanned       Boolean   @default(false)  // true after the sub's ID card has been scanned
+  idScannedAt     DateTime? // when the ID card photo was last uploaded
   hourlyRate      Decimal?  @db.Decimal(10, 2)
   notes           String?
   rating          Int?      // 1–5 self-rated quality
@@ -722,6 +730,7 @@ model Subcontractor {
 
   workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   assignments ProjectSubcontractorAssignment[]
+  documents   File[]                      @relation("subcontractorDocuments")
 
   @@index([workspaceId, name])
   @@index([workspaceId, primaryTrade])
