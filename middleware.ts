@@ -2,16 +2,34 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 // Public routes that don't require auth.
+// The entire marketing site is public so prospective customers can
+// browse without signing in. Only /w/* (app) and /admin/* require auth.
 const isPublicRoute = createRouteMatcher([
+  // Auth pages
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/pay-apps/(.*)', // public pay app share links (token-based, no auth)
-  '/api/pay-apps/(.*)/acknowledge', // public ack endpoint called from share page
-  '/api/presence/(.*)', // presence API does its own auth check (returns 401 for unauthed)
-  '/api/presence', // also match the bare /api/presence path
-  '/api/webhooks/(.*)', // Clerk webhook (verified via Svix signature)
-  '/manifest.json', // PWA manifest
-  '/sw.js', // service worker
+  // Marketing site (customer-facing, public)
+  '/',
+  '/about',
+  '/help',
+  '/docs',
+  '/changelog',
+  '/security',
+  '/privacy',
+  '/terms',
+  '/dpa',
+  '/pricing',
+  '/features',
+  // Public pay app share links (token-based, no auth)
+  '/pay-apps/(.*)',
+  // API routes
+  '/api/pay-apps/(.*)/acknowledge',
+  '/api/presence/(.*)',
+  '/api/presence',
+  '/api/webhooks/(.*)',
+  // Static assets
+  '/manifest.json',
+  '/sw.js',
   '/icon-192.svg',
   '/icon-512.svg',
 ]);

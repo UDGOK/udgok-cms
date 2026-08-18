@@ -159,23 +159,22 @@ export async function editWorkspaceAction(
 // =========================================
 
 /**
- * Hard-delete a workspace and ALL of its data. Uses an explicit
- * transaction with deleteMany calls for every workspace-scoped table
- * before the final `workspace.delete`. This is safer than relying on
- * the Prisma cascade alone because:
+ * Hard-delete a workspace and ALL of its data. The action itself
+ * returns {ok, error} and does NOT redirect — the client component
+ * handles the redirect using window.location for maximum reliability.
  *
- *  - Some relations to User have `NoAction` (we don't want to delete
- *    users or their data in other workspaces when one workspace is
- *    deleted).
- *  - Some relations to User have `Cascade` (photos uploaded by a user
- *    in OTHER workspaces should not be wiped when one workspace is
- *    deleted — and the user themselves must remain).
- *  - The `Membership → User` cascade is intentionally `NoAction` so
- *    the User is never deleted; only the membership row is removed.
+ * Uses an explicit transaction with deleteMany calls in dependency
+ * order. Wrapped in try/catch so failures return a human-readable
+ * error instead of a 500.
  *
- * Ordering matters: we delete leaf tables first, then parents, then
- * the workspace itself. Wrapped in `prisma.$transaction` so a failure
- * in any step rolls back the whole thing.
+ * Cascade strategy:
+ *  - Workspace → cascade to most tables (via schema)
+ *  - Membership.user → NoAction (don't delete users; they may
+ *    belong to other workspaces)
+ *  - Task.assignee → SetNull (nullable FK, author stays)
+ *  - Task.createdBy → NoAction (task belongs to workspace)
+ *  - File.uploader / Note.author → NoAction (preserve users)
+ *  - ProjectDivisionAssignment → cascade via division + assignment
  */
 export async function deleteWorkspaceAction(
   workspaceId: string,
@@ -191,50 +190,56 @@ export async function deleteWorkspaceAction(
 
   try {
     await prisma.$transaction(async (tx) => {
-      // 1. Delete the things that reference deeper tables first.
-      // Project-scoped leaf tables
+      // Step 1: workspace-scoped leaf tables (most dependencies first)
       await tx.activityLog.deleteMany({ where: { workspaceId } });
       await tx.message.deleteMany({ where: { workspaceId } });
       await tx.file.deleteMany({ where: { workspaceId } });
       await tx.task.deleteMany({ where: { workspaceId } });
-      // Note is connected via Client/Deal/Project; deleted when those cascade.
       await tx.deal.deleteMany({ where: { workspaceId } });
       await tx.client.deleteMany({ where: { workspaceId } });
       await tx.subcontractor.deleteMany({ where: { workspaceId } });
 
-      // Project-scoped: pay apps cascade through their divisions
+      // Step 2: project-scoped tables
+      // Inspections before permits (FK: permit → workspace cascade)
+      await tx.inspection.deleteMany({ where: { workspaceId } });
+      await tx.permit.deleteMany({ where: { workspaceId } });
+      // Divisions cascade through assignments → divisionAssignments
+      await tx.projectDivisionAssignment.deleteMany({
+        where: { assignment: { project: { workspaceId } } },
+      });
+      await tx.projectSubcontractorAssignment.deleteMany({
+        where: { project: { workspaceId } },
+      });
+      await tx.projectDivision.deleteMany({
+        where: { project: { workspaceId } },
+      });
       await tx.payApp.deleteMany({ where: { project: { workspaceId } } });
       await tx.projectPhoto.deleteMany({ where: { project: { workspaceId } } });
       await tx.projectPhotoFolder.deleteMany({ where: { project: { workspaceId } } });
       await tx.projectMember.deleteMany({ where: { project: { workspaceId } } });
-      await tx.permit.deleteMany({ where: { project: { workspaceId } } });
-      await tx.inspection.deleteMany({ where: { workspaceId } });
-
-      // The projects themselves
       await tx.project.deleteMany({ where: { workspaceId } });
 
-      // Workspace-scoped leaf tables
+      // Step 3: workspace-scoped tables
       await tx.teamMember.deleteMany({ where: { team: { workspaceId } } });
       await tx.team.deleteMany({ where: { workspaceId } });
 
-      // Memberships — this is the row that links users to the workspace.
-      // Users themselves are NOT deleted (they may belong to other
-      // workspaces). The Membership.user FK is now `NoAction`, so this
-      // delete does not cascade to User.
+      // Step 4: membership (user stays, only the membership row goes)
       await tx.membership.deleteMany({ where: { workspaceId } });
 
-      // Finally the workspace itself. Any remaining relations that
-      // cascade cleanly will be cleaned up here.
+      // Step 5: the workspace itself
       await tx.workspace.delete({ where: { id: workspaceId } });
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return { ok: false, error: `Delete failed: ${message}` };
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[deleteWorkspaceAction] transaction failed:', msg);
+    return { ok: false, error: `Delete failed: ${msg}` };
   }
 
+  // Invalidate Next.js cache for affected paths
   revalidatePath('/admin');
   revalidatePath('/admin/workspaces');
   revalidatePath(`/w/${ws.slug}`);
+
   return { ok: true };
 }
 

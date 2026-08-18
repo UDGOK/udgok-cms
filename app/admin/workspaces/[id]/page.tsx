@@ -43,6 +43,18 @@ export default async function AdminWorkspaceDetail({ params }: { params: { id: s
 
   return (
     <div>
+      {/* Master admin always-visible notice */}
+      <div className="bg-ink text-cream border-2 border-orange p-4 mb-5 flex items-start gap-3">
+        <div className="text-2xl">👑</div>
+        <div>
+          <div className="font-black text-base">You have full platform owner rights</div>
+          <div className="text-[12px] text-cream/70 mt-0.5">
+            As a master admin, you can edit, delete, and manage any workspace on this platform.
+            Your email ({masters.join(', ')}) is hardcoded as the platform owner.
+          </div>
+        </div>
+      </div>
+
       <div className="mb-4">
         <Link href="/admin/workspaces" className="text-[11px] font-mono uppercase tracking-[0.1em] text-orange-d hover:underline">
           ← All workspaces

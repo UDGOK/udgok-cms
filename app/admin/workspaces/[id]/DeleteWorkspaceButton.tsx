@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { deleteWorkspaceAction } from '@/lib/admin/actions';
 
@@ -15,7 +14,6 @@ export function DeleteWorkspaceButton({
   memberCount: number;
   projectCount: number;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [pending, start] = useTransition();
@@ -23,13 +21,16 @@ export function DeleteWorkspaceButton({
 
   function onConfirm() {
     setError(null);
+    setConfirmText(''); // reset so they can't double-click
     start(async () => {
       const result = await deleteWorkspaceAction(workspaceId);
       if (!result.ok) {
         setError(result.error ?? 'Delete failed');
+        setOpen(false);
         return;
       }
-      router.push('/admin/workspaces');
+      // Hard navigation — always works, even if the next page errors
+      window.location.href = '/admin/workspaces';
     });
   }
 
@@ -60,13 +61,21 @@ export function DeleteWorkspaceButton({
           </button>
         </div>
         <div className="p-5 space-y-3">
+          <div className="bg-orange text-paper px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.15em] mb-1">
+            👑 You are a platform master admin — you have full owner rights
+          </div>
           <p className="text-[14px] text-ink font-extrabold">
             This will permanently delete &ldquo;{workspaceName}&rdquo; and ALL of its data.
           </p>
-          <p className="text-[13px] text-ink-70">
-            The workspace has <b>{memberCount} member{memberCount === 1 ? '' : 's'}</b> and <b>{projectCount} project{projectCount === 1 ? '' : 's'}</b>.
-            Cascade delete will wipe every project, client, pay app, photo, message, task, note, file, and sub. There is <b>no undo</b>.
-          </p>
+          <div className="text-[12px] text-ink-70 space-y-1">
+            <p>
+              • <b>{memberCount} member{memberCount === 1 ? '' : 's'}</b> — their workspace access is removed (their accounts stay)
+            </p>
+            <p>
+              • <b>{projectCount} project{projectCount === 1 ? '' : 's'}</b> — every project, pay app, photo, task, note, file, sub, and permit is wiped
+            </p>
+            <p className="text-error font-extrabold">• There is absolutely NO undo. This is permanent.</p>
+          </div>
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
               Type <code className="px-1.5 py-0.5 bg-cream-2 text-ink">{workspaceName}</code> to confirm
@@ -77,10 +86,13 @@ export function DeleteWorkspaceButton({
               onChange={(e) => setConfirmText(e.target.value)}
               className="w-full px-3 py-2.5 bg-cream border-2 border-ink text-[14px] focus:outline-none focus:ring-2 focus:ring-error"
               autoFocus
+              placeholder={workspaceName}
             />
           </div>
           {error ? (
-            <div className="text-[12px] text-error font-extrabold">{error}</div>
+            <div className="bg-error/10 border border-error text-error px-3 py-2 text-[12px] font-extrabold">
+              ✕ {error}
+            </div>
           ) : null}
           <div className="flex gap-2 pt-2">
             <button
@@ -93,7 +105,7 @@ export function DeleteWorkspaceButton({
             </button>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => { setOpen(false); setError(null); }}
               className="px-4 py-2.5 border-2 border-ink text-ink text-[11px] font-extrabold uppercase tracking-[0.15em] hover:bg-ink hover:text-cream"
             >
               Cancel
