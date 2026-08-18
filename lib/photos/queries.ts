@@ -5,6 +5,9 @@ export interface ProjectPhotoListItem {
   id: string;
   url: string;
   filename: string;
+  folderId: string | null;
+  folderName: string | null;
+  folderColor: string | null;
   room: string | null;
   area: string | null;
   phase: PhotoPhase;
@@ -22,6 +25,7 @@ export interface ProjectPhotoFilters {
   room?: string;
   area?: string;
   uploaderId?: string;
+  folderId?: string | null;
 }
 
 /**
@@ -38,19 +42,43 @@ export async function listProjectPhotos(
     room?: string;
     area?: string;
     uploaderId?: string;
+    folderId?: string | null;
   } = { projectId };
   if (filters.phase) where.phase = filters.phase;
   if (filters.room) where.room = filters.room;
   if (filters.area) where.area = filters.area;
   if (filters.uploaderId) where.uploaderId = filters.uploaderId;
+  if (filters.folderId !== undefined) {
+    where.folderId = filters.folderId;
+  }
 
-  return prisma.projectPhoto.findMany({
+  const rows = await prisma.projectPhoto.findMany({
     where,
     orderBy: { createdAt: 'desc' },
     include: {
       uploader: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      folder: { select: { id: true, name: true, color: true } },
     },
   });
+
+  return rows.map((r) => ({
+    id: r.id,
+    url: r.url,
+    filename: r.filename,
+    folderId: r.folderId,
+    folderName: r.folder?.name ?? null,
+    folderColor: r.folder?.color ?? null,
+    room: r.room,
+    area: r.area,
+    phase: r.phase,
+    caption: r.caption,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    takenAt: r.takenAt,
+    createdAt: r.createdAt,
+    uploaderId: r.uploaderId,
+    uploader: r.uploader,
+  }));
 }
 
 /**
@@ -60,7 +88,7 @@ export async function listProjectPhotos(
 export async function getProjectPhotoFacets(projectId: string) {
   const photos = await prisma.projectPhoto.findMany({
     where: { projectId },
-    select: { room: true, area: true, phase: true },
+    select: { room: true, area: true, phase: true, folderId: true },
   });
   const rooms = new Set<string>();
   const areas = new Set<string>();

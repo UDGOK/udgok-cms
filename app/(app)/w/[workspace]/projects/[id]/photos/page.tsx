@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { listProjectPhotos, getProjectPhotoFacets } from '@/lib/photos/queries';
+import { listProjectPhotoFolders, seedDefaultPhotoFolders } from '@/lib/photos/folder-queries';
 import { ProjectPhotosClient } from '@/components/photos/ProjectPhotosClient';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -11,8 +12,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProjectPhotosPage({
   params,
+  searchParams,
 }: {
   params: { workspace: string; id: string };
+  searchParams: { folder?: string };
 }) {
   const { userId } = await requireMembership(params.workspace);
 
@@ -29,10 +32,17 @@ export default async function ProjectPhotosPage({
   });
   if (!project) notFound();
 
-  const [photos, facets, projectMembersCount] = await Promise.all([
-    listProjectPhotos(params.id),
-    getProjectPhotoFacets(params.id),
-    prisma.projectMember.count({ where: { projectId: params.id } }),
+  // Auto-seed the default folders on first visit
+  await seedDefaultPhotoFolders(project.id, project.workspaceId);
+
+  // Determine which folder is active (default to 'all' for null/undefined)
+  const activeFolderId = searchParams.folder === undefined ? null : searchParams.folder;
+
+  const [photos, facets, folders, projectMembersCount] = await Promise.all([
+    listProjectPhotos(project.id, { folderId: activeFolderId ?? undefined }),
+    getProjectPhotoFacets(project.id),
+    listProjectPhotoFolders(project.id),
+    prisma.projectMember.count({ where: { projectId: project.id } }),
   ]);
 
   return (
@@ -45,7 +55,7 @@ export default async function ProjectPhotosPage({
       <div className="hidden md:block p-8 pb-0 max-w-6xl">
         <PageHeader
           title="Project photos"
-          subtitle={`${project.name} · ${facets.totalCount} photo${facets.totalCount === 1 ? '' : 's'} (${facets.roughInCount} rough-in · ${facets.finalCount} final)`}
+          subtitle={`${project.name} · ${facets.totalCount} photo${facets.totalCount === 1 ? '' : 's'} across ${folders.length} folder${folders.length === 1 ? '' : 's'}`}
         />
       </div>
 
@@ -63,9 +73,11 @@ export default async function ProjectPhotosPage({
       <div className="p-4 md:px-8">
         <ProjectPhotosClient
           workspaceSlug={params.workspace}
-          projectId={params.id}
+          projectId={project.id}
           initialPhotos={photos}
           initialFacets={facets}
+          initialFolders={folders}
+          activeFolderId={activeFolderId}
           canDelete={(uploaderId) => uploaderId === userId}
         />
       </div>

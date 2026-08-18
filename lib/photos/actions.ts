@@ -11,6 +11,7 @@ import { logActivity } from '@/lib/activity/log';
 
 const uploadSchema = z.object({
   projectId: z.string().min(1),
+  folderId: z.string().optional().nullable(),
   room: z.string().max(80).optional().nullable(),
   area: z.string().max(80).optional().nullable(),
   phase: z.nativeEnum(PhotoPhase).default(PhotoPhase.ROUGH_IN),
@@ -56,6 +57,7 @@ export async function uploadProjectPhotoAction(
 
   const parsed = uploadSchema.safeParse({
     projectId: formData.get('projectId'),
+    folderId: formData.get('folderId') || undefined,
     room: formData.get('room') || undefined,
     area: formData.get('area') || undefined,
     phase: formData.get('phase') || undefined,
@@ -74,6 +76,16 @@ export async function uploadProjectPhotoAction(
     return { error: 'Project not found' };
   }
 
+  // Verify the folder, if provided, belongs to this project
+  if (parsed.data.folderId) {
+    const folder = await prisma.projectPhotoFolder.findUnique({
+      where: { id: parsed.data.folderId },
+    });
+    if (!folder || folder.projectId !== parsed.data.projectId) {
+      return { error: 'Invalid folder' };
+    }
+  }
+
   // Upload to Vercel Blob
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const blob = await put(
@@ -87,6 +99,7 @@ export async function uploadProjectPhotoAction(
       workspaceId: workspace.id,
       projectId: parsed.data.projectId,
       uploaderId: userId,
+      folderId: parsed.data.folderId || null,
       url: blob.url,
       filename: file.name,
       mimeType: file.type,
@@ -123,6 +136,7 @@ export async function uploadProjectPhotoAction(
 
 const updateSchema = z.object({
   photoId: z.string().min(1),
+  folderId: z.string().nullable().optional(),
   room: z.string().max(80).nullable().optional(),
   area: z.string().max(80).nullable().optional(),
   phase: z.nativeEnum(PhotoPhase).optional(),
@@ -145,6 +159,7 @@ export async function updateProjectPhotoAction(
 
   const parsed = updateSchema.safeParse({
     photoId: formData.get('photoId'),
+    folderId: formData.get('folderId') || null,
     room: formData.get('room') || null,
     area: formData.get('area') || null,
     phase: formData.get('phase') || undefined,
@@ -169,9 +184,20 @@ export async function updateProjectPhotoAction(
     }
   }
 
+  // Verify folder if provided
+  if (parsed.data.folderId) {
+    const folder = await prisma.projectPhotoFolder.findUnique({
+      where: { id: parsed.data.folderId },
+    });
+    if (!folder || folder.projectId !== photo.project.id) {
+      return { error: 'Invalid folder' };
+    }
+  }
+
   await prisma.projectPhoto.update({
     where: { id: parsed.data.photoId },
     data: {
+      folderId: parsed.data.folderId,
       room: parsed.data.room,
       area: parsed.data.area,
       phase: parsed.data.phase,

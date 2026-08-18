@@ -36,6 +36,7 @@ model Workspace {
   messages Message[]
   projectPhotos ProjectPhoto[]
   permits       Permit[]
+  photoFolders  ProjectPhotoFolder[]
   inspections   Inspection[]
 
   @@index([slug])
@@ -261,6 +262,7 @@ model Project {
   payApps   PayApp[]
   subAssignments ProjectSubcontractorAssignment[]
   photos    ProjectPhoto[]
+  photoFolders ProjectPhotoFolder[]
   permits   Permit[]
 
   @@index([workspaceId, status])
@@ -277,11 +279,31 @@ model Project {
 // project owner sees it instantly. The "phase" toggle in the gallery
 // filters to just rough-in or just final photos, so you can compare
 // before/after.
+model ProjectPhotoFolder {
+  id          String   @id @default(cuid())
+  workspaceId String
+  projectId   String
+  name        String   // e.g. "Punch List", "Before", "Foundation", "MEP"
+  description String?
+  color       String   @default("orange") // css color name: orange, ink, success, etc.
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  photos    ProjectPhoto[]
+
+  @@index([projectId, sortOrder])
+  @@unique([projectId, name])
+}
+
 model ProjectPhoto {
   id          String        @id @default(cuid())
   workspaceId String
   projectId   String
   uploaderId  String
+  folderId    String?
   url         String        // Vercel Blob URL
   filename    String
   mimeType    String
@@ -295,9 +317,10 @@ model ProjectPhoto {
   takenAt     DateTime?
   createdAt   DateTime      @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader  User      @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader  User                @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  folder    ProjectPhotoFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([projectId, phase, createdAt])
   @@index([projectId, room])

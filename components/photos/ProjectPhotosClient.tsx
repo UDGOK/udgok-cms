@@ -8,12 +8,23 @@ import type { PhotoPhase } from '@prisma/client';
 import { GeoPhotoCapture } from '@/components/files/GeoPhotoCapture';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { uploadProjectPhotoAction, deleteProjectPhotoAction } from '@/lib/photos/actions';
+import { PhotoFolderTabs } from '@/app/(app)/w/[workspace]/projects/[id]/PhotoFolderTabs';
+
+export interface PhotoFolder {
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  _count: { photos: number };
+}
 
 interface ProjectPhotosClientProps {
   workspaceSlug: string;
   projectId: string;
   initialPhotos: ProjectPhotoListItem[];
   initialFacets: { rooms: string[]; areas: string[]; roughInCount: number; finalCount: number };
+  initialFolders: PhotoFolder[];
+  activeFolderId: string | null;
   canDelete: (uploaderId: string) => boolean;
 }
 
@@ -35,6 +46,8 @@ export function ProjectPhotosClient({
   projectId,
   initialPhotos,
   initialFacets,
+  initialFolders,
+  activeFolderId,
   canDelete,
 }: ProjectPhotosClientProps) {
   const router = useRouter();
@@ -98,6 +111,15 @@ export function ProjectPhotosClient({
 
   return (
     <div>
+      {/* Folder tabs — server-rendered strip with the active folder highlighted */}
+      <PhotoFolderTabs
+        workspaceSlug={workspaceSlug}
+        projectId={projectId}
+        folders={initialFolders}
+        activeFolderId={activeFolderId}
+        totalPhotos={initialFacets.roughInCount + initialFacets.finalCount}
+      />
+
       {/* Header bar with phase toggle + filters + add button */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">
         {/* Phase toggle (large, primary control) */}
@@ -201,6 +223,8 @@ export function ProjectPhotosClient({
         <PhotoUploadForm
           workspaceSlug={workspaceSlug}
           projectId={projectId}
+          initialFolders={initialFolders}
+          activeFolderId={activeFolderId}
           uploadFormAction={uploadFormAction}
           uploadState={uploadState}
           onGeoCapture={handleGeophotoUpload}
@@ -236,6 +260,22 @@ function PhotoCard({
       >
         {photo.phase === 'ROUGH_IN' ? 'Rough-in' : 'Final'}
       </div>
+      {/* Folder badge */}
+      {photo.folderName ? (
+        <div
+          className={`absolute top-2 right-2 z-10 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.1em] ${
+            (photo.folderColor ?? 'ink') === 'orange' ? 'bg-orange text-paper' :
+            (photo.folderColor ?? 'ink') === 'ink' ? 'bg-ink text-cream' :
+            (photo.folderColor ?? 'ink') === 'success' ? 'bg-success text-paper' :
+            (photo.folderColor ?? 'ink') === 'warning' ? 'bg-warning text-ink' :
+            (photo.folderColor ?? 'ink') === 'error' ? 'bg-error text-paper' :
+            (photo.folderColor ?? 'ink') === 'cream-2' ? 'bg-cream-2 text-ink border border-ink' :
+            'bg-ink-30 text-ink'
+          }`}
+        >
+          {photo.folderName}
+        </div>
+      ) : null}
       {canDelete ? (
         <button
           type="button"
@@ -331,12 +371,16 @@ function Lightbox({ photo, onClose }: { photo: ProjectPhotoListItem; onClose: ()
 
 function PhotoUploadForm({
   projectId,
+  initialFolders,
+  activeFolderId,
   uploadFormAction,
   uploadState,
   onGeoCapture,
 }: {
   workspaceSlug?: string;
   projectId: string;
+  initialFolders: PhotoFolder[];
+  activeFolderId: string | null;
   uploadFormAction: (formData: FormData) => void;
   uploadState: { error?: string; ok?: boolean; id?: string } | undefined;
   onGeoCapture: (file: File, meta: { latitude?: number; longitude?: number; takenAt?: Date }) => void;
@@ -373,6 +417,23 @@ function PhotoUploadForm({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1.5">
+              Folder
+            </label>
+            <select
+              name="folderId"
+              defaultValue={activeFolderId ?? ''}
+              className="w-full px-3 py-2 bg-paper border border-line text-[12px] font-extrabold"
+            >
+              <option value="">No folder (unfiled)</option>
+              {initialFolders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1.5">
               Room
             </label>
             <input
@@ -383,6 +444,8 @@ function PhotoUploadForm({
               className="w-full px-3 py-2 bg-paper border border-line text-[12px]"
             />
           </div>
+        </div>
+        <div className="mt-2">
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1.5">
               Area
