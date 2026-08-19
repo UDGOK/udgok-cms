@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "rm -rf node_modules/.prisma && pnpm exec prisma generate && pnpm exec next build",
+  "// note": "We do prisma db push BEFORE generate so schema changes actually reach the production DB. Without this, the generated client expects columns that don't exist in Postgres, and the project page (which includes payApps) crashes on every project. The bug behind this: 6bf1a6a added acknowledgedByEmail/Name to PayApp but the column never got pushed to Neon, so prisma.project.findFirst({ include: { payApps: true } }) blew up with 'column does not exist' on every project page.",
+  "buildCommand": "pnpm exec prisma db push --skip-generate --accept-data-loss && rm -rf node_modules/.prisma && pnpm exec prisma generate && pnpm exec next build",
   "installCommand": "pnpm install --no-frozen-lockfile"
 }
