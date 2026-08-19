@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { regeocodeProjectAction, clearManualPinAction } from '@/lib/projects/actions';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 interface ProjectLocationBadgeProps {
   workspaceSlug: string;
@@ -91,7 +92,7 @@ export function ProjectLocationBadge({
       {geocodedAt ? (
         <>
           <span className="text-ink-30">·</span>
-          <span className="text-ink-30">{timeAgo(geocodedAt)}</span>
+          <span className="text-ink-30"><RelativeTime iso={geocodedAt.toISOString()} /></span>
         </>
       ) : null}
       {!isManual ? (
@@ -118,16 +119,4 @@ export function ProjectLocationBadge({
       {success ? <span className="text-success">{success}</span> : null}
     </div>
   );
-}
-
-function timeAgo(d: Date): string {
-  const diff = Date.now() - d.getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.floor(hr / 24);
-  if (day < 30) return `${day}d ago`;
-  return d.toLocaleDateString();
 }

@@ -48,5 +48,5 @@ export default async function PublicPayAppPage({
     })),
   };
 
-  return <PublicPayAppView payApp={data} />;
+  return <PublicPayAppView payApp={data} shareToken={params.token} />;
 }

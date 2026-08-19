@@ -5,6 +5,11 @@ import { recordPayAppView } from './actions';
 import { Button, Field, Input } from '@/components/ui';
 
 interface PublicPayAppViewProps {
+  // The share token from the URL — the credential the recipient
+  // uses to acknowledge the draw. Required by the API route so it
+  // can verify the request is coming from someone with the share
+  // link (not someone who guessed a pay-app id).
+  shareToken: string;
   payApp: {
     id: string;
     drawNumber: number;
@@ -70,7 +75,7 @@ const printStyles = `
   }
 `;
 
-export function PublicPayAppView({ payApp }: PublicPayAppViewProps) {
+export function PublicPayAppView({ payApp, shareToken }: PublicPayAppViewProps) {
   const [email, setEmail] = useState('');
   const [recorded, setRecorded] = useState(false);
   const [ackState, setAckState] = useState<'idle' | 'submitting' | 'done'>('idle');
@@ -88,7 +93,7 @@ export function PublicPayAppView({ payApp }: PublicPayAppViewProps) {
       await fetch(`/api/pay-apps/${payApp.id}/acknowledge`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, name: email }),
+        body: JSON.stringify({ token: shareToken, email, name: email }),
       });
     } catch {
       // ignore — best effort

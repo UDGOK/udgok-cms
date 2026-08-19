@@ -807,7 +807,9 @@ model PayApp {
   shareToken     String       @unique
   sentAt         DateTime?
   sentToEmail    String?
-  acknowledgedAt DateTime?
+  acknowledgedAt    DateTime?
+  acknowledgedByEmail String?
+  acknowledgedByName  String?
   firstViewedAt  DateTime?
   viewCount      Int          @default(0)
   createdById    String

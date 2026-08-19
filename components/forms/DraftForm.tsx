@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { loadDraft, saveDraft, deleteDraft, listAllDrafts } from '@/lib/forms/drafts';
-import { relativeTime } from '@/lib/format/relative-time';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 interface DraftFormProps<T extends Record<string, unknown>> {
   workspaceId: string;
@@ -99,7 +99,7 @@ export function DraftForm<T extends Record<string, unknown>>({
       {draftSavedAt ? (
         <div className="mt-3 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.05em] text-ink-50">
           <span className="w-1.5 h-1.5 bg-success rounded-full" />
-          <span>Draft saved {relativeTime(new Date(draftSavedAt).toISOString())}</span>
+          <span>Draft saved <RelativeTime iso={new Date(draftSavedAt).toISOString()} /></span>
           <button
             type="button"
             onClick={clearDraft}
@@ -143,7 +143,7 @@ export function DraftList({ workspaceId }: { workspaceId: string }) {
           <div className="min-w-0 flex-1">
             <div className="font-extrabold text-[13px] truncate">{d.formKey}</div>
             <div className="text-[10px] font-mono uppercase tracking-[0.05em] text-ink-50 mt-0.5">
-              {relativeTime(new Date(d.savedAt).toISOString())}
+              <RelativeTime iso={new Date(d.savedAt).toISOString()} />
             </div>
           </div>
           <button

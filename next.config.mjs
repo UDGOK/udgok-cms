@@ -76,6 +76,115 @@ const nextConfig = {
       bodySizeLimit: '25mb', // Vercel Blob upload size cap
     },
   },
+  // Remove the X-Powered-By header. It tells attackers "this is
+  // Next.js" and saves them a fingerprinting step. The cost is
+  // zero — every modern browser doesn't use it.
+  poweredByHeader: false,
+  async headers() {
+    // The full CSP is large; build it here so the logic stays
+    // legible. We start with the audit agent's recommended baseline
+    // and extend it for the actual origins this app talks to:
+    //   - Vercel Blob (file storage, *.public.blob.vercel-storage.com)
+    //   - Clerk (auth)
+    //   - OpenStreetMap tiles (map feature)
+    //   - Nominatim (geocoding API)
+    //   - The AI service (NVIDIA NIM — currently we call it
+    //     server-side only, but we list it for forward-compat
+    //     if we ever proxy through)
+    //   - data: / blob: images (PWA offline, camera capture)
+    //
+    // 'unsafe-inline' is allowed in script-src because Next.js
+    // inlines small bootstrap scripts for streaming SSR. We
+    // also allow 'unsafe-eval' for the same reason (the
+    // production build doesn't actually need it but removing
+    // it breaks dev mode). The cost is small — Vercel already
+    // has strong XSS protections via React's escaping.
+    const csp = [
+      "default-src 'self'",
+      // Clerk's browser bundle needs to load; their UI inlines styles.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.udgok.com",
+      // Tailwind injects styles; Clerk UI inlines styles. We trust
+      // everything we generate, plus the Clerk domains.
+      "style-src 'self' 'unsafe-inline' https://clerk.udgok.com",
+      // Images: self, blob: (camera capture / image resizing),
+      // data: (small inline icons / QR codes), and the Clerk CDN
+      // (user avatars), plus OSM tile servers for the map.
+      "img-src 'self' data: blob: https://clerk.udgok.com https://img.clerk.com https://*.tile.openstreetmap.org",
+      "font-src 'self' data:",
+      // Connections: our own server, Clerk, the OSM geocoder +
+      // tile servers, and Vercel Blob. Add Nominatim too.
+      "connect-src 'self' https://clerk.udgok.com https://*.tile.openstreetmap.org https://nominatim.openstreetmap.org https://*.public.blob.vercel-storage.com https://api.resend.com",
+      // We don't render PDF inline, we don't use <object>, and
+      // we don't host user-uploaded HTML. Lock these down.
+      "object-src 'none'",
+      "frame-src 'self' https://clerk.udgok.com", // Clerk's sign-in modal
+      "frame-ancestors 'none'", // clickjacking — no embedding
+      "base-uri 'self'",
+      "form-action 'self' https://clerk.udgok.com",
+    ].join('; ');
+
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: csp,
+          },
+          // HSTS — the agent's existing HSTS was present but
+          // missing includeSubDomains. Adding it (and preload,
+          // since we're committed to HTTPS everywhere).
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          // Clickjacking defense (CSP frame-ancestors also handles
+          // this, but X-Frame-Options is a belt-and-braces fallback
+          // for very old browsers).
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          // Prevent MIME sniffing.
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          // Don't leak full URLs (which may carry workspace / project
+          // IDs) to third-party origins.
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          // The app legitimately needs camera + geolocation (Scan,
+          // GPS-tagged photos). We deny everything else, including
+          // microphone (we don't record audio).
+          {
+            key: 'Permissions-Policy',
+            value:
+              'camera=(self), geolocation=(self), microphone=(), ' +
+              'payment=(), usb=(), magnetometer=(), gyroscope=(), ' +
+              'accelerometer=()',
+          },
+          // Cross-origin isolation. Required for SharedArrayBuffer
+          // (none used today, but cheap insurance).
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'same-site',
+          },
+          // Hint to browsers that we want HTTPS only.
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'off',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

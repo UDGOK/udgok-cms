@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition, useRef } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { MessageEntityType } from '@prisma/client';
 import { postMessageAction, deleteMessageAction, editMessageAction } from '@/lib/messages/actions';
-import { relativeTime } from '@/lib/format/relative-time';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 import type { MessageWithAuthor } from '@/lib/messages/queries';
 
 interface MessageThreadProps {
@@ -118,7 +118,7 @@ export function MessageThread({
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <span className="font-extrabold text-[13px]">{m.author.name || m.author.email}</span>
                     <span className="text-[10px] font-mono text-ink-50">
-                      {relativeTime(m.createdAt.toISOString())}
+                      <RelativeTime iso={m.createdAt.toISOString()} />
                     </span>
                     {m.editedAt ? (
                       <span className="text-[9px] font-mono text-ink-30 italic">edited</span>

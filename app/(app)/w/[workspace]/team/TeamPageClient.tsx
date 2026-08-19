@@ -6,7 +6,7 @@ import { PresenceProvider, usePresence, type PresenceMember } from '@/components
 import { PresenceDot } from '@/components/presence/PresenceDot';
 import { Button, Input, Field } from '@/components/ui';
 import { createTeamAction, addTeamMemberAction, removeTeamMemberAction } from '@/lib/team/actions';
-import { relativeTime } from '@/lib/format/relative-time';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 import type { TeamWithMembers } from '@/lib/team/queries';
 
 const COLORS = [
@@ -150,7 +150,7 @@ function TeamCard({ workspaceSlug, team, allMembers, isAdmin }: {
                 <div>
                   <div className="font-extrabold text-[13px]">{m.name || m.email}</div>
                   <div className="text-[10px] text-ink-50 font-mono uppercase tracking-[0.05em]">
-                    {m.role === 'LEAD' ? 'Lead' : 'Member'} · {relativeTime(live?.lastSeenAt)}
+                    {m.role === 'LEAD' ? 'Lead' : 'Member'} · <RelativeTime iso={live?.lastSeenAt} />
                   </div>
                 </div>
               </div>
@@ -247,9 +247,9 @@ function TeamPageContent({
                 {m.status === 'online' ? (
                   <span className="text-success font-bold">● online</span>
                 ) : m.status === 'idle' ? (
-                  <span className="text-warning">idle {relativeTime(m.lastSeenAt)}</span>
+                  <span className="text-warning">idle <RelativeTime iso={m.lastSeenAt} /></span>
                 ) : (
-                  <span>last seen {relativeTime(m.lastSeenAt)}</span>
+                  <span>last seen <RelativeTime iso={m.lastSeenAt} /></span>
                 )}
               </div>
             </div>
