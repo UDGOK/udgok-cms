@@ -18,25 +18,33 @@ interface PayAppFlow3DProps {
   height?: number;
 }
 
-// Color by status — matches UDGOK palette
-const STATUS_COLOR: Record<PayAppFlow3DItem['status'], number> = {
-  DRAFT: 0x8a8a8a,
-  SENT: 0x6b8aa0,
-  VIEWED: 0x4f80ad,
-  ACKNOWLEDGED: 0x3a6c8a,
-  PAID: 0x1d7a4a,
-  OVERDUE: 0xc23a1f,
+const STATUS_COLORS: Record<PayAppFlow3DItem['status'], { bar: number; top: number; label: string }> = {
+  DRAFT:         { bar: 0xb5ad9c, top: 0xd5cebd, label: 'Draft' },
+  SENT:          { bar: 0x6b8aa0, top: 0x8aa9bf, label: 'Sent' },
+  VIEWED:        { bar: 0x4f80ad, top: 0x7da7c8, label: 'Viewed' },
+  ACKNOWLEDGED:  { bar: 0x3a6c8a, top: 0x6b95b0, label: 'Acknowledged' },
+  PAID:          { bar: 0x1d7a4a, top: 0x4ab07d, label: 'Paid' },
+  OVERDUE:       { bar: 0xc23a1f, top: 0xe0603f, label: 'Overdue' },
 };
 
-const STATUS_LABEL: Record<PayAppFlow3DItem['status'], string> = {
-  DRAFT: 'Draft',
-  SENT: 'Sent',
-  VIEWED: 'Viewed',
-  ACKNOWLEDGED: 'Acknowledged',
-  PAID: 'Paid',
-  OVERDUE: 'Overdue',
-};
-
+/**
+ * 3D pay-app flow. The contract total is a vertical column
+ * (the "tower"); each pay app is a horizontal slice stacked
+ * from the bottom in chronological order. The unfilled
+ * remainder is a faint top section.
+ *
+ * Design choices:
+ *  - One column, no animated rise (that was gimmicky). The
+ *    data is what it is, render it as-is.
+ *  - Status shown via bar color only. No additive glow, no
+ *    emissive pulsing, no "aura" plates.
+ *  - PBR materials with envMap.
+ *  - Crisp HTML overlay for the big numbers (total contract,
+ *    amount paid, % complete). No canvas sprites.
+ *  - Static camera, no auto-rotate, no animation loop.
+ *  - Tick marks every 25% on the side, like an architect's
+ *    scale.
+ */
 export function PayAppFlow3D({
   contractTotal,
   payApps,
@@ -44,7 +52,6 @@ export function PayAppFlow3D({
 }: PayAppFlow3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -54,307 +61,250 @@ export function PayAppFlow3D({
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     } catch {
-      setError('WebGL not available');
+      setError('WebGL not available in this browser');
       return;
     }
 
     const width = container.clientWidth;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf5f1ea);
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(20, 14, 22);
+    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
+    camera.position.set(7, 10, 18);
     camera.lookAt(0, 8, 0);
 
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
-    sun.position.set(20, 30, 15);
-    scene.add(sun);
-    const fill = new THREE.DirectionalLight(0xc0d0ff, 0.5);
-    fill.position.set(-15, 10, -10);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileEquirectangularShader();
+    const envScene = new THREE.Scene();
+    envScene.background = new THREE.Color(0xf5f1ea);
+    const envRT = pmrem.fromScene(envScene, 0.04);
+
+    // 3-point lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const key = new THREE.DirectionalLight(0xfff2dc, 1.3);
+    key.position.set(8, 14, 6);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xc8d8ff, 0.45);
+    fill.position.set(-7, 6, 5);
     scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xff9b6e, 0.3);
+    rim.position.set(0, 5, -10);
+    scene.add(rim);
 
-    // The "tower" = contract total visualized as a column from $0 to $X
-    // X-axis: time progression of pay apps
-    // Y-axis: $ amount
-    // Z-axis: 0 (single tower, with plates stacking up)
+    // Column dimensions
+    const TOWER_HEIGHT = 16;
+    const COLUMN_WIDTH = 2.2;
+    const PLATE_OVERHANG = 0.15;
 
-    const CONTRACT_HEIGHT = 16; // world units
-    const PLATE_OVERHANG = 1.4; // how much wider than the tower
-
-    // Sort pay apps by number ascending (so they stack bottom-up in order)
-    const sorted = [...payApps].sort((a, b) => a.number - b.number);
-
-    // The "ghost" tower = full contract — rendered as a transparent outline
-    const towerHeight = CONTRACT_HEIGHT;
-    const towerGeo = new THREE.BoxGeometry(1.4, towerHeight, 1.4);
+    // --- The full "ghost" column showing the contract total ---
+    const towerGeo = new THREE.BoxGeometry(COLUMN_WIDTH, TOWER_HEIGHT, COLUMN_WIDTH);
     const towerMat = new THREE.MeshStandardMaterial({
-      color: 0xeae3d4,
-      roughness: 0.95,
-      metalness: 0.0,
+      color: 0x1e2a3a,
+      metalness: 0.4,
+      roughness: 0.6,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.06,
+      envMap: envRT.texture,
+      envMapIntensity: 0.5,
     });
     const tower = new THREE.Mesh(towerGeo, towerMat);
-    tower.position.set(0, towerHeight / 2 - 0.5, 0);
+    tower.position.set(0, TOWER_HEIGHT / 2 - 0.5, 0);
     scene.add(tower);
 
-    // Tower wireframe outline (dashed feel)
+    // Outline edges — gives the column visible structure
     const towerEdges = new THREE.EdgesGeometry(towerGeo);
     const towerLine = new THREE.LineSegments(
       towerEdges,
-      new THREE.LineBasicMaterial({ color: 0x1e2a3a, transparent: true, opacity: 0.4 }),
+      new THREE.LineBasicMaterial({ color: 0x1e2a3a, transparent: true, opacity: 0.22 }),
     );
     towerLine.position.copy(tower.position);
     scene.add(towerLine);
 
-    // Ground plane
-    const groundGeo = new THREE.PlaneGeometry(40, 20);
-    const groundMat = new THREE.MeshStandardMaterial({
+    // --- Floor ---
+    const floorGeo = new THREE.PlaneGeometry(30, 24);
+    const floorMat = new THREE.MeshStandardMaterial({
       color: 0xeae3d4,
+      metalness: 0.05,
       roughness: 0.95,
     });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.51;
-    scene.add(ground);
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.51;
+    scene.add(floor);
 
-    // $0 floor label
-    const zeroLabel = makeTextSprite('$0', '#5a5a5a', 14, true);
-    zeroLabel.position.set(-2.5, -0.3, 0.8);
-    scene.add(zeroLabel);
-
-    // Contract total ceiling label
-    const totalLabel = makeTextSprite(
-      `Contract: $${formatMoney(contractTotal)}`,
-      '#1e2a3a',
-      16,
-      true,
-    );
-    totalLabel.position.set(-2.5, CONTRACT_HEIGHT - 0.5 + 0.5, 0.8);
-    totalLabel.scale.set(4, 1, 1);
-    scene.add(totalLabel);
-
-    // Tick marks on the side — every 25% of contract
+    // --- Side "ruler" — tick marks every 25% of the contract ---
+    const rulerMat = new THREE.MeshBasicMaterial({ color: 0x1e2a3a, transparent: true, opacity: 0.35 });
+    const rulerWidth = 0.5;
     for (let i = 1; i <= 4; i++) {
-      const tickY = (towerHeight * i) / 4 - 0.5;
+      const tickY = (TOWER_HEIGHT * i) / 4 - 0.5;
+      // Main tick
       const tick = new THREE.Mesh(
-        new THREE.BoxGeometry(0.05, 0.05, 0.4),
-        new THREE.MeshBasicMaterial({ color: 0x8a8a8a }),
+        new THREE.BoxGeometry(rulerWidth, 0.06, 0.06),
+        rulerMat,
       );
-      tick.position.set(-0.95, tickY, 0);
+      tick.position.set(-COLUMN_WIDTH / 2 - 0.5, tickY, COLUMN_WIDTH / 2 + 0.05);
       scene.add(tick);
-      const tickLabel = makeTextSprite(
-        `${(i * 25).toFixed(0)}%`,
-        '#8a8a8a',
-        11,
-      );
-      tickLabel.position.set(-1.6, tickY, 0);
-      scene.add(tickLabel);
+      // Smaller ticks between
+      for (let j = 1; j < 4; j++) {
+        const subY = (TOWER_HEIGHT * (i - 1 + j / 4)) / 4 - 0.5;
+        const subTick = new THREE.Mesh(
+          new THREE.BoxGeometry(rulerWidth * 0.4, 0.03, 0.03),
+          rulerMat,
+        );
+        subTick.position.set(-COLUMN_WIDTH / 2 - 0.5, subY, COLUMN_WIDTH / 2 + 0.05);
+        scene.add(subTick);
+      }
     }
 
-    // Stack the pay app plates from bottom up
+    // --- Pay app plates, stacked from the bottom in chronological order ---
+    const sorted = [...payApps].sort((a, b) => a.number - b.number);
+
     let cumulativeDollars = 0;
-    const animatedPlates: {
-      mesh: THREE.Mesh;
-      lightMesh: THREE.Mesh;
-      baseY: number;
-      targetY: number;
-      phase: number;
-      index: number;
-    }[] = [];
-
-    sorted.forEach((p, i) => {
+    for (const p of sorted) {
       const dollars = p.amount;
-      if (dollars <= 0) return;
-      const plateHeight = Math.max(0.4, (dollars / contractTotal) * towerHeight);
+      if (dollars <= 0) continue;
+      const plateHeight = Math.max(0.25, (dollars / Math.max(1, contractTotal)) * TOWER_HEIGHT);
+      const palette = STATUS_COLORS[p.status] ?? STATUS_COLORS.DRAFT;
 
-      const color = STATUS_COLOR[p.status] ?? STATUS_COLOR.DRAFT;
-      const isPaid = p.status === 'PAID';
-
-      // Solid plate
-      const plateGeo = new THREE.BoxGeometry(PLATE_OVERHANG, plateHeight, PLATE_OVERHANG);
+      // The plate itself — a clean box
+      const plateGeo = new THREE.BoxGeometry(
+        COLUMN_WIDTH + PLATE_OVERHANG,
+        plateHeight,
+        COLUMN_WIDTH + PLATE_OVERHANG,
+      );
       const plateMat = new THREE.MeshStandardMaterial({
-        color,
-        roughness: isPaid ? 0.3 : 0.5,
-        metalness: isPaid ? 0.3 : 0.1,
-        emissive: isPaid ? new THREE.Color(color) : new THREE.Color(0x000000),
-        emissiveIntensity: isPaid ? 0.2 : 0.0,
+        color: palette.bar,
+        metalness: 0.45,
+        roughness: 0.4,
+        envMap: envRT.texture,
+        envMapIntensity: 0.7,
       });
       const plate = new THREE.Mesh(plateGeo, plateMat);
-      // Stack on top of previous plate
-      const baseY = cumulativeDollars / contractTotal * towerHeight;
-      const targetY = baseY - 0.5 + plateHeight / 2;
-      plate.position.set(0, -2 + targetY, 0); // start below
+      const plateCenterY = cumulativeDollars / Math.max(1, contractTotal) * TOWER_HEIGHT - 0.5 + plateHeight / 2;
+      plate.position.set(0, plateCenterY, 0);
       scene.add(plate);
-      animatedPlates.push({
-        mesh: plate,
-        lightMesh: plate, // re-use; not used here
-        baseY: -2 + targetY,
-        targetY: targetY,
-        phase: i * 0.4,
-        index: i,
-      });
 
-      // Glow underlay (a slightly bigger plate, additive blending)
-      const glowGeo = new THREE.BoxGeometry(
-        PLATE_OVERHANG * 1.18,
-        plateHeight * 1.05,
-        PLATE_OVERHANG * 1.18,
+      // Thin highlight on top of the plate — gives a 2-tone stripe
+      const capGeo = new THREE.BoxGeometry(
+        COLUMN_WIDTH + PLATE_OVERHANG,
+        0.04,
+        COLUMN_WIDTH + PLATE_OVERHANG * 0.5,
       );
-      const glowMat = new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: isPaid ? 0.3 : 0.18,
-        blending: THREE.AdditiveBlending,
+      const capMat = new THREE.MeshStandardMaterial({
+        color: palette.top,
+        metalness: 0.5,
+        roughness: 0.3,
       });
-      const glow = new THREE.Mesh(glowGeo, glowMat);
-      glow.position.set(0, -2 + targetY, 0);
-      scene.add(glow);
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.position.set(0, plateCenterY + plateHeight / 2 + 0.02, 0);
+      scene.add(cap);
 
-      // Number + amount label sitting on top of each plate
-      const labelText = `#${p.number} · $${formatMoney(dollars)}`;
-      const sprite = makeTextSprite(labelText, '#ffffff', 13, true);
-      sprite.scale.set(2.2, 0.7, 1);
-      sprite.position.set(0, -2 + targetY + plateHeight / 2 + 0.6, 0);
-      scene.add(sprite);
-
-      // Status badge
-      const statusSprite = makeTextSprite(
-        STATUS_LABEL[p.status],
-        isPaid ? '#aef0c4' : '#fff5b0',
-        10,
+      // Thin trim on the front face — engraved-looking number mark
+      const trimGeo = new THREE.BoxGeometry(
+        COLUMN_WIDTH + PLATE_OVERHANG + 0.02,
+        plateHeight * 0.95,
+        0.02,
       );
-      statusSprite.scale.set(1.5, 0.45, 1);
-      statusSprite.position.set(0, -2 + targetY + plateHeight / 2 + 1.2, 0);
-      scene.add(statusSprite);
+      const trimMat = new THREE.MeshBasicMaterial({ color: 0x1e2a3a, transparent: true, opacity: 0.4 });
+      const trim = new THREE.Mesh(trimGeo, trimMat);
+      trim.position.set(0, plateCenterY, COLUMN_WIDTH / 2 + PLATE_OVERHANG / 2 + 0.02);
+      scene.add(trim);
 
       cumulativeDollars += dollars;
-    });
+    }
 
-    // Remaining = contract total - cumulative
+    // --- The "remaining" top section: a faint marker showing
+    //     what's left of the contract ---
     const remainingDollars = Math.max(0, contractTotal - cumulativeDollars);
     if (remainingDollars > 0 && contractTotal > 0) {
-      const remHeight = (remainingDollars / contractTotal) * towerHeight;
-      const remPlate = new THREE.Mesh(
-        new THREE.BoxGeometry(PLATE_OVERHANG, remHeight, PLATE_OVERHANG),
-        new THREE.MeshStandardMaterial({
-          color: 0xc8c0b3,
-          roughness: 0.9,
-          transparent: true,
-          opacity: 0.5,
-        }),
-      );
-      const baseY = cumulativeDollars / contractTotal * towerHeight;
-      const targetY = baseY - 0.5 + remHeight / 2;
-      remPlate.position.set(0, -2 + targetY, 0);
-      scene.add(remPlate);
-      animatedPlates.push({
-        mesh: remPlate,
-        lightMesh: remPlate,
-        baseY: -2 + targetY,
-        targetY,
-        phase: sorted.length * 0.4,
-        index: sorted.length,
+      const remHeight = (remainingDollars / contractTotal) * TOWER_HEIGHT;
+      const remY = cumulativeDollars / contractTotal * TOWER_HEIGHT - 0.5 + remHeight / 2;
+      // Diagonal-stripe pattern: just a slightly darker ghost
+      const remGeo = new THREE.BoxGeometry(COLUMN_WIDTH, remHeight, COLUMN_WIDTH);
+      const remMat = new THREE.MeshStandardMaterial({
+        color: 0xc8c0b3,
+        metalness: 0.1,
+        roughness: 0.85,
+        transparent: true,
+        opacity: 0.35,
       });
+      const remMesh = new THREE.Mesh(remGeo, remMat);
+      remMesh.position.set(0, remY, 0);
+      scene.add(remMesh);
 
-      const remainingLabel = makeTextSprite(
-        `$${formatMoney(remainingDollars)} remaining`,
-        '#8a8a8a',
-        12,
-      );
-      remainingLabel.scale.set(2.5, 0.6, 1);
-      remainingLabel.position.set(0, -2 + targetY + remHeight / 2 + 0.6, 0);
-      scene.add(remainingLabel);
+      // A dashed line at the "current top" of paid — like a
+      // water-level mark
+      const capY = cumulativeDollars / contractTotal * TOWER_HEIGHT - 0.5;
+      const lineGeo = new THREE.BoxGeometry(COLUMN_WIDTH + 0.4, 0.04, COLUMN_WIDTH + 0.4);
+      const lineMat = new THREE.MeshStandardMaterial({
+        color: 0xf06a2d,
+        metalness: 0.2,
+        roughness: 0.5,
+        emissive: new THREE.Color(0xf06a2d),
+        emissiveIntensity: 0.4,
+      });
+      const lineMesh = new THREE.Mesh(lineGeo, lineMat);
+      lineMesh.position.set(0, capY, 0);
+      scene.add(lineMesh);
     }
 
-    // "TODAY" horizontal line cutting through the tower
-    if (sorted.length > 0) {
-      const todayLine = new THREE.Mesh(
-        new THREE.BoxGeometry(0.05, 0.04, 3),
-        new THREE.MeshBasicMaterial({ color: 0xf06a2d }),
-      );
-      todayLine.position.set(0, baseY_actual(towerHeight, cumulativeDollars, contractTotal), 0);
-      scene.add(todayLine);
-    }
-
-    function baseY_actual(towerH: number, cumDollars: number, contract: number) {
-      return (cumDollars / Math.max(1, contract)) * towerH - 0.5;
-    }
-
-    // Camera orbit
+    // --- Camera orbit (manual, no auto-rotate) ---
     let isDragging = false;
     let lastX = 0;
     let lastY = 0;
-    let cameraTheta = Math.atan2(camera.position.x, camera.position.z);
-    let cameraPhi = Math.atan2(camera.position.y, Math.hypot(camera.position.x, camera.position.z));
-    let cameraRadius = Math.hypot(camera.position.x, camera.position.y, camera.position.z);
+    let theta = Math.PI / 5;
+    let phi = Math.PI / 8;
+    let radius = 22;
     const centerY = 8;
 
     function updateCamera() {
-      camera.position.x = cameraRadius * Math.cos(cameraPhi) * Math.sin(cameraTheta);
-      camera.position.y = centerY + cameraRadius * Math.sin(cameraPhi);
-      camera.position.z = cameraRadius * Math.cos(cameraPhi) * Math.cos(cameraTheta);
+      camera.position.x = radius * Math.cos(phi) * Math.sin(theta);
+      camera.position.y = centerY + radius * Math.sin(phi);
+      camera.position.z = radius * Math.cos(phi) * Math.cos(theta);
       camera.lookAt(0, centerY, 0);
     }
+    updateCamera();
 
     function onPointerDown(e: PointerEvent) {
       isDragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
+      (e.currentTarget as HTMLElement).style.cursor = 'grabbing';
     }
     function onPointerMove(e: PointerEvent) {
       if (!isDragging) return;
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
+      theta -= (e.clientX - lastX) * 0.005;
+      phi = Math.max(-0.3, Math.min(Math.PI / 2.5, phi - (e.clientY - lastY) * 0.004));
       lastX = e.clientX;
       lastY = e.clientY;
-      cameraTheta -= dx * 0.005;
-      cameraPhi = Math.max(-0.3, Math.min(Math.PI / 2 - 0.05, cameraPhi + dy * 0.005));
       updateCamera();
+      renderer.render(scene, camera);
     }
-    function onPointerUp() { isDragging = false; }
+    function onPointerUp() {
+      isDragging = false;
+      renderer.domElement.style.cursor = 'grab';
+    }
     function onWheel(e: WheelEvent) {
       e.preventDefault();
-      cameraRadius = Math.max(10, Math.min(60, cameraRadius + e.deltaY * 0.03));
+      radius = Math.max(12, Math.min(45, radius + e.deltaY * 0.04));
       updateCamera();
+      renderer.render(scene, camera);
     }
 
+    renderer.domElement.style.cursor = 'grab';
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
-    // Animate plates rising from below into their final position
-    const clock = new THREE.Clock();
-    let animId: number;
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
-      for (const a of animatedPlates) {
-        // Smooth rise
-        const dist = a.targetY - a.mesh.position.y;
-        if (Math.abs(dist) > 0.01) {
-          a.mesh.position.y += dist * 0.04;
-        } else {
-          a.mesh.position.y = a.targetY;
-        }
-        // Pulse paid plates
-        const isPaid = sorted[a.index]?.status === 'PAID';
-        if (isPaid && a.mesh.material instanceof THREE.MeshStandardMaterial) {
-          a.mesh.material.emissiveIntensity = 0.15 + Math.sin(t * 1.5 + a.phase) * 0.1;
-        }
-      }
-      renderer.render(scene, camera);
-    };
-    animate();
-    setReady(true);
+    renderer.render(scene, camera);
 
     function onResize() {
       if (!container) return;
@@ -362,16 +312,18 @@ export function PayAppFlow3D({
       camera.aspect = w / height;
       camera.updateProjectionMatrix();
       renderer.setSize(w, height);
+      renderer.render(scene, camera);
     }
     window.addEventListener('resize', onResize);
 
     return () => {
-      cancelAnimationFrame(animId);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       renderer.domElement.removeEventListener('wheel', onWheel);
       window.removeEventListener('resize', onResize);
+      pmrem.dispose();
+      envRT.dispose();
       renderer.dispose();
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {
@@ -390,73 +342,72 @@ export function PayAppFlow3D({
   const cumulativeAll = payApps.reduce((acc, p) => acc + p.amount, 0);
   const pct = contractTotal > 0 ? Math.round((cumulativeAll / contractTotal) * 100) : 0;
 
+  if (error) {
+    return (
+      <div
+        className="bg-cream-2 border-2 border-line p-8 text-center text-[12px] text-ink-70 flex items-center justify-center"
+        style={{ height }}
+      >
+        3D view unavailable — {error}
+      </div>
+    );
+  }
+
   return (
-    <div className="relative">
-      {error ? (
-        <div className="bg-cream-2 border-2 border-line p-8 text-center text-[12px] text-ink-70" style={{ height }}>
-          3D view unavailable — {error}
+    <div className="relative bg-cream-2 border-2 border-ink overflow-hidden" style={{ height }}>
+      <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Top-left: title */}
+      <div className="absolute top-3 left-3 pointer-events-none">
+        <div className="text-[9px] font-mono uppercase tracking-[0.18em] text-ink-50">
+          Cash flow
         </div>
-      ) : (
-        <>
-          <div
-            ref={containerRef}
-            className="bg-cream-2 border-2 border-ink overflow-hidden touch-none"
-            style={{ height, cursor: 'grab' }}
-          />
-          {!ready ? (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50 bg-cream px-3 py-1.5 border border-line">
-                Loading 3D…
-              </div>
-            </div>
-          ) : null}
-        </>
-      )}
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 bg-success" /> Paid (${formatMoney(cumulativePaid)})
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2" style={{ background: '#3a6c8a' }} /> Acknowledged
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 bg-error" /> Overdue
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 bg-ink-30" /> Draft
-        </span>
-        <span className="ml-auto text-ink-30 hidden sm:inline">Drag to orbit · scroll to zoom</span>
-        <span className="font-black text-orange-d">{pct}% of contract billed</span>
+        <div className="text-[14px] font-black text-ink">Pay applications</div>
+      </div>
+
+      {/* Right side: stat cards */}
+      <div className="absolute top-3 right-3 flex flex-col gap-2 pointer-events-none">
+        <StatCard label="Contract" value={contractTotal} accent="#1e2a3a" />
+        <StatCard label="Billed" value={cumulativeAll} accent="#f06a2d" />
+        <StatCard label="Paid" value={cumulativePaid} accent="#1d7a4a" />
+      </div>
+
+      {/* Bottom-left: drag-to-orbit hint */}
+      <div className="absolute bottom-3 left-3 text-[9px] font-mono uppercase tracking-[0.15em] text-ink-30 pointer-events-none">
+        Drag to orbit · scroll to zoom
+      </div>
+
+      {/* Bottom-right: percent complete */}
+      <div className="absolute bottom-3 right-3 pointer-events-none">
+        <div className="bg-ink text-cream px-3 py-2">
+          <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-cream/60">
+            Complete
+          </div>
+          <div className="text-2xl font-black tabular-nums leading-none mt-0.5">
+            {pct}<span className="text-base">%</span>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function formatMoney(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 100) / 10}k`;
-  return Math.round(n).toString();
+function StatCard({ label, value, accent }: { label: string; value: number; accent: string }) {
+  return (
+    <div className="bg-cream border-2 border-ink px-3 py-2 min-w-[140px]">
+      <div className="flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} />
+        <span className="text-[9px] font-mono uppercase tracking-[0.12em] text-ink-50">
+          {label}
+        </span>
+      </div>
+      <div className="text-[15px] font-black text-ink tabular-nums leading-none mt-1">
+        ${value.toLocaleString()}
+      </div>
+    </div>
+  );
 }
 
-function makeTextSprite(text: string, color: string, fontSize: number, bold = false): THREE.Sprite {
-  const canvas = document.createElement('canvas');
-  const font = `${bold ? '700' : '500'} ${fontSize}px "Inter", system-ui, sans-serif`;
-  const ctx = canvas.getContext('2d')!;
-  ctx.font = font;
-  const metrics = ctx.measureText(text);
-  canvas.width = Math.ceil(metrics.width) + 16;
-  canvas.height = fontSize + 12;
-  ctx.font = font;
-  ctx.fillStyle = color;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'center';
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-  const sprite = new THREE.Sprite(mat);
-  const scale = 1.5;
-  sprite.scale.set((canvas.width / canvas.height) * scale, scale, 1);
-  return sprite;
-}
+// Money formatting is done in the HTML overlay (StatCard)
+// using .toLocaleString() for crisp typography. No canvas
+// sprites needed.

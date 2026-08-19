@@ -99,7 +99,7 @@ export default async function ProjectPayAppsPage({
         />
       </div>
 
-      {/* 3D money tower */}
+      {/* 3D cash-flow column */}
       {project.payApps.length > 0 && contractTotal > 0 ? (
         <div className="mb-6">
           <div className="mb-3">
@@ -107,7 +107,7 @@ export default async function ProjectPayAppsPage({
               <span aria-hidden>💸</span> Pay app flow
             </h3>
             <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
-              Three.js · each plate = one draw · color by status · height = amount
+              Each plate is one draw · status color · height = amount
             </p>
           </div>
           <PayAppFlow3DViewer

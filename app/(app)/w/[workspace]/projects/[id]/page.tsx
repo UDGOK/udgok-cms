@@ -767,15 +767,15 @@ function OverviewTab({
         />
       </div>
 
-      {/* 3D Progress Ring — replaces the 2D ring with a real Three.js torus */}
+      {/* 3D Progress Ring — overall completion with sub-metric strip */}
       <div className="mb-6">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
           <div>
             <h3 className="font-black text-lg tracking-tight flex items-center gap-2">
-              <span aria-hidden>⭕</span> 3D completion
+              <span aria-hidden>⭕</span> Completion
             </h3>
             <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
-              Three.js torus · ring color = project status · 4 marker dots = sub-metrics
+              Overall % and the four sub-metrics that drive it
             </p>
           </div>
         </div>
@@ -1138,16 +1138,16 @@ function ScheduleTab({
         tasks={ganttTasks}
       />
 
-      {/* 3D view — drag to rotate, scroll to zoom, status-based colors */}
+      {/* 3D timeline — drag to orbit, scroll to zoom */}
       {ganttTasks.length > 0 ? (
         <div className="mt-6">
           <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
             <div>
               <h2 className="font-black text-lg tracking-tight flex items-center gap-2">
-                <span aria-hidden>🧊</span> 3D timeline
+                <span aria-hidden>🧊</span> Timeline
               </h2>
               <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
-                Three.js visualization · status colors · priority-based height
+                Tasks along the project window · orange line marks today
               </p>
             </div>
           </div>
@@ -1325,7 +1325,7 @@ function PayAppsTab({
                 <span aria-hidden>💸</span> Pay app flow
               </h3>
               <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink-50">
-                Three.js · each plate = one draw · color by status · height = amount
+                Each plate is one draw · status color · height = amount
               </p>
             </div>
           </div>
