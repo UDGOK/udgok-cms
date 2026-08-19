@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarcodeScanner } from '@/components/scan/BarcodeScanner';
 import { Plan } from '@prisma/client';
@@ -33,30 +33,46 @@ export function ScanPageClient({
   const [sheetOpen, setSheetOpen] = useState(true);
   const [manualCode, setManualCode] = useState('');
 
+  // Stable callbacks — IMPORTANT. The BarcodeScanner's useEffect
+  // lists onResult in its deps array. If onResult is a fresh
+  // arrow function on every render (which is what the inline
+  // syntax in JSX produces), the effect re-runs on EVERY parent
+  // render — including when the user types a character in the
+  // manual code input below. The effect's cleanup calls
+  // scanner.stop(), and html5-qrcode throws "Cannot stop,
+  // scanner is not running or paused." if you try to stop a
+  // scanner that hasn't finished starting. The unhandled throw
+  // bubbles up to React's error boundary and unmounts the page.
+  //
+  // Wrapping in useCallback gives the callback a stable
+  // reference, so the effect only re-runs when the workspace
+  // actually changes (never, for the lifetime of this page).
+  const handleScanResult = useCallback(
+    (text: string) => {
+      router.push(`/w/${workspaceSlug}/scan?code=${encodeURIComponent(text)}`);
+    },
+    [router, workspaceSlug],
+  );
+  const handleSheetClose = useCallback(() => {
+    setSheetOpen(false);
+    // /w/[workspaceSlug] (no subpath) is a 404 — there's no
+    // top-level page for a workspace. Send the user to the
+    // workspace dashboard instead.
+    router.push(`/w/${workspaceSlug}/dashboard`);
+  }, [router, workspaceSlug]);
+
   return (
     <FeatureGate plan={plan} feature="barcode_scan" isMasterAdmin={isMasterAdmin}>
       <div className="md:hidden">
         <BottomSheet
           open={sheetOpen}
-          onClose={() => {
-            setSheetOpen(false);
-            // /w/[workspaceSlug] (no subpath) is a 404 — there's no
-            // top-level page for a workspace. Send the user to the
-            // workspace dashboard instead.
-            router.push(`/w/${workspaceSlug}/dashboard`);
-          }}
+          onClose={handleSheetClose}
           title="Scan"
           maxHeightClass="max-h-[85vh]"
         >
           <BarcodeScanner
-            onResult={(text) => {
-              // After scan, look up the value in the workspace or pass it forward
-              router.push(`/w/${workspaceSlug}/scan?code=${encodeURIComponent(text)}`);
-            }}
-            onClose={() => {
-              setSheetOpen(false);
-              router.push(`/w/${workspaceSlug}/dashboard`);
-            }}
+            onResult={handleScanResult}
+            onClose={handleSheetClose}
           />
         </BottomSheet>
       </div>
@@ -65,9 +81,7 @@ export function ScanPageClient({
         {/* Camera + manual input — the "two ways to look up" card */}
         <div className="hidden md:block bg-paper border-2 border-ink p-4 md:p-6">
           <BarcodeScanner
-            onResult={(text) => {
-              router.push(`/w/${workspaceSlug}/scan?code=${encodeURIComponent(text)}`);
-            }}
+            onResult={handleScanResult}
           />
 
           <div className="flex items-center gap-3 my-4">

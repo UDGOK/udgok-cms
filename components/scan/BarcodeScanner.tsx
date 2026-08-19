@@ -73,11 +73,44 @@ export function BarcodeScanner({ onResult, onClose, regionId = 'udgok-scanner-re
     return () => {
       cancelled = true;
       const scanner = scannerRef.current;
+      scannerRef.current = null;
       if (scanner) {
-        scanner.stop().catch(() => {}).then(() => {
-          scanner.clear();
+        // html5-qrcode's stop() can throw synchronously OR
+        // reject its returned promise if the scanner is
+        // mid-startup, has already stopped, or was never
+        // successfully started. The most common case is
+        // "Cannot stop, scanner is not running or paused." —
+        // happens when the parent re-renders (e.g. user types
+        // in the manual code input below) and the effect's
+        // cleanup runs while the scanner is still starting.
+        //
+        // Promise.resolve() only wraps a value; it does NOT
+        // catch synchronous throws. So we wrap stop() in a
+        // real try/catch and merge both error paths into a
+        // single swallow.
+        //
+        // Stop is best-effort: if it failed, the next start()
+        // will create a fresh instance and the old one will
+        // be GC'd.
+        const safeStop = (): Promise<void> => {
+          try {
+            const result = scanner.stop?.();
+            if (result && typeof (result as Promise<unknown>).then === 'function') {
+              return (result as Promise<void>).catch(() => {});
+            }
+            return Promise.resolve();
+          } catch {
+            return Promise.resolve();
+          }
+        };
+        safeStop().then(() => {
+          try {
+            scanner.clear();
+          } catch {
+            // Same here — clear() can throw if stop didn't
+            // actually start the camera. Swallow.
+          }
         });
-        scannerRef.current = null;
       }
     };
   }, [onResult, regionId]);

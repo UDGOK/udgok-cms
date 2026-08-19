@@ -21,6 +21,19 @@ export interface CreateInventoryFromScanProps {
    * doesn't have to retype what we already know.
    */
   prefilled?: { name?: string; description?: string };
+  /**
+   * Which tab (material/equipment) the form should start on.
+   * The InventoryTab's "+ Material" and "+ Equipment" buttons
+   * pass this so the user doesn't have to click the toggle.
+   */
+  initialKind?: 'material' | 'equipment';
+  /**
+   * The project that should be pre-selected in the dropdown.
+   * Comes from the "?projectId=…" search param the InventoryTab
+   * adds so the user adds the inventory to the right project
+   * without scrolling through the list.
+   */
+  initialProjectId?: string;
 }
 
 type FormState =
@@ -52,11 +65,21 @@ export function CreateInventoryFromScan({
   scannedCode,
   projects,
   prefilled,
+  initialKind,
+  initialProjectId,
 }: CreateInventoryFromScanProps) {
   const router = useRouter();
-  const [kind, setKind] = useState<'material' | 'equipment'>('material');
+  const [kind, setKind] = useState<'material' | 'equipment'>(initialKind ?? 'material');
   const [state, setState] = useState<FormState>({ status: 'idle' });
   const [pending, startTransition] = useTransition();
+
+  // Pre-select the project the user came from. Falls back to
+  // the first active project if the hinted one isn't in the
+  // list (could happen if the project became completed/cancelled
+  // between the link render and the form render).
+  const initialProject = initialProjectId && projects.some((p) => p.id === initialProjectId)
+    ? initialProjectId
+    : projects[0]?.id ?? '';
 
   function onSubmit(form: HTMLFormElement) {
     const fd = new FormData(form);
@@ -146,7 +169,7 @@ export function CreateInventoryFromScan({
               name="projectId"
               required
               className="w-full px-2 py-1.5 border-2 border-ink bg-cream-2 text-[13px]"
-              defaultValue={projects[0]?.id ?? ''}
+              defaultValue={initialProject}
             >
               {projects.length === 0 ? (
                 <option value="" disabled>
@@ -191,7 +214,7 @@ export function CreateInventoryFromScan({
           </div>
 
           {kind === 'equipment' ? (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2" key="equipment-fields">
               <div>
                 <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
                   Serial #
@@ -219,7 +242,7 @@ export function CreateInventoryFromScan({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2" key="material-fields">
               <div>
                 <label className="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
                   Unit

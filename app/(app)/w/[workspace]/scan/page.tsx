@@ -15,7 +15,7 @@ export default async function ScanPage({
   searchParams,
 }: {
   params: { workspace: string };
-  searchParams: { code?: string };
+  searchParams: { code?: string; hint?: 'material' | 'equipment'; projectId?: string };
 }) {
   const { workspace, userId } = await requireMembership(params.workspace);
   const master = await isMasterAdmin(userId);
@@ -94,6 +94,9 @@ export default async function ScanPage({
   // include ACTIVE / ON_HOLD projects (not COMPLETED /
   // CANCELLED) because adding inventory to a finished job is
   // almost always a mistake.
+  // We only fetch projects when we actually need to render the
+  // form (i.e. when a code is present that didn't match
+  // anything). Fetching on the bare /scan page is wasted work.
   const inventoryProjects = searchParams.code
     ? await listActiveProjectsForInventory(workspace.id)
     : [];
@@ -158,6 +161,8 @@ export default async function ScanPage({
                   workspaceSlug={workspace.slug}
                   scannedCode={searchParams.code}
                   projects={inventoryProjects}
+                  initialKind={searchParams.hint}
+                  initialProjectId={searchParams.projectId}
                 />
               </div>
             )}
@@ -206,6 +211,8 @@ function ProductCard({
   workspaceSlug,
   projects,
   scannedCode,
+  initialKind,
+  initialProjectId,
 }: {
   product: NonNullable<Awaited<ReturnType<typeof lookupProduct>>> extends infer T
     ? T extends { kind: 'found'; product: infer P }
@@ -215,6 +222,8 @@ function ProductCard({
   workspaceSlug: string;
   projects: Array<{ id: string; name: string; code: string | null }>;
   scannedCode: string;
+  initialKind?: 'material' | 'equipment';
+  initialProjectId?: string;
 }) {
   return (
     <div>
@@ -275,6 +284,8 @@ function ProductCard({
           name: product.name,
           description: product.description ?? '',
         }}
+        initialKind={initialKind}
+        initialProjectId={initialProjectId}
       />
     </div>
   );

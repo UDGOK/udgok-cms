@@ -63,14 +63,23 @@ export async function InventoryTab({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* The scan page is the canonical entry point for
+           *  adding inventory — the user scans or types a code
+           *  there, gets either a match (jump to it) or the
+           *  "create from this code" form. We pre-select the
+           *  kind (material/equipment) so the form's toggle
+           *  starts in the right state, but we DON'T pass an
+           *  empty `code=` (which would skip the form render
+           *  and dump the user on a bare scanner). The user
+           *  always types or scans something here. */}
           <a
-            href={`/w/${workspaceSlug}/scan?code=&hint=material&projectId=${projectId}`}
+            href={`/w/${workspaceSlug}/scan?hint=material&projectId=${projectId}`}
             className="px-3 py-1.5 bg-orange text-paper text-[11px] font-extrabold uppercase tracking-[0.1em] hover:bg-orange-d"
           >
             + Material
           </a>
           <a
-            href={`/w/${workspaceSlug}/scan?code=&hint=equipment&projectId=${projectId}`}
+            href={`/w/${workspaceSlug}/scan?hint=equipment&projectId=${projectId}`}
             className="px-3 py-1.5 bg-ink text-paper text-[11px] font-extrabold uppercase tracking-[0.1em] hover:bg-orange-d"
           >
             + Equipment
