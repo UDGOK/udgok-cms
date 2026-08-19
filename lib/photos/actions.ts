@@ -5,7 +5,7 @@ import { z } from '@/lib/validation';
 import { prisma } from '@/lib/db/client';
 import { auth } from '@clerk/nextjs/server';
 import { requireRole } from '@/lib/auth/require-role';
-import { put } from '@vercel/blob';
+import { put, del as blobDel } from '@vercel/blob';
 import { PhotoPhase } from '@prisma/client';
 import { logActivity } from '@/lib/activity/log';
 
@@ -143,11 +143,20 @@ const updateSchema = z.object({
   caption: z.string().max(500).nullable().optional(),
 });
 
-export type UpdatePhotoState = { error?: string; ok?: boolean } | undefined;
+export type UpdatePhotoState =
+  | { ok: true; photo: { id: string; caption: string | null; url: string; filename: string } }
+  | { error: string }
+  | undefined;
 
 /**
- * Update a photo's categorization (room/area/phase) and caption. Only
- * the uploader or an OWNER/ADMIN can edit.
+ * Update a photo's metadata (caption, room, area, phase, folder).
+ * Optionally replace the image file with a new upload — when a
+ * file is provided, the old blob is deleted from Vercel Blob so
+ * we don't leak storage. Returns the updated photo row so the
+ * client can update its local state without a router.refresh().
+ *
+ * Authorization: the photo's uploader OR workspace OWNER/ADMIN.
+ * FIELD members can only edit photos they uploaded.
  */
 export async function updateProjectPhotoAction(
   workspaceSlug: string,
@@ -194,20 +203,83 @@ export async function updateProjectPhotoAction(
     }
   }
 
-  await prisma.projectPhoto.update({
+  // Optional image replacement. If a new file is provided,
+  // upload it to Vercel Blob, swap the URL on the row, and
+  // delete the old blob. We only update fields the caller
+  // explicitly sent — z's `.optional().nullable()` leaves
+  // them undefined, and the update object omits them in
+  // that case.
+  const newFile = formData.get('file');
+  let newUrl: string | undefined;
+  let newFilename: string | undefined;
+  let newSize: number | undefined;
+  let newMimeType: string | undefined;
+  if (newFile instanceof File && newFile.size > 0) {
+    if (newFile.size > 50 * 1024 * 1024) {
+      return { error: 'Replacement photo too large (max 50 MB)' };
+    }
+    if (!newFile.type.startsWith('image/')) {
+      return { error: 'Replacement file must be an image' };
+    }
+    const blob = await put(
+      `projects/${photo.project.id}/photos/${Date.now()}-${newFile.name}`,
+      newFile,
+      { access: 'public', addRandomSuffix: true },
+    );
+    newUrl = blob.url;
+    newFilename = newFile.name;
+    newSize = newFile.size;
+    newMimeType = newFile.type;
+  }
+
+  // Build the update object. Only set fields that were actually
+  // sent. z's `optional().nullable()` can't distinguish "not sent"
+  // vs "explicitly null" — we use presence in formData instead.
+  const data: Record<string, unknown> = {};
+  if (formData.has('caption')) data.caption = parsed.data.caption || null;
+  if (formData.has('room')) data.room = parsed.data.room || null;
+  if (formData.has('area')) data.area = parsed.data.area || null;
+  if (formData.has('phase') && parsed.data.phase) data.phase = parsed.data.phase;
+  if (formData.has('folderId')) data.folderId = parsed.data.folderId || null;
+  if (newUrl) {
+    data.url = newUrl;
+    data.filename = newFilename!;
+    data.size = newSize!;
+    data.mimeType = newMimeType!;
+  }
+
+  const updated = await prisma.projectPhoto.update({
     where: { id: parsed.data.photoId },
-    data: {
-      folderId: parsed.data.folderId,
-      room: parsed.data.room,
-      area: parsed.data.area,
-      phase: parsed.data.phase,
-      caption: parsed.data.caption,
-    },
+    data,
+    select: { id: true, caption: true, url: true, filename: true },
+  });
+
+  // Delete the old blob if we replaced the image. Best-effort —
+  // if this fails, the old file stays in storage until the
+  // next orphan-cleanup job runs.
+  if (newUrl && photo.url && newUrl !== photo.url) {
+    try {
+      await blobDel(photo.url);
+    } catch {
+      // swallow
+    }
+  }
+
+  await logActivity({
+    workspaceId: photo.workspaceId,
+    actorId: userId,
+    action: 'updated',
+    entityType: 'project',
+    entityId: photo.project.id,
+    entityName: 'photo',
+    details: newUrl
+      ? `Replaced image for "${updated.caption || updated.filename}"`
+      : `Edited photo "${updated.caption || updated.filename}"`,
   });
 
   revalidatePath(`/w/${workspaceSlug}/projects/${photo.project.id}`);
   revalidatePath(`/w/${workspaceSlug}/projects/${photo.project.id}/photos`);
-  return { ok: true };
+  return { ok: true, photo: updated };
 }
 
 export async function deleteProjectPhotoAction(
@@ -234,7 +306,19 @@ export async function deleteProjectPhotoAction(
   }
 
   await prisma.projectPhoto.delete({ where: { id: photoId } });
+  // Best-effort blob cleanup. If this fails (network blip,
+  // already-deleted, etc.) we still consider the delete
+  // successful — the row is gone from our DB, and orphan
+  // blobs are picked up by a periodic sweep job.
+  if (photo.url) {
+    try {
+      await blobDel(photo.url);
+    } catch {
+      // intentionally swallow — see comment above
+    }
+  }
   revalidatePath(`/w/${workspaceSlug}/projects/${photo.projectId}`);
   revalidatePath(`/w/${workspaceSlug}/projects/${photo.projectId}/photos`);
   return { ok: true };
 }
+
