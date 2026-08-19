@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project Book PDF — Design Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f5f1e8;
+    --paper-2: #ebe6d7;
+    --ink: #1e2a3a;
+    --ink-70: #4a5566;
+    --ink-50: #7c8694;
+    --ink-30: #b8bcc4;
+    --line: #c9c1ad;
+    --line-soft: #ddd5be;
+    --orange: #ff5a1f;
+    --orange-d: #e54a14;
+    --success: #2c8a5f;
+    --warning: #e8a93a;
+    --error: #c8423a;
+    --info: #2a6fb5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #2a2a30;
+    color: var(--ink);
+    font-family: 'Outfit', system-ui, sans-serif;
+    font-weight: 400;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* INTRO */
+  .intro {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 60px 24px 30px;
+    color: #e6e3da;
+  }
+  .intro-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--orange);
+    margin-bottom: 12px;
+  }
+  .intro h1 {
+    font-family: 'DM Serif Display', serif;
+    font-weight: 400;
+    font-size: 48px;
+    line-height: 1.05;
+    margin: 0 0 18px;
+    letter-spacing: -0.01em;
+  }
+  .intro h1 em { font-style: italic; color: var(--orange); }
+  .intro p {
+    color: #a8a59c;
+    font-size: 15px;
+    max-width: 680px;
+    margin: 0 0 14px;
+  }
+  .intro .meta {
+    display: flex;
+    gap: 28px;
+    margin-top: 28px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6a685e;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    flex-wrap: wrap;
+  }
+  .intro .meta b { color: #d4d0c4; font-weight: 500; }
+  .intro .legend {
+    margin-top: 36px;
+    padding: 16px 20px;
+    background: rgba(255, 90, 31, 0.08);
+    border-left: 3px solid var(--orange);
+    font-size: 13px;
+    color: #c4c0b3;
+  }
+  .intro .legend b { color: #ff8a5a; }
+
+  /* SECTION HEADERS */
+  .section-anchor {
+    max-width: 920px;
+    margin: 50px auto 16px;
+    padding: 0 24px;
+    color: #d4d0c4;
+  }
+  .section-anchor .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--orange);
+    letter-spacing: 0.18em;
+    margin-bottom: 4px;
+  }
+  .section-anchor h2 {
+    font-family: 'DM Serif Display', serif;
+    font-weight: 400;
+    font-size: 26px;
+    margin: 0;
+    color: #e6e3da;
+  }
+
+  /* PAGE CANVAS */
+  .page-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 14px 24px;
+  }
+  .page {
+    width: 8.5in;
+    max-width: 100%;
+    min-height: 11in;
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3);
+    padding: 0.75in;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .page-footer {
+    position: absolute;
+    bottom: 0.5in;
+    left: 0.75in;
+    right: 0.75in;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-50);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 8px;
+  }
+
+  /* COVER PAGE */
+  .cover {
+    background: var(--ink);
+    color: var(--paper);
+    margin: -0.75in;
+    padding: 0.75in;
+    min-height: 11in;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: "";
+    position: absolute;
+    top: -100px;
+    right: -100px;
+    width: 400px;
+    height: 400px;
+    background: var(--orange);
+    opacity: 0.08;
+    border-radius: 50%;
+  }
+  .cover::after {
+    content: "";
+    position: absolute;
+    bottom: -150px;
+    left: -100px;
+    width: 350px;
+    height: 350px;
+    background: var(--orange);
+    opacity: 0.05;
+    border-radius: 50%;
+  }
+  .cover-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--orange);
+    position: relative;
+    z-index: 1;
+  }
+  .cover-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: var(--success);
+    color: white;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    position: relative;
+    z-index: 1;
+    width: fit-content;
+    margin-top: 28px;
+  }
+  .cover-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: white;
+    border-radius: 50%;
+  }
+  .cover-title {
+    font-family: 'DM Serif Display', serif;
+    font-weight: 400;
+    font-size: 64px;
+    line-height: 1.0;
+    margin: 30px 0 16px;
+    color: var(--paper);
+    position: relative;
+    z-index: 1;
+    letter-spacing: -0.015em;
+  }
+  .cover-subtitle {
+    font-size: 16px;
+    color: rgba(245, 241, 232, 0.7);
+    position: relative;
+    z-index: 1;
+    max-width: 5in;
+  }
+  .cover-meta {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .cover-meta-item .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--orange);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 4px;
+  }
+  .cover-meta-item .val {
+    font-size: 14px;
+    color: var(--paper);
+    font-weight: 500;
+  }
+  .cover-meta-item .val-big {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--paper);
+  }
+  .cover-footer {
+    position: absolute;
+    bottom: 0.75in;
+    left: 0.75in;
+    right: 0.75in;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: rgba(245, 241, 232, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    border-top: 1px solid rgba(245, 241, 232, 0.15);
+    padding-top: 12px;
+    z-index: 1;
+  }
+
+  /* SECTION TITLES (inside pages) */
+  .section-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--orange);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-weight: 400;
+    font-size: 28px;
+    line-height: 1.1;
+    margin: 0 0 6px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .section-sub {
+    font-size: 11px;
+    color: var(--ink-50);
+    margin-bottom: 22px;
+  }
+
+  /* OVERVIEW PAGE */
+  .overview-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--line);
+    margin-bottom: 22px;
+  }
+  .kpi-cell {
+    padding: 14px 16px;
+    border-right: 1px solid var(--line);
+  }
+  .kpi-cell:last-child { border-right: none; }
+  .kpi-cell .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--ink-50);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .kpi-cell .val {
+    font-weight: 700;
+    font-size: 22px;
+    margin: 4px 0 2px;
+  }
+  .kpi-cell .val.accent { color: var(--success); }
+  .kpi-cell .val.orange { color: var(--orange-d); }
+  .kpi-cell .sub {
+    font-size: 9px;
+    color: var(--ink-50);
+  }
+
+  .overview-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 28px;
+    margin-bottom: 24px;
+  }
+  .meta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--line-soft);
+  }
+  .meta-row .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--ink-50);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .meta-row .val { font-size: 12px; }
+
+  .completion-section {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    padding: 18px;
+  }
+  .completion-section h4 {
+    margin: 0 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-70);
+  }
+  .completion-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .ccell {
+    background: var(--paper);
+    border: 1px solid var(--line-soft);
+    padding: 12px;
+  }
+  .ccell .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--ink-50);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .ccell .val { font-weight: 700; font-size: 18px; margin: 4px 0 2px; }
+  .ccell .bar {
+    height: 4px;
+    background: var(--line-soft);
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .ccell .bar > div { height: 100%; background: var(--ink); }
+  .ccell .bar > div.orange { background: var(--orange); }
+  .ccell .bar > div.green { background: var(--success); }
+
+  /* TABLE STYLES */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+  }
+  .data-table th {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--line);
+    padding: 8px 10px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-50);
+  }
+  .data-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  .data-table tr.total td {
+    background: var(--ink);
+    color: var(--paper);
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .pill {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .pill.green { background: var(--success); color: white; }
+  .pill.warning { background: var(--warning); color: var(--ink); }
+  .pill.orange { background: var(--orange); color: white; }
+  .pill.ink { background: var(--ink); color: var(--paper); }
+  .pill.gray { background: var(--paper-2); color: var(--ink-50); }
+  .pill.info { background: var(--info); color: white; }
+
+  /* PAY APPS */
+  .payapp-card {
+    border: 1px solid var(--line);
+    margin-bottom: 10px;
+    padding: 12px 14px;
+  }
+  .payapp-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .payapp-head .title {
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .payapp-head .title .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-50);
+    margin-right: 6px;
+  }
+  .payapp-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .payapp-grid .item .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--ink-50);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .payapp-grid .item .val { font-weight: 600; font-size: 12px; }
+  .payapp-grid .item .val.big {
+    font-family: 'DM Serif Display', serif;
+    font-size: 18px;
+    color: var(--orange);
+  }
+
+  /* TASKS */
+  .task-group {
+    margin-bottom: 18px;
+  }
+  .task-group h4 {
+    margin: 0 0 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-50);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .task-group h4 .count {
+    background: var(--paper-2);
+    padding: 2px 6px;
+    color: var(--ink);
+  }
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 11px;
+  }
+  .task-row .check {
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--line);
+    flex-shrink: 0;
+    background: var(--paper);
+    position: relative;
+  }
+  .task-row .check.done {
+    background: var(--success);
+    border-color: var(--success);
+  }
+  .task-row .check.done::after {
+    content: "✓";
+    color: white;
+    font-size: 10px;
+    position: absolute;
+    top: -2px;
+    left: 2px;
+  }
+  .task-row .title { flex: 1; }
+  .task-row .title.done { text-decoration: line-through; color: var(--ink-50); }
+  .task-row .meta { color: var(--ink-50); font-size: 9px; }
+
+  /* TEAM */
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 14px;
+  }
+  .team-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: var(--paper-2);
+    border: 1px solid var(--line-soft);
+  }
+  .avatar {
+    width: 32px;
+    height: 32px;
+    background: var(--ink);
+    color: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .avatar.orange { background: var(--orange); }
+  .team-card .info .name { font-weight: 600; font-size: 12px; }
+  .team-card .info .email { font-size: 9px; color: var(--ink-50); }
+
+  /* PERMITS */
+  .permit-card {
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr 1fr;
+    gap: 14px;
+    align-items: center;
+  }
+  .permit-card .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--ink-50);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 3px;
+  }
+  .permit-card .val { font-size: 11px; font-weight: 500; }
+  .permit-card .val.big { font-family: 'DM Serif Display', serif; font-size: 16px; }
+
+  /* SUBS */
+  .sub-row {
+    display: grid;
+    grid-template-columns: 40px 1.5fr 1fr 1fr 0.8fr;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 11px;
+  }
+  .sub-row.header {
+    background: var(--paper-2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-50);
+  }
+  .sub-row .trade-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--orange);
+  }
+
+  /* PHOTOS — THE STAR */
+  .photos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .photos-header .total {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-50);
+  }
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .photo-tile {
+    background: var(--paper-2);
+    border: 1px solid var(--line-soft);
+  }
+  .photo-img {
+    aspect-ratio: 1 / 1;
+    background: linear-gradient(135deg, #c9a47a 0%, #8b6a47 50%, #5a4530 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .photo-img.photo-1 {
+    background: linear-gradient(135deg, #2a3a4a 0%, #4a5566 50%, #1a2330 100%);
+  }
+  .photo-img.photo-2 {
+    background: linear-gradient(135deg, #8b7355 0%, #a89271 50%, #6a5a45 100%);
+  }
+  .photo-img.photo-3 {
+    background: linear-gradient(135deg, #5a6a7a 0%, #7a8a9a 50%, #3a4a5a 100%);
+  }
+  .photo-img.photo-4 {
+    background: linear-gradient(135deg, #c9a47a 0%, #a87850 50%, #6a4530 100%);
+  }
+  .photo-img.photo-5 {
+    background: linear-gradient(135deg, #4a5a3a 0%, #6a7a5a 50%, #2a3a1a 100%);
+  }
+  .photo-img.photo-6 {
+    background: linear-gradient(135deg, #6a5a4a 0%, #8a7a6a 50%, #3a2a1a 100%);
+  }
+  .photo-img::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: 
+      repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.05) 4px, rgba(0,0,0,0.05) 5px);
+  }
+  .photo-img::after {
+    content: "";
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    width: 10px;
+    height: 10px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.3);
+  }
+  .photo-meta {
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+  .photo-meta .caption {
+    font-weight: 600;
+    font-size: 10px;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .photo-meta .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--ink-50);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+  }
+  .photo-meta .phase {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 7px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .photo-meta .phase.rough { background: var(--warning); color: var(--ink); }
+  .photo-meta .phase.final { background: var(--success); color: white; }
+
+  /* NOTES */
+  .note-card {
+    border-left: 3px solid var(--orange);
+    background: var(--paper-2);
+    padding: 10px 14px;
+    margin-bottom: 10px;
+  }
+  .note-card .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .note-card .author {
+    font-weight: 600;
+    font-size: 11px;
+  }
+  .note-card .date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-50);
+  }
+  .note-card .body {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  /* ACTIVITY */
+  .activity-row {
+    display: grid;
+    grid-template-columns: 80px 14px 1fr;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 10px;
+    align-items: center;
+  }
+  .activity-row .date {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ink-50);
+    font-size: 9px;
+  }
+  .activity-row .dot {
+    width: 8px; height: 8px;
+    background: var(--ink);
+    border-radius: 50%;
+  }
+  .activity-row .dot.warn { background: var(--warning); }
+  .activity-row .dot.success { background: var(--success); }
+  .activity-row .dot.orange { background: var(--orange); }
+  .activity-row .text b { font-weight: 600; }
+
+  /* TOC */
+  .toc {
+    max-width: 920px;
+    margin: 0 auto 30px;
+    padding: 0 24px;
+    color: #c4c0b3;
+  }
+  .toc h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--orange);
+    margin: 0 0 12px;
+  }
+  .toc ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px 30px;
+    font-size: 12px;
+  }
+  .toc li {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px dashed #3a3a40;
+  }
+  .toc li .pg { font-family: 'JetBrains Mono', monospace; color: var(--ink-50); font-size: 10px; }
+
+  @media (max-width: 900px) {
+    .page { padding: 0.5in; }
+    .overview-kpis { grid-template-columns: repeat(2, 1fr); }
+    .completion-grid { grid-template-columns: repeat(2, 1fr); }
+    .photo-grid { grid-template-columns: repeat(2, 1fr); }
+    .intro h1 { font-size: 36px; }
+    .cover-title { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="intro-eyebrow">// DESIGN PREVIEW · NOT YET BUILT</div>
+  <h1>The project book. <em>Every detail, one PDF.</em></h1>
+  <p>12-20 page PDF generated server-side from project data, downloadable from the project header. Uses <b style="color:#d4d0c4">@react-pdf/renderer</b> so it works in Vercel serverless without a browser. Photos are tiny (1.5" × 1.5") with caption + room + phase + date. Filename: <code style="background:rgba(255,255,255,0.1);padding:1px 5px">71-MAINT-2026_2026-08-19.pdf</code></p>
+  <div class="meta">
+    <span><b>12-20</b> PAGES</span>
+    <span><b>10</b> SECTIONS</span>
+    <span><b>~3MB</b> TARGET</span>
+    <span><b>60</b> PHOTO CAP</span>
+    <span><b>~1.5s</b> GEN TIME</span>
+  </div>
+  <div class="legend">
+    <b>Reading this preview:</b> Each white card below is one page of the generated PDF. Footer is real (page number + project code). Sample data is from a typical UDGOK project so the layout reads honestly.
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of contents</h3>
+  <ol>
+    <li><span>Cover</span><span class="pg">PAGE 1</span></li>
+    <li><span>Overview · KPIs · Completion</span><span class="pg">PAGE 2</span></li>
+    <li><span>Schedule of values</span><span class="pg">PAGE 3-4</span></li>
+    <li><span>Pay applications</span><span class="pg">PAGE 5-6</span></li>
+    <li><span>Tasks</span><span class="pg">PAGE 7-8</span></li>
+    <li><span>Team · Subs · Permits</span><span class="pg">PAGE 9-10</span></li>
+    <li><span>Photos (6 per page, tiny)</span><span class="pg">PAGE 11-18</span></li>
+    <li><span>Notes · Activity log</span><span class="pg">PAGE 19-20</span></li>
+  </ol>
+</div>
+
+<!-- COVER PAGE -->
+<div class="page-wrap">
+  <div class="page">
+    <div class="cover">
+      <div class="cover-eyebrow">// PROJECT BOOK · GENERATED 2026-08-19</div>
+      <div class="cover-status">Active</div>
+      <div class="cover-title">Building Maintenance — the Seventy One</div>
+      <div class="cover-subtitle">Comprehensive project record · photos · schedule · pay applications · team activity</div>
+
+      <div class="cover-meta">
+        <div class="cover-meta-item">
+          <div class="lbl">Client</div>
+          <div class="val">Seventy One Holdings LLC</div>
+        </div>
+        <div class="cover-meta-item">
+          <div class="lbl">Code</div>
+          <div class="val">71-MAINT-2026</div>
+        </div>
+        <div class="cover-meta-item">
+          <div class="lbl">Contract value</div>
+          <div class="val-big">$854,000</div>
+        </div>
+        <div class="cover-meta-item">
+          <div class="lbl">Billed to date</div>
+          <div class="val-big">$312,500</div>
+        </div>
+        <div class="cover-meta-item">
+          <div class="lbl">Timeline</div>
+          <div class="val">Mar 14, 2026 → Nov 30, 2026</div>
+        </div>
+        <div class="cover-meta-item">
+          <div class="lbl">Address</div>
+          <div class="val">7121 Riverside Pkwy, Tulsa, OK 74136</div>
+        </div>
+      </div>
+
+      <div class="cover-footer">
+        <span>UDGOK Construction · cms.udgok.com</span>
+        <span>Page 1 of 18</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OVERVIEW PAGE -->
+<div class="section-anchor">
+  <div class="num">SECTION 02</div>
+  <h2>Overview, KPIs, completion</h2>
+</div>
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 02 · OVERVIEW</div>
+    <div class="section-title">The project at a glance</div>
+    <div class="section-sub">Key numbers · location · completion breakdown</div>
+
+    <div class="overview-kpis">
+      <div class="kpi-cell">
+        <div class="lbl">CONTRACT</div>
+        <div class="val">$854,000</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="lbl">BILLED</div>
+        <div class="val accent">$312,500</div>
+        <div class="sub">36% of contract</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="lbl">REMAINING</div>
+        <div class="val orange">$541,500</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="lbl">DAYS LEFT</div>
+        <div class="val">104</div>
+        <div class="sub">of 261 day timeline</div>
+      </div>
+    </div>
+
+    <div class="overview-meta">
+      <div class="meta-row">
+        <div class="lbl">PROJECT NAME</div>
+        <div class="val">Building Maintenance — the Seventy One</div>
+      </div>
+      <div class="meta-row">
+        <div class="lbl">CLIENT</div>
+        <div class="val">Seventy One Holdings LLC</div>
+      </div>
+      <div class="meta-row">
+        <div class="lbl">START DATE</div>
+        <div class="val">Mar 14, 2026</div>
+      </div>
+      <div class="meta-row">
+        <div class="lbl">END DATE</div>
+        <div class="val">Nov 30, 2026</div>
+      </div>
+      <div class="meta-row" style="grid-column: span 2;">
+        <div class="lbl">ADDRESS</div>
+        <div class="val">7121 Riverside Pkwy, Tulsa, OK 74136</div>
+      </div>
+      <div class="meta-row">
+        <div class="lbl">LOCATION</div>
+        <div class="val">36.0526° N, 95.9464° W · Nominatim</div>
+      </div>
+    </div>
+
+    <div class="completion-section">
+      <h4>// COMPLETION BREAKDOWN</h4>
+      <div class="completion-grid">
+        <div class="ccell">
+          <div class="lbl">FINANCIAL</div>
+          <div class="val">36%</div>
+          <div class="bar"><div class="green" style="width:36%"></div></div>
+        </div>
+        <div class="ccell">
+          <div class="lbl">TASKS</div>
+          <div class="val">8 / 22</div>
+          <div class="bar"><div style="width:36%"></div></div>
+        </div>
+        <div class="ccell">
+          <div class="lbl">SCHEDULE</div>
+          <div class="val">60%</div>
+          <div class="bar"><div class="orange" style="width:60%"></div></div>
+        </div>
+        <div class="ccell">
+          <div class="lbl">SUBS</div>
+          <div class="val">5 / 7</div>
+          <div class="bar"><div class="green" style="width:71%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 2 of 18</span>
+    </div>
+  </div>
+</div>
+
+<!-- SOV PAGE -->
+<div class="section-anchor">
+  <div class="num">SECTION 03</div>
+  <h2>Schedule of values</h2>
+</div>
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 03 · SCHEDULE OF VALUES</div>
+    <div class="section-title">Every line item</div>
+    <div class="section-sub">$828,300 budgeted across 14 divisions · updated 2026-08-18</div>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:50px">Code</th>
+          <th>Trade</th>
+          <th>Subcontractor</th>
+          <th style="text-align:right">Budget</th>
+          <th style="text-align:right">Billed</th>
+          <th style="text-align:right">Remaining</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">01</td>
+          <td>General Requirements</td>
+          <td>—</td>
+          <td style="text-align:right">$45,000</td>
+          <td style="text-align:right">$22,500</td>
+          <td style="text-align:right">$22,500</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">02</td>
+          <td>Site Work</td>
+          <td>Tulsa Earthworks</td>
+          <td style="text-align:right">$38,500</td>
+          <td style="text-align:right">$38,500</td>
+          <td style="text-align:right">$0</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">03</td>
+          <td>Concrete</td>
+          <td>Plains Concrete Co.</td>
+          <td style="text-align:right">$72,000</td>
+          <td style="text-align:right">$48,000</td>
+          <td style="text-align:right">$24,000</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">04</td>
+          <td>Masonry</td>
+          <td>Bricklayers Local 9</td>
+          <td style="text-align:right">$54,000</td>
+          <td style="text-align:right">$18,000</td>
+          <td style="text-align:right">$36,000</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">05</td>
+          <td>Metals</td>
+          <td>Iron Eagle Steel</td>
+          <td style="text-align:right">$89,000</td>
+          <td style="text-align:right">$44,500</td>
+          <td style="text-align:right">$44,500</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">06</td>
+          <td>Wood & Plastics</td>
+          <td>Carpenters Union</td>
+          <td style="text-align:right">$42,000</td>
+          <td style="text-align:right">$16,800</td>
+          <td style="text-align:right">$25,200</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">07</td>
+          <td>Thermal & Moisture</td>
+          <td>Sooner Insulation</td>
+          <td style="text-align:right">$31,500</td>
+          <td style="text-align:right">$0</td>
+          <td style="text-align:right">$31,500</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">08</td>
+          <td>Doors & Windows</td>
+          <td>Pella of Oklahoma</td>
+          <td style="text-align:right">$64,800</td>
+          <td style="text-align:right">$32,400</td>
+          <td style="text-align:right">$32,400</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">09</td>
+          <td>Finishes</td>
+          <td>Drywall Specialists</td>
+          <td style="text-align:right">$98,500</td>
+          <td style="text-align:right">$0</td>
+          <td style="text-align:right">$98,500</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">10</td>
+          <td>Specialties</td>
+          <td>—</td>
+          <td style="text-align:right">$12,500</td>
+          <td style="text-align:right">$0</td>
+          <td style="text-align:right">$12,500</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">22</td>
+          <td>Plumbing</td>
+          <td>Sooner Plumbing</td>
+          <td style="text-align:right">$86,000</td>
+          <td style="text-align:right">$51,600</td>
+          <td style="text-align:right">$34,400</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">23</td>
+          <td>HVAC</td>
+          <td>Air Comfort Systems</td>
+          <td style="text-align:right">$112,000</td>
+          <td style="text-align:right">$33,600</td>
+          <td style="text-align:right">$78,400</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">26</td>
+          <td>Electrical</td>
+          <td>SparkRight Electric</td>
+          <td style="text-align:right">$78,500</td>
+          <td style="text-align:right">$6,600</td>
+          <td style="text-align:right">$71,900</td>
+        </tr>
+        <tr>
+          <td style="font-family:JetBrains Mono;font-weight:700;color:var(--orange)">31</td>
+          <td>Earthwork</td>
+          <td>Tulsa Earthworks</td>
+          <td style="text-align:right">$4,000</td>
+          <td style="text-align:right">$0</td>
+          <td style="text-align:right">$4,000</td>
+        </tr>
+        <tr class="total">
+          <td colspan="3">TOTALS</td>
+          <td style="text-align:right">$828,300</td>
+          <td style="text-align:right">$312,500</td>
+          <td style="text-align:right">$515,800</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 3 of 18</span>
+    </div>
+  </div>
+</div>
+
+<!-- PAY APPS PAGE -->
+<div class="section-anchor">
+  <div class="num">SECTION 04</div>
+  <h2>Pay applications</h2>
+</div>
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 04 · PAY APPLICATIONS</div>
+    <div class="section-title">Every draw, every status</div>
+    <div class="section-sub">3 pay applications · $312,500 cumulative billed</div>
+
+    <div class="payapp-card">
+      <div class="payapp-head">
+        <div class="title"><span class="num">DRAW #3</span>Current Period: Jul 16 — Aug 15, 2026</div>
+        <span class="pill green">Paid</span>
+      </div>
+      <div class="payapp-grid">
+        <div class="item">
+          <div class="lbl">CONTRACT</div>
+          <div class="val">$854,000</div>
+        </div>
+        <div class="item">
+          <div class="lbl">PREVIOUS</div>
+          <div class="val">$237,500</div>
+        </div>
+        <div class="item">
+          <div class="lbl">THIS DRAW</div>
+          <div class="val big">$75,000</div>
+        </div>
+        <div class="item">
+          <div class="lbl">BALANCE</div>
+          <div class="val">$541,500</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="payapp-card">
+      <div class="payapp-head">
+        <div class="title"><span class="num">DRAW #2</span>Period: Jun 16 — Jul 15, 2026</div>
+        <span class="pill green">Paid</span>
+      </div>
+      <div class="payapp-grid">
+        <div class="item">
+          <div class="lbl">CONTRACT</div>
+          <div class="val">$854,000</div>
+        </div>
+        <div class="item">
+          <div class="lbl">PREVIOUS</div>
+          <div class="val">$112,500</div>
+        </div>
+        <div class="item">
+          <div class="lbl">THIS DRAW</div>
+          <div class="val big">$125,000</div>
+        </div>
+        <div class="item">
+          <div class="lbl">BALANCE</div>
+          <div class="val">$616,500</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="payapp-card">
+      <div class="payapp-head">
+        <div class="title"><span class="num">DRAW #1</span>Period: May 16 — Jun 15, 2026</div>
+        <span class="pill green">Paid</span>
+      </div>
+      <div class="payapp-grid">
+        <div class="item">
+          <div class="lbl">CONTRACT</div>
+          <div class="val">$854,000</div>
+        </div>
+        <div class="item">
+          <div class="lbl">PREVIOUS</div>
+          <div class="val">$0</div>
+        </div>
+        <div class="item">
+          <div class="lbl">THIS DRAW</div>
+          <div class="val big">$112,500</div>
+        </div>
+        <div class="item">
+          <div class="lbl">BALANCE</div>
+          <div class="val">$741,500</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 5 of 18</span>
+    </div>
+  </div>
+</div>
+
+<!-- TASKS PAGE -->
+<div class="section-anchor">
+  <div class="num">SECTION 05</div>
+  <h2>Tasks</h2>
+</div>
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 05 · TASKS</div>
+    <div class="section-title">22 tasks · 8 done · 6 in progress</div>
+    <div class="section-sub">Most recent on top of each group</div>
+
+    <div class="task-group">
+      <h4>IN PROGRESS <span class="count">6</span></h4>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Rough-in electrical for floor 2 west wing</div>
+        <div class="meta">SparkRight · HIGH · due Aug 28</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">HVAC ductwork install — main level</div>
+        <div class="meta">Air Comfort · MED · due Aug 30</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Drywall hang, stairwell B</div>
+        <div class="meta">Drywall Spec · MED · due Sep 4</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Window flashing, north elevation</div>
+        <div class="meta">Pella OK · HIGH · due Aug 22</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Plumbing rough — kitchen line</div>
+        <div class="meta">Sooner Plumbing · MED · due Aug 26</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Insulation — second floor</div>
+        <div class="meta">Sooner Insulation · LOW · due Sep 8</div>
+      </div>
+    </div>
+
+    <div class="task-group">
+      <h4>TO DO <span class="count">8</span></h4>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Tile install, master baths (×3)</div>
+        <div class="meta">— · MED · due Sep 18</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Cabinet install, main kitchen</div>
+        <div class="meta">— · MED · due Oct 5</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Interior paint, all floors</div>
+        <div class="meta">— · LOW · due Oct 22</div>
+      </div>
+      <div class="task-row">
+        <div class="check"></div>
+        <div class="title">Final electrical trim & fixtures</div>
+        <div class="meta">— · MED · due Nov 4</div>
+      </div>
+    </div>
+
+    <div class="task-group">
+      <h4>DONE <span class="count">8</span></h4>
+      <div class="task-row">
+        <div class="check done"></div>
+        <div class="title done">Site prep and excavation</div>
+        <div class="meta">Tulsa Earthworks · done Jul 2</div>
+      </div>
+      <div class="task-row">
+        <div class="check done"></div>
+        <div class="title done">Foundation pour, footings + slab</div>
+        <div class="meta">Plains Concrete · done Jul 14</div>
+      </div>
+      <div class="task-row">
+        <div class="check done"></div>
+        <div class="title done">Steel frame erection</div>
+        <div class="meta">Iron Eagle · done Aug 1</div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 7 of 18</span>
+    </div>
+  </div>
+</div>
+
+<!-- TEAM + SUBS + PERMITS -->
+<div class="section-anchor">
+  <div class="num">SECTIONS 06-08</div>
+  <h2>Team, subs, permits</h2>
+</div>
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 06 · TEAM</div>
+    <div class="section-title">The crew</div>
+    <div class="section-sub">5 members across 3 roles</div>
+
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="avatar">YK</div>
+        <div class="info">
+          <div class="name">Yasir K.</div>
+          <div class="email">yasir@udgok.com</div>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="avatar orange">UM</div>
+        <div class="info">
+          <div class="name">Umair M.</div>
+          <div class="email">umair@udgok.com</div>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="avatar">MR</div>
+        <div class="info">
+          <div class="name">Mike R. (Foreman)</div>
+          <div class="email">mike@udgok.com</div>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="avatar">JT</div>
+        <div class="info">
+          <div class="name">James T.</div>
+          <div class="email">james@udgok.com</div>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="avatar orange">SC</div>
+        <div class="info">
+          <div class="name">Sarah C.</div>
+          <div class="email">sarah@udgok.com</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px;">
+      <div class="section-eyebrow">// SECTION 07 · SUBCONTRACTORS</div>
+      <div class="section-title" style="font-size:22px">Trade partners</div>
+
+      <div class="sub-row header">
+        <div>Code</div>
+        <div>Subcontractor</div>
+        <div>Primary trade</div>
+        <div>Status</div>
+        <div>Value</div>
+      </div>
+      <div class="sub-row">
+        <div class="trade-code">02</div>
+        <div>Tulsa Earthworks</div>
+        <div>Site work</div>
+        <div><span class="pill green">Active</span></div>
+        <div>$38,500</div>
+      </div>
+      <div class="sub-row">
+        <div class="trade-code">03</div>
+        <div>Plains Concrete Co.</div>
+        <div>Concrete</div>
+        <div><span class="pill green">Active</span></div>
+        <div>$72,000</div>
+      </div>
+      <div class="sub-row">
+        <div class="trade-code">05</div>
+        <div>Iron Eagle Steel</div>
+        <div>Structural steel</div>
+        <div><span class="pill green">Active</span></div>
+        <div>$89,000</div>
+      </div>
+      <div class="sub-row">
+        <div class="trade-code">22</div>
+        <div>Sooner Plumbing</div>
+        <div>Plumbing</div>
+        <div><span class="pill warning">Contracted</span></div>
+        <div>$86,000</div>
+      </div>
+      <div class="sub-row">
+        <div class="trade-code">23</div>
+        <div>Air Comfort Systems</div>
+        <div>HVAC</div>
+        <div><span class="pill warning">Contracted</span></div>
+        <div>$112,000</div>
+      </div>
+      <div class="sub-row">
+        <div class="trade-code">26</div>
+        <div>SparkRight Electric</div>
+        <div>Electrical</div>
+        <div><span class="pill warning">Contracted</span></div>
+        <div>$78,500</div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 9 of 18</span>
+    </div>
+  </div>
+</div>
+
+<!-- PERMITS PAGE -->
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 08 · PERMITS</div>
+    <div class="section-title">All permits & inspections</div>
+    <div class="section-sub">4 active · 1 pending · 1 final passed</div>
+
+    <div class="permit-card">
+      <div>
+        <div class="lbl">PERMIT #</div>
+        <div class="val big">BLD-2026-0421</div>
+      </div>
+      <div>
+        <div class="lbl">TYPE</div>
+        <div class="val">Building — Commercial</div>
+      </div>
+      <div>
+        <div class="lbl">JURISDICTION</div>
+        <div class="val">City of Tulsa</div>
+      </div>
+      <div>
+        <div class="lbl">STATUS</div>
+        <div><span class="pill green">Final</span></div>
+      </div>
+    </div>
+
+    <div class="permit-card">
+      <div>
+        <div class="lbl">PERMIT #</div>
+        <div class="val big">ELE-2026-0892</div>
+      </div>
+      <div>
+        <div class="lbl">TYPE</div>
+        <div class="val">Electrical</div>
+      </div>
+      <div>
+        <div class="lbl">JURISDICTION</div>
+        <div class="val">City of Tulsa</div>
+      </div>
+      <div>
+        <div class="lbl">STATUS</div>
+        <div><span class="pill orange">Issued</span></div>
+      </div>
+    </div>
+
+    <div class="permit-card">
+      <div>
+        <div class="lbl">PERMIT #</div>
+        <div class="val big">PLB-2026-1044</div>
+      </div>
+      <div>
+        <div class="lbl">TYPE</div>
+        <div class="val">Plumbing</div>
+      </div>
+      <div>
+        <div class="lbl">JURISDICTION</div>
+        <div class="val">City of Tulsa</div>
+      </div>
+      <div>
+        <div class="lbl">STATUS</div>
+        <div><span class="pill warning">Rough-in pending</span></div>
+      </div>
+    </div>
+
+    <div class="permit-card">
+      <div>
+        <div class="lbl">PERMIT #</div>
+        <div class="val big">MEC-2026-0773</div>
+      </div>
+      <div>
+        <div class="lbl">TYPE</div>
+        <div class="val">Mechanical (HVAC)</div>
+      </div>
+      <div>
+        <div class="lbl">JURISDICTION</div>
+        <div class="val">City of Tulsa</div>
+      </div>
+      <div>
+        <div class="lbl">STATUS</div>
+        <div><span class="pill info">In review</span></div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 10 of 18</span>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTOS PAGE — THE STAR -->
+<div class="section-anchor">
+  <div class="num">SECTION 09 · THE STAR</div>
+  <h2>Photos · 6 per page, tiny</h2>
+</div>
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 09 · PHOTOS</div>
+    <div class="section-title">Site photos</div>
+    <div class="photos-header">
+      <div class="section-sub" style="margin:0">Most recent first · 47 of 89 total on this page</div>
+      <div class="total">SHOWING 6 PER PAGE</div>
+    </div>
+
+    <div class="photo-grid">
+      <div class="photo-tile">
+        <div class="photo-img photo-1"></div>
+        <div class="photo-meta">
+          <div class="caption">Master bath rough-in</div>
+          <div class="row">
+            <span>36.0526, -95.9464</span>
+            <span class="phase rough">R</span>
+          </div>
+        </div>
+      </div>
+      <div class="photo-tile">
+        <div class="photo-img photo-2"></div>
+        <div class="photo-meta">
+          <div class="caption">Kitchen electrical</div>
+          <div class="row">
+            <span>36.0526, -95.9464</span>
+            <span class="phase rough">R</span>
+          </div>
+        </div>
+      </div>
+      <div class="photo-tile">
+        <div class="photo-img photo-3"></div>
+        <div class="photo-meta">
+          <div class="caption">Living room paint</div>
+          <div class="row">
+            <span>36.0526, -95.9464</span>
+            <span class="phase final">F</span>
+          </div>
+        </div>
+      </div>
+      <div class="photo-tile">
+        <div class="photo-img photo-4"></div>
+        <div class="photo-meta">
+          <div class="caption">Master bath framing</div>
+          <div class="row">
+            <span>36.0526, -95.9464</span>
+            <span class="phase rough">R</span>
+          </div>
+        </div>
+      </div>
+      <div class="photo-tile">
+        <div class="photo-img photo-5"></div>
+        <div class="photo-meta">
+          <div class="caption">Kitchen tile</div>
+          <div class="row">
+            <span>36.0526, -95.9464</span>
+            <span class="phase final">F</span>
+          </div>
+        </div>
+      </div>
+      <div class="photo-tile">
+        <div class="photo-img photo-6"></div>
+        <div class="photo-meta">
+          <div class="caption">HVAC ductwork</div>
+          <div class="row">
+            <span>36.0526, -95.9464</span>
+            <span class="phase rough">R</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;padding:10px 14px;background:var(--paper-2);border:1px dashed var(--line);font-size:9px;color:var(--ink-50);font-family:JetBrains Mono,monospace">
+      // Each photo embedded at ~1.5" × 1.5", with caption · GPS · phase. Source: Vercel Blob, fetched server-side at PDF render time. Showing 6 most-recent per page · 89 total photos.
+    </div>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 11 of 18</span>
+    </div>
+  </div>
+</div>
+
+<!-- NOTES + ACTIVITY -->
+<div class="section-anchor">
+  <div class="num">SECTIONS 10-11</div>
+  <h2>Notes & activity log</h2>
+</div>
+<div class="page-wrap">
+  <div class="page">
+    <div class="section-eyebrow">// SECTION 10 · NOTES</div>
+    <div class="section-title">Project notes</div>
+    <div class="section-sub">5 most recent notes</div>
+
+    <div class="note-card">
+      <div class="head">
+        <div class="author">Yasir K.</div>
+        <div class="date">Aug 18, 2026</div>
+      </div>
+      <div class="body">Confirmed with client that the south window replacement will move to Phase 2 instead of Phase 1. Will issue change order. Confirmed schedule shift with Air Comfort — they're holding their slot for HVAC install.</div>
+    </div>
+
+    <div class="note-card">
+      <div class="head">
+        <div class="author">Mike R.</div>
+        <div class="date">Aug 15, 2026</div>
+      </div>
+      <div class="body">Rough-in inspection passed for the east wing plumbing. Inspector commented on the clean P-trap install. Sent photo to client portal.</div>
+    </div>
+
+    <div class="note-card">
+      <div class="head">
+        <div class="author">Umair M.</div>
+        <div class="date">Aug 12, 2026</div>
+      </div>
+      <div class="body">Draw #3 generated and emailed to client. $75,000 this period. Includes HVAC ductwork portion + electrical rough-in labor. Receipts attached.</div>
+    </div>
+
+    <div style="margin-top: 28px;">
+      <div class="section-eyebrow">// SECTION 11 · ACTIVITY</div>
+      <div class="section-title" style="font-size:22px">Recent activity (last 12)</div>
+
+      <div class="activity-row">
+        <div class="date">Aug 19, 14:32</div>
+        <div class="dot orange"></div>
+        <div class="text"><b>Yasir K.</b> uploaded <b>6 photos</b> to <b>Master Bath</b></div>
+      </div>
+      <div class="activity-row">
+        <div class="date">Aug 19, 11:14</div>
+        <div class="dot success"></div>
+        <div class="text"><b>Mike R.</b> marked task <b>Foundation backfill</b> as <b>Done</b></div>
+      </div>
+      <div class="activity-row">
+        <div class="date">Aug 19, 09:50</div>
+        <div class="dot warn"></div>
+        <div class="text"><b>Air Comfort</b> updated their status to <b>Contracted</b></div>
+      </div>
+      <div class="activity-row">
+        <div class="date">Aug 18, 16:21</div>
+        <div class="dot"></div>
+        <div class="text"><b>Umair M.</b> sent <b>Draw #3</b> to client</div>
+      </div>
+      <div class="activity-row">
+        <div class="date">Aug 18, 14:08</div>
+        <div class="dot orange"></div>
+        <div class="text"><b>Yasir K.</b> added note: <b>"Confirmed schedule shift with Air Comfort..."</b></div>
+      </div>
+      <div class="activity-row">
+        <div class="date">Aug 18, 10:45</div>
+        <div class="dot"></div>
+        <div class="text"><b>Yasir K.</b> edited <b>Schedule of Values</b> — Division 22: $86k → $92k</div>
+      </div>
+      <div class="activity-row">
+        <div class="date">Aug 17, 16:33</div>
+        <div class="dot success"></div>
+        <div class="text"><b>Mike R.</b> marked task <b>Window install, north elevation</b> as <b>Done</b></div>
+      </div>
+      <div class="activity-row">
+        <div class="date">Aug 17, 13:20</div>
+        <div class="dot warn"></div>
+        <div class="text"><b>Permit BLD-2026-0421</b> — Rough-in inspection scheduled for <b>Aug 22</b></div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>71-MAINT-2026 · Building Maintenance</span>
+      <span>Page 19 of 18</span>
+    </div>
+  </div>
+</div>
+
+<div style="max-width:920px;margin:60px auto 80px;padding:0 24px;text-align:center;color:#a8a59c;font-size:13px;">
+  <div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--orange);text-transform:uppercase;letter-spacing:0.18em;margin-bottom:8px">// END PREVIEW</div>
+  <p>That&apos;s the full PDF. Want me to build it? If yes, I&apos;ll add <code style="background:rgba(255,255,255,0.1);padding:1px 5px">@react-pdf/renderer</code>, wire <code style="background:rgba(255,255,255,0.1);padding:1px 5px">/api/projects/[id]/pdf</code>, add the <b style="color:#d4d0c4">Create PDF</b> button to the project header, and add a regression test. ~1.5s generation, ~3MB target size, 60-photo cap.</p>
+</div>
+
+</body>
+</html>

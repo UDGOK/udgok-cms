@@ -407,14 +407,32 @@ export default async function ProjectDetailPage({
           </div>
         </div>
         <div className="flex flex-col items-end gap-3 flex-shrink-0">
-          <span className={`px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] ${
-            projectData.status === 'ACTIVE' ? 'bg-success text-paper' :
-            projectData.status === 'COMPLETED' ? 'bg-ink text-paper' :
-            projectData.status === 'ON_HOLD' ? 'bg-warning text-ink' :
-            'bg-line text-ink-50'
-          }`}>
-            {projectData.status}
-          </span>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/projects/${projectData.id}/pdf`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-paper border-2 border-ink text-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-paper transition-colors"
+              title="Generate a 12-20 page project book PDF (every section, every photo, every task)"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="12" y1="18" x2="12" y2="12" />
+                <line x1="9" y1="15" x2="15" y2="15" />
+              </svg>
+              <span className="hidden md:inline">Create PDF</span>
+              <span className="md:hidden">PDF</span>
+            </a>
+            <span className={`px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] ${
+              projectData.status === 'ACTIVE' ? 'bg-success text-paper' :
+              projectData.status === 'COMPLETED' ? 'bg-ink text-paper' :
+              projectData.status === 'ON_HOLD' ? 'bg-warning text-ink' :
+              'bg-line text-ink-50'
+            }`}>
+              {projectData.status}
+            </span>
+          </div>
           <CompletionRing
             value={completion.overall}
             size={88}
