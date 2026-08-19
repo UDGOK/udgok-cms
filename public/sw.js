@@ -7,7 +7,7 @@
 // This caches enough to launch the app and read cached data when offline.
 // Form drafts are persisted in localStorage by the app itself, not here.
 
-const CACHE_VERSION = 'udgok-v1';
+const CACHE_VERSION = 'udgok-v2';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -66,16 +66,32 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Next.js pages — network first, fall back to cached shell
-  if (request.headers.get('accept')?.includes('text/html')) {
+  // Also catches RSC (React Server Component) payloads: Next.js's
+  // router.refresh() sends a fetch with `RSC: 1` and
+  // `accept: text/x-component`, NOT text/html. If we let those
+  // fall through to the static-assets branch below, the SW
+  // serves a stale RSC payload from before the user's last
+  // mutation (e.g. upload) and the new data never renders.
+  // Treating RSC like HTML (network-first) fixes that.
+  const accept = request.headers.get('accept') ?? '';
+  const isHtml = accept.includes('text/html');
+  const isRsc = request.headers.get('rsc') !== null || accept.includes('text/x-component');
+  if (isHtml || isRsc) {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(RUNTIME_CACHE).then((c) => c.put(request, copy));
+          // Don't cache RSC payloads — they're per-request,
+          // and caching them across requests returns stale data.
+          if (isHtml) {
+            const copy = res.clone();
+            caches.open(RUNTIME_CACHE).then((c) => c.put(request, copy));
+          }
           return res;
         })
         .catch(() =>
-          caches.match(request).then((r) => r || caches.match('/')),
+          isHtml
+            ? caches.match(request).then((r) => r || caches.match('/'))
+            : new Response('', { status: 504, statusText: 'Offline' }),
         ),
     );
     return;
