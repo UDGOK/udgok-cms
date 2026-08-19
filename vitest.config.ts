@@ -6,6 +6,14 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.test.{ts,tsx}'],
     exclude: ['node_modules', '.next', 'dist', 'tests/e2e/**'],
+    // Per-file environment override: tests that render React
+    // hooks with @testing-library/react need a DOM. The
+    // `// @vitest-environment jsdom` directive at the top of
+    // those test files opts in. jsdom is already a transitive
+    // dep via @testing-library/react.
+    environmentMatchGlobs: [
+      ['**/*.test.tsx', 'jsdom'],
+    ],
   },
   resolve: {
     alias: {

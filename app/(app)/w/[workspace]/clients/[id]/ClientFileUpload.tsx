@@ -1,9 +1,18 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useBlobUpload } from '@/lib/blob/client-upload';
 import { formatBytes } from '@/lib/images/compress';
+
+// Same as the workspace files form — see the comment there.
+// The handleUpload flow is two-phase: the client resolves
+// when Vercel Blob confirms the bytes, but the server's
+// onUploadCompleted callback (which creates the File row +
+// calls revalidatePath) is dispatched AFTER that. Without
+// this delay, router.refresh() races the row insert and the
+// new file doesn't appear in the list until a manual refresh.
+const SERVER_CALLBACK_SETTLE_MS = 1500;
 
 /**
  * File upload for the client's "Files" tab. Direct browser → Vercel
@@ -26,15 +35,25 @@ export function ClientFileUpload({
     handleUploadUrl: '/api/clients/files',
   });
 
+  // Revalidate the page after the server's onUploadCompleted
+  // callback has had time to create the File row. See the
+  // comment block above for the race-condition rationale.
+  useEffect(() => {
+    if (state.phase !== 'done' || !state.result) return;
+    const t = setTimeout(() => router.refresh(), SERVER_CALLBACK_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [state.phase, state.result, router]);
+
   async function onPick(file: File) {
     try {
+      // Don't refresh here — the useEffect above handles it
+      // after the server has created the row.
       await upload(file, {
         workspaceId,
         uploaderId,
         clientId,
       });
       if (fileInputRef.current) fileInputRef.current.value = '';
-      router.refresh();
     } catch {
       // state.error is already populated by the hook
     }

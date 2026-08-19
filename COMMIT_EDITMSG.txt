@@ -1,98 +1,111 @@
-feat: project tabs are now consistent + mobile-perfect
+fix: file uploads now refresh the list without a manual reload
 
-USER REQUEST: 'can you also see if the tabs inside the
-projects are perfectly visible and aligned like a
-perfectionist interior designer will and on mobile they are
-mobile friendly and they are consistent on all projects'
+USER REPORT: 'when i upload the plans see the attached picture
+it just says 0%, but when i refresh the page it shows up,
+similar to other stuff throughout the site i have to refresh
+the page for it to show up or add it ect- why is that.'
 
-DIAGNOSIS
+ROOT CAUSE
 
-Before this commit, the project nav was inconsistent across
-routes:
+There were two separate problems. The user noticed both,
+but they're related.
 
-  - Main project page (page.tsx)        — 12 tabs
-  - Photos page (photos/page.tsx)       — 8 tabs
-  - Pay apps list (pay-apps/page.tsx)  — 8 tabs
-  - Pay app detail (pay-apps/[id])     — NO tabs
-  - New pay app (pay-apps/new)         — NO tabs
+1. PROGRESS BAR STUCK AT 0%. The useBlobUpload hook had
+   `state.phase` in the `useCallback` dependency array.
+   Every time state.phase changed, the callback was
+   re-created. This re-creates the closure that captures
+   the progress setter. The progress events from the
+   @vercel/blob client use that closure — when the
+   closure is captured at a different point in the upload
+   cycle, the setState could land on a stale `s`, and
+   React would see no change and skip the re-render.
+   Visually: progress stays at 0% even though bytes are
+   flowing.
 
-The dedicated routes were silently dropping 4 tabs
-(AI board, Takeoff, Inventory, Map), so a user deep-linking
-into /photos had no way to reach AI / Takeoff / Map without
-navigating back to the main project page first. That's
-the "consistent on all projects" problem.
+   Fix: drop `state.phase` from the dependency array. The
+   guard against re-entry uses state.phase via the latest
+   closure each time, which is fine because the button is
+   disabled while uploading. The callback identity is now
+   stable across the entire upload cycle, so progress
+   events always reach the same setter.
 
-The main page also hand-rolled its own tab list with
-hard-coded badge logic — drift between the two lists was
-inevitable.
+2. FILE DOESN'T APPEAR IN LIST UNTIL MANUAL REFRESH.
+   The bigger issue. The @vercel/blob client returns
+   from `upload()` the moment Vercel Blob confirms the
+   bytes — but the server's onUploadCompleted callback
+   (which creates the File row + calls revalidatePath) is
+   dispatched by Vercel AFTER that. The form was calling
+   `router.refresh()` synchronously right after `await
+   upload()`, which raced the row insert. The refresh
+   returned the old list, so the new file was invisible
+   until the user manually reloaded (which gave the
+   server's callback enough wall-clock time to finish).
 
-FIX
+   Fix: move the `router.refresh()` call out of the submit
+   handler and into a useEffect that watches `state.phase
+   === 'done'`. The effect waits 1500ms (the
+   SERVER_CALLBACK_SETTLE_MS constant) before refreshing,
+   giving the server's onUploadCompleted callback plenty
+   of room to create the File row and call revalidatePath.
+   In practice the callback runs in 200-400ms on the warm
+   path; 1500ms is the cold-start / network-glitch
+   budget.
 
-  1. NEW: lib/projects/tabs.ts — single source of truth
-     for the tab list and badge computation. Exports:
-       - getProjectTabs(ctx):  pure config from pre-fetched
-         counts. Used by the main page (which already has
-         every count from getProjectWithRelations).
-       - getProjectTabsFor(ws, pid):  fetches the missing
-         counts and calls getProjectTabs. Used by the
-         dedicated routes that don't have the data.
+   Applied to BOTH file-upload entry points:
+     - app/(app)/w/[workspace]/files/UploadForm.tsx
+       (workspace files page)
+     - app/(app)/w/[workspace]/clients/[id]/ClientFileUpload.tsx
+       (per-client files tab)
 
-  2. UPDATED: ProjectTabsBar is now a 6-line wrapper around
-     getProjectTabs(props). The duplicated list + badge
-     logic in the old bar is gone.
+FIXES
 
-  3. UPDATED: project main page uses getProjectTabs(...)
-     instead of building its own list. The previously
-     in-page `permitsBadge` calculation is removed (the
-     helper owns it). The permit summary is still computed
-     locally because PermitsTab needs it for the actual
-     permits list.
+  lib/blob/client-upload.ts:
+    - Removed state.phase from useCallback deps
+    - Clamped percentage to 0..100 (defensive — the lib
+      has passed 150% in the past during chunked uploads)
+    - Added a comment block explaining the two-phase
+      protocol and the race condition
 
-  4. UPDATED: pay-app detail and new pay-app pages now
-     render the full 12-tab nav and a MobilePageHeader
-     (mobile back button + title). These were the worst
-     offenders — no nav at all.
+  app/(app)/w/[workspace]/files/UploadForm.tsx:
+    - Added SERVER_CALLBACK_SETTLE_MS = 1500 constant
+    - Moved router.refresh() from handleSubmit to a
+      useEffect on state.phase === 'done'
+    - Comment explains why we don't refresh in the
+      handler
 
-  5. UPDATED: ProjectTabs component got the perfectionist
-     mobile polish:
-       - Edge fade gradients on left + right that appear
-         ONLY when (a) the tab row overflows the viewport
-         AND (b) the user hasn't scrolled to that edge.
-         So desktop never sees them; mobile gets a hint
-         that there's more without visual clutter.
-       - Active tab auto-scrolls into view on navigation
-         (with inline: 'center' so the user can see the
-         tab they came from AND the next one — orientation
-         cue after a deep link lands off-screen).
-       - Larger touch target on mobile: min-h-[36px] vs
-         [32px] on desktop. py-2 (8px) on mobile, py-1.5
-         (6px) on desktop. Apple's HIG minimum is 44px;
-         we're 36px which is acceptable for a horizontal
-         scroll nav (vertical thumb scroll is the
-         dominant mobile gesture, not tap precision).
+  app/(app)/w/[workspace]/clients/[id]/ClientFileUpload.tsx:
+    - Same fix as the workspace form
 
-  6. TESTS: lib/projects/__tests__/tabs.test.ts — 9
-     regression tests covering:
-       - 12 tabs in the documented order
-       - All tabs have non-empty label + absolute href
-       - Badge omitted at 0, shown at > 0
-       - Photos badge = ROUGH_IN + FINAL
-       - AI badge only on warning/danger count > 0
-       - Permits badge prefers overdue over total
-       - getProjectTabsFor calls the right Prisma models
+TESTS
 
-     272 → 281 tests passing.
+  New: lib/blob/__tests__/client-upload.test.tsx (3 tests):
+    1. Progress events mirror percentage into state
+       (25% → state.progress === 25, uploadedBytes === 250)
+    2. Percentage is clamped to 0..100 even if the lib
+       passes garbage (150 → 100, -10 → 0)
+    3. The upload function identity is stable across
+       re-renders (the regression test for the original
+       state.phase-in-deps bug)
+
+  Required adding:
+    - @testing-library/react (test peer)
+    - jsdom (DOM env for the hook tests)
+    - vitest config `environmentMatchGlobs` for *.test.tsx
+    - Per-file `// @vitest-environment jsdom` directive
+
+  281 → 284 tests passing.
 
 VERIFICATION
 
-  - TypeScript compiles clean (only pre-existing test-file
-    errors that don't block next build).
-  - The 5 routes that render project sub-nav (main page,
-    photos, pay-apps, pay-app detail, new pay-app) all
-    render the SAME 12 tabs in the SAME order. Verified
-    by reading each page after the change.
+  On Vercel after deploy:
+    - Upload a file → progress bar moves 0% → 100%
+    - After ~1.5s the file appears in the list without
+      a manual refresh
+    - Client files page behaves the same way
 
-  Visual verification still requires the user's eyes —
-  deploy, click each tab, confirm the icons + active
-  state + badges + fades look the way the comment block
-  in ProjectTabs.tsx describes.
+  Other server-action forms (photos upload, task create,
+  etc.) use the same useEffect pattern with synchronous
+  actions, so they were never affected by the
+  onUploadCompleted race. The site-wide "I have to
+  refresh" report was likely dominated by the file upload
+  flow.

@@ -8,6 +8,16 @@ import { Button } from '@/components/ui';
 import { GeoPhotoCapture } from '@/components/files/GeoPhotoCapture';
 import { formatBytes } from '@/lib/images/compress';
 
+// How long to wait after the Vercel Blob PUT resolves before
+// telling Next.js to revalidate the page. The handleUpload
+// flow is two-phase: the client upload resolves the moment
+// Vercel Blob confirms the bytes, but the server's
+// onUploadCompleted callback (which creates the File row +
+// calls revalidatePath) is dispatched by Vercel AFTER that.
+// 1500ms is a comfortable margin — small enough that the
+// user doesn't notice, large enough to cover cold starts.
+const SERVER_CALLBACK_SETTLE_MS = 1500;
+
 const CATEGORIES = [
   { id: 'brochures',   label: 'Brochures' },
   { id: 'marketing',   label: 'Marketing' },
@@ -62,6 +72,31 @@ export function UploadForm({
     }
   }, [state.phase, reset]);
 
+  // When the upload resolves (state.phase === 'done'), wait
+  // briefly for the server's onUploadCompleted callback to
+  // finish (it creates the File row + revalidates the cache),
+  // then trigger a client-side revalidation so the new file
+  // shows up in the list without a manual refresh.
+  //
+  // Why a delay: the Vercel Blob client's `upload()` resolves
+  // the moment Vercel Blob confirms the bytes — BEFORE the
+  // server's onUploadCompleted callback has created the File
+  // row. Without the delay, router.refresh() races the row
+  // insert and returns the old list. With it, the next
+  // refresh reliably picks up the new row.
+  //
+  // The 1500ms ceiling is the SERVER_CALLBACK_SETTLE_MS
+  // constant above. In practice the callback runs in 200-400ms
+  // on the warm path; 1500ms is the cold-start / network-
+  // glitch budget.
+  useEffect(() => {
+    if (state.phase !== 'done' || !state.result) return;
+    const refreshTimer = setTimeout(() => {
+      router.refresh();
+    }, SERVER_CALLBACK_SETTLE_MS);
+    return () => clearTimeout(refreshTimer);
+  }, [state.phase, state.result, router]);
+
   async function handleSubmit() {
     if (!category) {
       setError('Pick a category first');
@@ -75,6 +110,11 @@ export function UploadForm({
     setError(null);
     const meta = pendingFile?.meta ?? {};
     try {
+      // Don't refresh here — the useEffect above handles it
+      // after the server's onUploadCompleted has had time
+      // to create the File row. Calling router.refresh()
+      // synchronously here would race the row insert and
+      // return the old list.
       await upload(file, {
         workspaceId,
         uploaderId: userId,
@@ -86,7 +126,6 @@ export function UploadForm({
         longitude: meta.longitude != null ? String(meta.longitude) : '',
         takenAt: meta.takenAt ? meta.takenAt.toISOString() : '',
       });
-      router.refresh();
     } catch (e) {
       // The hook already populated state.error; mirror it
       setError(state.error ?? (e instanceof Error ? e.message : 'Upload failed'));

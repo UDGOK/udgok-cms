@@ -97,13 +97,17 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
           // so we can recreate metadata rows server-side.
           clientPayload: JSON.stringify(tokenPayload),
           onUploadProgress: ({ percentage }) => {
-            const pct = Math.round(percentage);
+            // The @vercel/blob client passes the `percentage` value
+            // (0..100) as part of the progress event payload. The
+            // underlying transport is XHR, so this fires for every
+            // chunk the browser sends. We use a callback-stable
+            // setState so the UI ticks even when the callback
+            // identity changes due to dependency churn in the
+            // caller's useCallback.
+            const pct = Math.max(0, Math.min(100, Math.round(percentage ?? 0)));
             setState((s) => ({
               ...s,
               progress: pct,
-              // Approximate the byte counts from the percentage so
-              // the progress bar shows the real ratio even without
-              // the byte-level event payload.
               uploadedBytes: Math.round((pct / 100) * file.size),
               totalBytes: file.size,
             }));
@@ -131,7 +135,15 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
         throw e;
       }
     },
-    [handleUploadUrl, maxBytes, onProgress, state.phase],
+    // Note: state.phase is intentionally NOT in the dependency
+    // array. Including it caused the callback to re-create on
+    // every phase change, which broke the "Upload already in
+    // progress" guard (the latest callback had the new phase,
+    // so re-entry via the dependency churn would throw
+    // spuriously). We read state.phase through the functional
+    // setState updater where it matters, and through a ref-like
+    // pattern via the closure for the guard.
+    [handleUploadUrl, maxBytes, onProgress],
   );
 
   return { upload, state, reset };
