@@ -123,12 +123,12 @@ export async function WeatherWidget({ project }: WeatherWidgetProps) {
       {/* Footer */}
       <div className="px-4 py-2 border-t border-line flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
         <a
-          href={`https://open-meteo.com/`}
+          href={`https://openweathermap.org/api/one-call-4`}
           target="_blank"
           rel="noopener"
           className="hover:text-ink"
         >
-          open-meteo
+          openweathermap
         </a>
         {mapUrl ? (
           <a

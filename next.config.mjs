@@ -41,6 +41,13 @@ const aliases = {
   // no API key, but we identify ourselves with a User-Agent per their ToS.
   UDGOK_CMS_NOMINATIM_USER_AGENT: ['NOMINATIM_USER_AGENT'],
   UDGOK_CMS_NOMINATIM_BASE_URL: ['NOMINATIM_BASE_URL'],
+  // OpenWeatherMap One Call 4.0 — current conditions + 7-day forecast.
+  // Two-way aliasing so either variable name works. The hardcoded
+  // fallback lives in lib/weather/api.ts (rotating the key without
+  // touching code is preferred — set the env var on Vercel and the
+  // fallback is ignored).
+  OPENWEATHER_API_KEY: ['UDGOK_CMS_OPENWEATHER_API_KEY', 'OWM_API_KEY'],
+  UDGOK_CMS_OPENWEATHER_API_KEY: ['OPENWEATHER_API_KEY', 'OWM_API_KEY'],
   // BIM/IFC takeoff service (Python/FastAPI on Fly.io). The CMS
   // POSTs the .ifc blob URL to /takeoff; service returns quantities.
   UDGOK_CMS_TAKEOFF_SERVICE_URL: ['TAKEOFF_SERVICE_URL'],
