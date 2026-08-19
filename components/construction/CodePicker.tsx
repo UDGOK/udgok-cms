@@ -59,19 +59,30 @@ export function CodePicker({
   // getBoundingClientRect() so the popup always anchors directly
   // below the field, even if the user scrolled.
   //
-  // On desktop they use position: absolute with `top-full`, so
-  // the inline `top` style is ignored and there's nothing to
-  // update.
+  // On desktop they use position: absolute with `top-full` from
+  // Tailwind, which already anchors the popup just below the
+  // input in parent-relative coordinates. We do NOT set the
+  // inline `top` on desktop because a viewport-relative value
+  // (e.g. "130px from the top of the window") gets interpreted
+  // as "130px from the top of the parent" by `position: absolute`
+  // and pushes the dropdown way down the page. We detect the
+  // mode via getComputedStyle and only set the inline top when
+  // the popup is actually `position: fixed` (mobile).
   useEffect(() => {
     if (!open && !showSuggestionHint) return;
     function reposition() {
       if (!inputRef.current) return;
-      // Pick whichever popup is currently rendered.
       const popup = dropdownRef.current ?? suggestionRef.current;
       if (!popup) return;
+      const isFixed = getComputedStyle(popup).position === 'fixed';
+      if (!isFixed) {
+        // Desktop: let `top-full` (Tailwind) handle it.
+        // Clear any stale inline top from a previous mobile
+        // render so it doesn't push the popup down.
+        popup.style.top = '';
+        return;
+      }
       const r = inputRef.current.getBoundingClientRect();
-      // Place popup 4px below the input's bottom edge.
-      // Clamp so it never falls off the bottom of the viewport.
       const desiredTop = r.bottom + 4;
       const popupHeight = popup.offsetHeight || 320;
       const maxTop = window.innerHeight - popupHeight - 8;

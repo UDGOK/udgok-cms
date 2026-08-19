@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
   // Auth pages
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/tabs-debug',
   // Marketing site (customer-facing, public)
   '/',
   '/about',
