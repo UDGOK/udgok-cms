@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ProjectStatus } from '@prisma/client';
 import { MapContainer, type MapMarkerSpec } from '@/components/map/MapContainer';
@@ -73,19 +73,28 @@ export function WorkspaceMapClient({
     [projects],
   );
 
-  const markers = useMemo<MapMarkerSpec[]>(
-    () =>
-      projects.map((p) => {
-        const el = buildMarkerEl(p);
-        el.addEventListener('click', () => goToProject(p.id));
-        return {
-          id: p.id,
-          coordinates: [p.longitude, p.latitude],
-          element: el,
-        };
-      }),
-    [projects, goToProject],
-  );
+  // Markers are built with `document.createElement` so we have to
+  // construct them in a useEffect (client-only) rather than
+  // useMemo (which runs during SSR and would throw
+  // `ReferenceError: document is not defined`). The map still
+  // gets the markers reactively via the prop below.
+  const [markers, setMarkers] = useState<MapMarkerSpec[]>([]);
+
+  useEffect(() => {
+    const built: MapMarkerSpec[] = projects.map((p) => {
+      const el = buildMarkerEl(p);
+      el.addEventListener('click', () => goToProject(p.id));
+      return {
+        id: p.id,
+        coordinates: [p.longitude, p.latitude],
+        element: el,
+      };
+    });
+    setMarkers(built);
+    return () => {
+      for (const m of built) m.element.remove();
+    };
+  }, [projects, goToProject]);
 
   return (
     <MapContainer

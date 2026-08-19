@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { ProjectStatus } from '@prisma/client';
 import { STATUS_COLORS, STATUS_LABELS, withAlpha } from '@/lib/map/status-color';
@@ -73,8 +73,25 @@ export function ProjectMapTab({
   // photo markers. If the photos span more than ~1km, we'd want
   // to call map.fitBounds() — but for now we just center on the
   // project with a reasonable zoom and let users pan to photos.
-  const markers = useMemo(() => {
-    const result = [];
+  // The marker DOM elements are built with `document.createElement`,
+  // which only exists in the browser. We build them in a useEffect
+  // (client-only) rather than useMemo (which runs during SSR and
+  // would throw `ReferenceError: document is not defined`). The
+  // markers are still added/removed reactively via the `markers`
+  // prop on MapContainer; this just moves the *creation* to the
+  // client side.
+  const [markers, setMarkers] = useState<Array<{
+    id: string;
+    coordinates: [number, number];
+    element: HTMLElement;
+  }>>([]);
+
+  useEffect(() => {
+    const result: Array<{
+      id: string;
+      coordinates: [number, number];
+      element: HTMLElement;
+    }> = [];
     // 1. Project pin (large, status-colored)
     const projectEl = buildProjectPinEl(project);
     projectEl.addEventListener('click', () => {
@@ -99,7 +116,15 @@ export function ProjectMapTab({
         element: el,
       });
     }
-    return result;
+    setMarkers(result);
+    // Cleanup: drop marker DOM nodes when the project or
+    // photos change so we don't leak elements into the
+    // document body. MapContainer also calls marker.remove()
+    // on its side, but the elements themselves would persist
+    // as detached DOM nodes otherwise.
+    return () => {
+      for (const m of result) m.element.remove();
+    };
   }, [project, gpsPhotos]);
 
   const markersKey = useMemo(
