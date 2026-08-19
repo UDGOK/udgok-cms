@@ -29,19 +29,29 @@ export default async function ProjectsPage({
 
   return (
     <div className="p-4 md:p-8">
-      <div className="hidden md:flex text-xs font-mono font-bold tracking-[0.2em] text-orange-d uppercase mb-5 items-center gap-3">
-        <span className="w-8 h-8 bg-orange text-white rounded-full inline-flex items-center justify-center font-black text-sm">
-          5
-        </span>
-        Projects
+      <div className="hidden md:flex items-start justify-between gap-4 mb-5">
+        <div>
+          <div className="flex text-xs font-mono font-bold tracking-[0.2em] text-orange-d uppercase items-center gap-3 mb-4">
+            <span className="w-8 h-8 bg-orange text-white rounded-full inline-flex items-center justify-center font-black text-sm">
+              {projects.length}
+            </span>
+            Projects
+          </div>
+          <h1 className="text-display-lg mb-4">
+            The <span className="font-serif italic text-orange-d">build,</span> end to end.
+          </h1>
+          <p className="text-base text-ink-70 max-w-xl">
+            Each project is a budget, a schedule, and a series of pay apps. Click a project to manage
+            its schedule of values and generate the next draw.
+          </p>
+        </div>
+        <Link
+          href={`/w/${params.workspace}/projects/new`}
+          className="shrink-0 px-4 h-10 inline-flex items-center gap-1.5 bg-orange text-paper border-2 border-orange text-[11px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d hover:border-orange-d"
+        >
+          + New project
+        </Link>
       </div>
-      <h1 className="hidden md:block text-display-lg mb-4">
-        The <span className="font-serif italic text-orange-d">build,</span> end to end.
-      </h1>
-      <p className="hidden md:block text-base text-ink-70 max-w-xl mb-7">
-        Each project is a budget, a schedule, and a series of pay apps. Click a project to manage
-        its schedule of values and generate the next draw.
-      </p>
 
       {/* Mobile header bar with title + new project button */}
       <div className="md:hidden flex items-center justify-between mb-4">
