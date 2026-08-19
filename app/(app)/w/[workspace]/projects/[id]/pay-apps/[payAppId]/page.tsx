@@ -5,6 +5,8 @@ import { listEntityActivity } from '@/lib/activity/queries';
 import { SendPayAppForm } from './SendPayAppForm';
 import { PayAppEditor, PayAppStatusActions } from './PayAppControls';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
+import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
+import { ProjectTabsBar } from '../../ProjectTabsBar';
 import Link from 'next/link';
 
 const PAY_APP_STATUS_LABELS: Record<string, string> = {
@@ -42,9 +44,25 @@ export default async function PayAppDetailPage({
   const publicUrl = `${APP_URL}/pay-apps/${payApp.shareToken}`;
 
   return (
-    <div className="p-8 max-w-5xl">
-      {/* Header */}
-      <div className="flex justify-between items-start gap-4 flex-wrap pb-7 border-b border-line bg-paper p-7 -m-7 mb-7">
+    <div className="max-w-5xl">
+      <MobilePageHeader
+        title={`Pay app #${payApp.drawNumber}`}
+        subtitle={payApp.project.name}
+        backHref={`/w/${params.workspace}/projects/${params.id}/pay-apps`}
+      />
+      <div className="px-4 md:px-8 pt-4 md:pt-8">
+        <ProjectTabsBar
+          workspaceSlug={params.workspace}
+          projectId={params.id}
+          taskCount={0}
+          payAppCount={0}
+          subAssignmentCount={0}
+          teamMemberCount={0}
+        />
+      </div>
+      <div className="p-4 md:p-8">
+        {/* Header */}
+        <div className="flex justify-between items-start gap-4 flex-wrap pb-7 border-b border-line bg-paper p-7 -m-4 md:-m-7 mb-7">
         <div>
           <div className="text-[10px] font-mono tracking-[0.12em] uppercase text-ink-50 mb-1">
             PAY APP · #{payApp.drawNumber} · {payApp.project.name}
@@ -236,6 +254,7 @@ export default async function PayAppDetailPage({
       <div className="mt-7 bg-paper border-2 border-line p-6">
         <h2 className="label-eyebrow mb-4">{'// History'}</h2>
         <ActivityFeed entries={activity} showEntityName={false} />
+      </div>
       </div>
     </div>
   );

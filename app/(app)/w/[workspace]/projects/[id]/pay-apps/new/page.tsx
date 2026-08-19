@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { NewPayAppForm } from './NewPayAppForm';
+import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
+import { ProjectTabsBar } from '../../ProjectTabsBar';
 
 export default async function NewPayAppPage({
   params,
@@ -36,16 +38,32 @@ export default async function NewPayAppPage({
   const nextDrawNumber = (lastPayApp?.drawNumber ?? 0) + 1;
 
   return (
-    <div className="p-8 max-w-5xl">
-      <div className="label-eyebrow mb-4">{'// New pay app'}</div>
-      <h1 className="text-display-lg mb-4">
-        Draw <span className="font-serif italic text-orange-d">#{nextDrawNumber}</span>
-      </h1>
-      <p className="text-base text-ink-70 mb-7">
-        For <b className="text-ink">{project.name}</b>. Enter the amount you want to bill for each
-        line this period. Previous billed + this draw + remaining = budget.
-      </p>
-      <NewPayAppForm
+    <div className="max-w-5xl">
+      <MobilePageHeader
+        title={`New pay app · #${nextDrawNumber}`}
+        subtitle={project.name}
+        backHref={`/w/${params.workspace}/projects/${params.id}/pay-apps`}
+      />
+      <div className="px-4 md:px-8 pt-4 md:pt-8">
+        <ProjectTabsBar
+          workspaceSlug={params.workspace}
+          projectId={project.id}
+          taskCount={0}
+          payAppCount={0}
+          subAssignmentCount={0}
+          teamMemberCount={0}
+        />
+      </div>
+      <div className="p-4 md:p-8">
+        <div className="label-eyebrow mb-4">{'// New pay app'}</div>
+        <h1 className="text-display-lg mb-4">
+          Draw <span className="font-serif italic text-orange-d">#{nextDrawNumber}</span>
+        </h1>
+        <p className="text-base text-ink-70 mb-7">
+          For <b className="text-ink">{project.name}</b>. Enter the amount you want to bill for each
+          line this period. Previous billed + this draw + remaining = budget.
+        </p>
+        <NewPayAppForm
         workspaceSlug={params.workspace}
         projectId={project.id}
         divisions={project.divisions.map((d) => {
@@ -69,6 +87,7 @@ export default async function NewPayAppPage({
           };
         })}
       />
+      </div>
     </div>
   );
 }

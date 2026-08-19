@@ -24,6 +24,7 @@ import { listEntityActivity } from '@/lib/activity/queries';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { countProjectPhotosByPhase, listProjectPhotos, listProjectGpsPhotos } from '@/lib/photos/queries';
 import { ProjectTabs } from './ProjectTabs';
+import { getProjectTabs } from '@/lib/projects/tabs';
 import { CompletionRing } from './CompletionRing';
 import { AIBoard } from './AIBoard';
 import { TakeoffTab } from './TakeoffTab';
@@ -284,11 +285,10 @@ export default async function ProjectDetailPage({
   // Build tabs
   const base = `/w/${params.workspace}/projects/${projectData.id}`;
   const permitSummary = summarizePermits(permits);
-  const permitsBadge = permitSummary.overdueInspections > 0
-    ? permitSummary.overdueInspections
-    : permits.length > 0
-      ? permits.length
-      : undefined;
+  // The tab badge is computed inside getProjectTabs() — this
+  // page no longer needs its own copy. The permit summary is
+  // still passed to <PermitsTab> below for the actual permits
+  // list rendering.
 
   // Deep AI analysis: now loaded CLIENT-SIDE via /api/ai/project-analysis.
   // The page no longer blocks on the NVIDIA call (which can be slow).
@@ -300,28 +300,24 @@ export default async function ProjectDetailPage({
   const deepAnalysis = null;
   const deepInsights: Awaited<ReturnType<typeof generateDeepInsights>> = [];
 
-  // Build tabs
-  const tabs = [
-    { key: 'overview', label: 'Overview', href: base },
-    {
-      key: 'ai',
-      label: 'AI board',
-      href: `${base}?tab=ai`,
-      badge: insights.filter((i) => i.level === 'danger' || i.level === 'warning').length > 0
-        ? insights.filter((i) => i.level === 'danger' || i.level === 'warning').length
-        : undefined,
-    },
-    { key: 'photos', label: 'Photos', href: `${base}/photos`, badge: photoCounts.ROUGH_IN + photoCounts.FINAL || undefined },
-    { key: 'tasks', label: 'Tasks', href: `${base}?tab=tasks`, badge: projectData.tasks.length || undefined },
-    { key: 'team', label: 'Team', href: `${base}?tab=team`, badge: projectMembers.length || undefined },
-    { key: 'schedule', label: 'Schedule', href: `${base}?tab=schedule` },
-    { key: 'permits', label: 'Permits', href: `${base}?tab=permits`, badge: permitsBadge },
-    { key: 'takeoff', label: 'Takeoff', href: `${base}?tab=takeoff`, badge: projectData.bimModels.length || undefined },
-    { key: 'inventory', label: 'Inventory', href: `${base}?tab=inventory` },
-    { key: 'map', label: 'Map', href: `${base}?tab=map`, badge: gpsPhotos.length > 0 ? gpsPhotos.length : undefined },
-    { key: 'pay-apps', label: 'Pay apps', href: `${base}/pay-apps`, badge: projectData.payApps.length || undefined },
-    { key: 'subs', label: 'Subs', href: `${base}?tab=subs`, badge: projectData.subAssignments.length || undefined },
-  ];
+  // Build tabs. We pass counts the page already has so the
+  // helper doesn't re-fetch. The helper is the single source
+  // of truth for the tab list — every project sub-route
+  // (photos, pay-apps, pay-app detail, new pay-app) renders
+  // the same 12 tabs in the same order.
+  const tabs = await getProjectTabs({
+    workspaceSlug: params.workspace,
+    projectId: projectData.id,
+    taskCount: projectData.tasks.length,
+    payAppCount: projectData.payApps.length,
+    subAssignmentCount: projectData.subAssignments.length,
+    teamMemberCount: projectMembers.length,
+    bimModelCount: projectData.bimModels.length,
+    gpsPhotoCount: gpsPhotos.length,
+    aiAlertCount: insights.filter(
+      (i) => i.level === 'danger' || i.level === 'warning',
+    ).length,
+  });
 
   return (
     <div className="p-4 md:p-8 max-w-6xl">

@@ -1,6 +1,5 @@
-import { ProjectTabs, type ProjectTab } from './ProjectTabs';
-import { listProjectPermits, summarizePermits } from '@/lib/permits/queries';
-import { countProjectPhotosByPhase } from '@/lib/photos/queries';
+import { ProjectTabs } from './ProjectTabs';
+import { getProjectTabs } from '@/lib/projects/tabs';
 
 interface ProjectTabsBarProps {
   workspaceSlug: string;
@@ -9,45 +8,26 @@ interface ProjectTabsBarProps {
   payAppCount: number;
   subAssignmentCount: number;
   teamMemberCount: number;
+  /** Optional counts the main project page already has. The
+   *  bar re-uses them to avoid an extra round trip; routes
+   *  that don't have them can pass nothing and the helper
+   *  will fetch what's missing. */
+  bimModelCount?: number;
+  gpsPhotoCount?: number;
+  /** AI board badge — count of warning/danger-level insights. */
+  aiAlertCount?: number;
 }
 
 /**
- * Server component that fetches live counts and renders the project
- * tab bar. Used by all dedicated routes (photos, pay-apps, pay-apps/[id])
- * so users can navigate freely between tabs and dedicated pages.
+ * Server component that renders the project tab bar. Used by
+ * every project sub-route (photos, pay-apps list, pay-app detail,
+ * new pay-app form) so the navigation is identical everywhere.
+ *
+ * All badge data flows through `getProjectTabs` in
+ * lib/projects/tabs.ts — see the comment block there for why
+ * keeping the tab config in one place matters.
  */
-export async function ProjectTabsBar({
-  workspaceSlug,
-  projectId,
-  taskCount,
-  payAppCount,
-  subAssignmentCount,
-  teamMemberCount,
-}: ProjectTabsBarProps) {
-  const [permits, photoCounts] = await Promise.all([
-    listProjectPermits(projectId),
-    countProjectPhotosByPhase(projectId),
-  ]);
-  const permitSummary = summarizePermits(permits);
-  const permitsBadge = permitSummary.overdueInspections > 0
-    ? permitSummary.overdueInspections
-    : permits.length > 0
-      ? permits.length
-      : undefined;
-
-  const totalPhotos = photoCounts.ROUGH_IN + photoCounts.FINAL;
-  const base = `/w/${workspaceSlug}/projects/${projectId}`;
-
-  const tabs: ProjectTab[] = [
-    { key: 'overview', label: 'Overview', href: base },
-    { key: 'photos', label: 'Photos', href: `${base}/photos`, badge: totalPhotos > 0 ? totalPhotos : undefined },
-    { key: 'tasks', label: 'Tasks', href: `${base}?tab=tasks`, badge: taskCount > 0 ? taskCount : undefined },
-    { key: 'team', label: 'Team', href: `${base}?tab=team`, badge: teamMemberCount > 0 ? teamMemberCount : undefined },
-    { key: 'schedule', label: 'Schedule', href: `${base}?tab=schedule` },
-    { key: 'permits', label: 'Permits', href: `${base}?tab=permits`, badge: permitsBadge },
-    { key: 'pay-apps', label: 'Pay apps', href: `${base}/pay-apps`, badge: payAppCount > 0 ? payAppCount : undefined },
-    { key: 'subs', label: 'Subs', href: `${base}?tab=subs`, badge: subAssignmentCount > 0 ? subAssignmentCount : undefined },
-  ];
-
+export async function ProjectTabsBar(props: ProjectTabsBarProps) {
+  const tabs = await getProjectTabs(props);
   return <ProjectTabs tabs={tabs} />;
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface ProjectTab {
   key: string;
@@ -23,82 +23,158 @@ export interface ProjectTab {
  *     first (soft orange tint) and scan the row left to right
  *     without competing noise.
  *
- *   - Mixed case ("Photos", not "PHOTOS"). The all-caps-with-
- *     letter-spacing treatment reads like a control panel and
- *     makes 11 tabs feel like 11 alarms. Title case reads like
- *     a navigation menu.
+ *   - Mixed case ("Photos", not "PHOTOS"). Title case reads
+ *     like a navigation menu, not a control panel.
  *
  *   - Active state is a soft tinted background, not an
- *     underline. Underlines draw a line through the whole nav
- *     and break the reading rhythm. A pill-shaped active state
- *     sits in its own bubble and doesn't bleed.
+ *     underline. A pill-shaped active state sits in its own
+ *     bubble and doesn't bleed across the nav.
  *
- *   - Badges are tiny pill numbers, not chunky orange blocks.
- *     Big blocks of solid color compete with the active state
- *     ("is this tab active or just heavily badged?"). The
- *     numeric form keeps the count readable.
+ *   - Badges are tiny pill numbers, not chunky blocks. Big
+ *     blocks of solid color compete with the active state.
  *
  *   - Icons are 14px stroke SVGs at currentColor, so they
  *     inherit the tab's text color. Active = orange icon,
  *     inactive = stone icon. No "two systems of color".
  *
- *   - Mobile: horizontal scroll with scroll-snap so fingers
- *     land on a tab, not between two. The scrollbar is
- *     hidden so the nav doesn't look like an overflow bug.
+ *   - On narrow viewports the row is horizontally scrollable
+ *     with scroll-snap. Two fades (left + right) hint that
+ *     there's more beyond the visible area. The fade on the
+ *     active side is suppressed so the active pill isn't
+ *     visually clipped. scrollbar is hidden so the nav
+ *     doesn't look like an overflow bug.
+ *
+ *   - After navigation we scroll the active tab into view
+ *     (with a small inline padding) so the user can always
+ *     see which tab they're on after a deep-link lands on
+ *     a tab that's off-screen on mobile.
  */
 export function ProjectTabs({ tabs }: { tabs: ProjectTab[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const scrollerRef = useRef<HTMLElement | null>(null);
+  const activeRef = useRef<HTMLLIElement | null>(null);
+  // hasOverflow tracks whether the tab row is wider than the
+  // visible area. We use it to render the edge-fade gradients
+  // only when needed — they add visual noise on desktop where
+  // everything already fits.
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [scrolledToEnd, setScrolledToEnd] = useState({ left: false, right: false });
+
+  // Detect overflow + scroll position so the edge fades
+  // match reality. Cheap (one reflow per scroll).
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => {
+      setHasOverflow(el.scrollWidth > el.clientWidth + 1);
+      setScrolledToEnd({
+        left: el.scrollLeft <= 1,
+        right: el.scrollLeft + el.clientWidth >= el.scrollWidth - 1,
+      });
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [tabs.length]);
+
+  // After mount + on tab change, scroll the active tab into
+  // view. The `inline: 'center'` is the perfectionist detail:
+  // it lands the active pill in the middle of the viewport
+  // on mobile so the user can see both the tab they came
+  // from AND the next tab (orientation cue).
+  useEffect(() => {
+    const el = activeRef.current;
+    const scroller = scrollerRef.current;
+    if (!el || !scroller) return;
+    const elRect = el.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    // Only scroll if the active tab is off-screen
+    if (elRect.left < scrollerRect.left || elRect.right > scrollerRect.right) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [pathname, searchParams]);
+
   return (
-    <nav
-      aria-label="Project sections"
-      className="mt-4 -mx-1 px-1 border-b border-line/60 overflow-x-auto overflow-y-hidden scrollbar-hide"
-      style={{ scrollSnapType: 'x mandatory' }}
-    >
-      <ul className="flex items-center gap-0.5 min-w-max">
-        {tabs.map((t) => {
-          const [tabPath, tabSearch = ''] = t.href.split('?');
-          const isActive =
-            !t.external &&
-            pathname === tabPath &&
-            paramsMatch(searchParams, tabSearch);
-          const icon = TAB_ICONS[t.key];
-          const baseClass =
-            'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] whitespace-nowrap transition-colors scroll-snap-start';
-          const stateClass = isActive
-            ? 'bg-orange/12 text-orange-d font-semibold [&_svg]:text-orange shadow-[inset_0_0_0_1px_rgba(255,90,31,0.18)]'
-            : 'text-ink-50 hover:text-ink hover:bg-paper-2 font-medium';
-          const Tag = t.external ? 'a' : Link;
-          const extraProps = t.external
-            ? { target: '_blank', rel: 'noopener' }
-            : {};
-          return (
-            <li key={t.key}>
-              <Tag
-                href={t.href}
-                className={`${baseClass} ${stateClass}`}
-                aria-current={isActive ? 'page' : undefined}
-                {...extraProps}
+    <div className="relative mt-4">
+      {/* Left fade — only when there's overflow AND we haven't
+          scrolled all the way to the start. */}
+      {hasOverflow && !scrolledToEnd.left ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 z-10 bg-gradient-to-r from-paper to-transparent"
+        />
+      ) : null}
+      {/* Right fade — only when there's overflow AND we haven't
+          scrolled to the end. */}
+      {hasOverflow && !scrolledToEnd.right ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 z-10 bg-gradient-to-l from-paper to-transparent"
+        />
+      ) : null}
+      <nav
+        ref={scrollerRef}
+        aria-label="Project sections"
+        className="-mx-1 px-1 border-b border-line/60 overflow-x-auto overflow-y-hidden scrollbar-hide"
+        style={{ scrollSnapType: 'x mandatory' }}
+      >
+        <ul className="flex items-stretch gap-0.5 min-w-max">
+          {tabs.map((t) => {
+            const [tabPath, tabSearch = ''] = t.href.split('?');
+            const isActive =
+              !t.external &&
+              pathname === tabPath &&
+              paramsMatch(searchParams, tabSearch);
+            const icon = TAB_ICONS[t.key];
+            // Slightly larger touch target on mobile (py-2 = 32px
+            // tap area) vs desktop (py-1.5 = 28px). The active
+            // state is a pill of orange/12 over the same shape.
+            const baseClass =
+              'inline-flex items-center gap-1.5 px-2.5 py-2 md:py-1.5 rounded-md text-[13px] whitespace-nowrap transition-colors scroll-snap-start min-h-[36px] md:min-h-[32px]';
+            const stateClass = isActive
+              ? 'bg-orange/12 text-orange-d font-semibold [&_svg]:text-orange shadow-[inset_0_0_0_1px_rgba(255,90,31,0.18)]'
+              : 'text-ink-50 hover:text-ink hover:bg-paper-2 font-medium';
+            const Tag = t.external ? 'a' : Link;
+            const extraProps = t.external
+              ? { target: '_blank', rel: 'noopener' }
+              : {};
+            return (
+              <li
+                key={t.key}
+                ref={isActive ? activeRef : null}
               >
-                {icon ? <span className="inline-flex shrink-0">{icon}</span> : null}
-                <span>{t.label}</span>
-                {t.badge !== undefined ? (
-                  <span
-                    className={`text-[10px] font-mono leading-none px-1.5 min-w-[20px] h-[18px] inline-flex items-center justify-center rounded-full ${
-                      isActive
-                        ? 'bg-orange/20 text-orange-d'
-                        : 'bg-paper-2 text-ink-50'
-                    }`}
-                  >
-                    {t.badge}
-                  </span>
-                ) : null}
-              </Tag>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+                <Tag
+                  href={t.href}
+                  className={`${baseClass} ${stateClass}`}
+                  aria-current={isActive ? 'page' : undefined}
+                  {...extraProps}
+                >
+                  {icon ? <span className="inline-flex shrink-0">{icon}</span> : null}
+                  <span>{t.label}</span>
+                  {t.badge !== undefined ? (
+                    <span
+                      className={`text-[10px] font-mono leading-none px-1.5 min-w-[20px] h-[18px] inline-flex items-center justify-center rounded-full ${
+                        isActive
+                          ? 'bg-orange/20 text-orange-d'
+                          : 'bg-paper-2 text-ink-50'
+                      }`}
+                    >
+                      {t.badge}
+                    </span>
+                  ) : null}
+                </Tag>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </div>
   );
 }
 
