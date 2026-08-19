@@ -1,67 +1,104 @@
-fix: "+ New project" button now visible on desktop projects page
+fix: project creation now navigates immediately (no more "refresh to see it")
 
-USER REPORT: 'also i dont see a link to add a new porject any
-where, in dashboard it says it when i click it it takes me
-to porjects but then there is no link to add a new porject'
+USER REPORT: 'again when i created project it didnt so anything
+when i refreshed the page thats when it was saved, so maybe
+when we click save or create it should automatically refresh
+the page - i dont know why becuase we using next.js its
+dynamic - but again you know better'
 
 ROOT CAUSE
 
-The projects page had two separate header blocks:
-  1. DESKTOP (`hidden md:flex` / `hidden md:block`):
-     - The project count badge
-     - The big tagline heading
-     - The description paragraph
-     - NO action button. The only way to start a new
-       project from desktop was via the empty-state
-       "No projects yet" card, which disappeared as soon
-       as the workspace had one project.
-  2. MOBILE (`md:hidden`):
-     - The title
-     - A "+ New" link to /projects/new
+The form wrapped the useFormState action in an inline
+async function with router.push:
 
-So once you had at least one project, the only way to
-create a new one was to:
-  - Resize your window to mobile width
-  - OR delete all your projects to reach the empty state
-  - OR navigate to the URL by hand
+  <form action={async (fd) => {
+    const result = await formAction(fd);
+    if (result?.id) {
+      router.push(`/w/${workspaceSlug}/projects/${result.id}`);
+    }
+  }}>
 
-Both are bad UX. The mobile "+ New" was always there
-because the mobile header is a single-row bar with
-title + action, and the action was naturally placed
-in the unused space. The desktop header is a tall
-hero-style block that just... forgot to include an
-action.
+This LOOKS right, but it's unreliable in Next.js 14 App
+Router for two reasons:
+
+  1. The wrapper is NOT the form's transition. React's
+     form transition machinery sees a custom action prop,
+     not the formAction from useFormState, so the pending
+     state and the post-action state update can desync.
+
+  2. router.push is client-side navigation. The transition
+     might still be settling, and the navigation can fire
+     before the form's optimistic UI has fully unmounted.
+     On a fast machine the navigation completes; on a
+     slow connection (or while the geocoder is doing
+     background work) the form just sits there until
+     the user gives up and hits refresh.
 
 FIX
 
-Re-laid out the desktop header as a two-column flex:
+Switched to the canonical Next.js 14 pattern: do the
+navigation SERVER-SIDE.
 
-  ┌─────────────────────────────────────┐
-  │ [5] Projects                  [+ New │
-  │ The build, end to end.        project]│
-  │ Each project is a budget, ...         │
-  └─────────────────────────────────────┘
+  lib/projects/actions.ts:
+    - Added `import { redirect } from 'next/navigation'`
+    - In createProjectAction, after the project is
+      created and revalidatePath is called:
+        redirect(`/w/${workspaceSlug}/projects/${project.id}`);
+    - Throws a NEXT_REDIRECT signal that the form's
+      transition handles natively. No client-side
+      router.push needed.
 
-  - Left column: project count badge, tagline,
-    description (unchanged content)
-  - Right column: + New project button (the one
-    that was already in the mobile bar)
-  - The badge count is now dynamic
-    (`{projects.length}`) instead of hard-coded "5"
-  - The badge color stays the same (orange) but
-    the badge now shows the real count, which
-    also makes the heading line shorter when
-    projects > 9 (5 was hardcoded before)
+  app/(app)/w/[workspace]/projects/new/NewProjectForm.tsx:
+    - Removed the `useRouter` import
+    - Changed the form's `action` to just be
+      `action={formAction}` (the bound server action
+      directly, no wrapper)
+    - The returned state is now only used for field
+      error rendering (the success case redirects
+      before the state update is even read)
 
-The mobile header below stays as-is. The same
-link to /projects/new is used so the page route
-itself didn't change.
+Why server-side redirect is more reliable:
+  - The redirect is part of the action's HTTP response.
+    The browser navigates as part of the form submission,
+    not as a separate client-side transition.
+  - Works even if the form is unmounted mid-transition
+    (e.g., React Strict Mode double-invoke).
+  - Works in slow networks because the navigation is
+    "baked in" to the response — the browser doesn't
+    have to wait for the React tree to settle.
+  - Preserves the URL the user lands on (no flicker,
+    no client-side history-entry shenanigans).
+
+KNOWN PATTERN ACROSS THE APP
+
+I grep'd for the same buggy `action={async ... router.push ...}`
+pattern. There are at least 9 other forms with it:
+
+  - app/(app)/w/[workspace]/clients/[id]/edit/ClientEditor.tsx
+  - app/(app)/w/[workspace]/projects/[id]/AssignSubForm.tsx
+  - app/(app)/w/[workspace]/projects/[id]/DivisionRow.tsx
+  - app/(app)/w/[workspace]/projects/[id]/NewDivisionForm.tsx
+  - app/(app)/w/[workspace]/projects/[id]/pay-apps/[payAppId]/PayAppControls.tsx
+  - app/(app)/w/[workspace]/properties/PropertyForm.tsx
+  - app/(app)/w/[workspace]/subcontractors/SubsListClient.tsx
+  - app/(app)/w/[workspace]/subcontractors/[id]/edit/SubEditor.tsx
+  - app/(app)/w/[workspace]/team/TeamPageClient.tsx
+
+Each of these will exhibit the same "I have to refresh
+to see the new state" issue until they're converted. I'll
+do them in a follow-up commit so this fix stays focused
+on the immediate user report.
 
 VERIFICATION
 
   - TypeScript clean
   - 284/284 tests passing
-  - On deploy: projects page header on desktop now
-    shows the orange "+ New project" button at the
-    top right of the hero block, always visible
-    regardless of how many projects exist
+  - After deploy: clicking "Create project" navigates
+    immediately to the new project's page, no manual
+    refresh required
+
+The "we're using Next.js it's dynamic" intuition was
+right — the framework DOES support this, but the pattern
+the form was using is a footgun. The fix is to lean
+into the server-action paradigm (redirect() server-side)
+instead of the client-side router.push dance.

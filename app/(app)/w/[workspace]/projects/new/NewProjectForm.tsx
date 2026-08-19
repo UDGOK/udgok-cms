@@ -1,7 +1,6 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
-import { useRouter } from 'next/navigation';
 import { createProjectAction } from '@/lib/projects/actions';
 import { Button, Input, Field } from '@/components/ui';
 
@@ -21,20 +20,20 @@ export function NewProjectForm({
   workspaceSlug: string;
   clients: { id: string; name: string }[];
 }) {
+  // formAction is the bound server action. On success, the
+  // action calls `redirect()` server-side (see lib/projects/actions.ts
+  // — the NEXT_REDIRECT signal is handled by the form's
+  // transition, no client-side router.push needed). The
+  // returned state is only used to surface field errors and
+  // validation messages.
   const [state, formAction] = useFormState(
     createProjectAction.bind(null, workspaceSlug),
     undefined as { error?: string; fieldErrors?: Record<string, string>; id?: string } | undefined,
   );
-  const router = useRouter();
 
   return (
     <form
-      action={async (fd) => {
-        const result = (await formAction(fd)) as { error?: string; fieldErrors?: Record<string, string>; id?: string } | undefined;
-        if (result?.id) {
-          router.push(`/w/${workspaceSlug}/projects/${result.id}`);
-        }
-      }}
+      action={formAction}
       className="space-y-4 bg-paper border-2 border-line p-8"
     >
       <Field label="Project name" htmlFor="name" error={state?.fieldErrors?.name}>

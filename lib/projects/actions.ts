@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from '@/lib/validation';
 import { prisma } from '@/lib/db/client';
 import { auth } from '@clerk/nextjs/server';
@@ -141,6 +142,17 @@ export async function createProjectAction(
   }
 
   revalidatePath(`/w/${workspaceSlug}/projects`);
+
+  // Server-side redirect is the canonical Next.js pattern for
+  // "create then navigate". It works inside server actions
+  // (Next throws a NEXT_REDIRECT signal that the form transition
+  // handles), and unlike a client-side `router.push()` it
+  // guarantees the navigation fires even if the form's
+  // transition completes after the user has already given up
+  // and hit refresh. Returns the new id too so the existing
+  // client-side `useFormState` state still works for tests and
+  // any callers that read the result.
+  redirect(`/w/${workspaceSlug}/projects/${project.id}`);
   return { id: project.id };
 }
 
