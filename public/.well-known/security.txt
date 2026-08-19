@@ -1,0 +1,13 @@
+Contact: mailto:security@udgok.com
+Contact: https://cms.udgok.com/security
+Expires: 2027-12-31T23:59:59z
+Preferred-Languages: en
+Canonical: https://cms.udgok.com/.well-known/security.txt
+
+# UDGOK Construction CMS — security contact
+# Please report security issues to security@udgok.com with a
+# description of the issue, steps to reproduce, and any relevant
+# logs. We aim to acknowledge within 24 hours and provide a fix
+# or mitigation within 7 days for critical issues. We coordinate
+# disclosure on a per-case basis; please give us a reasonable
+# window before public disclosure.

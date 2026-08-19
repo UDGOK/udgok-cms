@@ -9,6 +9,11 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/tabs-debug',
+  // SEO / RFC 8615 / well-known files (served by app/robots.ts,
+  // app/sitemap.ts, public/.well-known/security.txt)
+  '/robots.txt',
+  '/sitemap.xml',
+  '/.well-known/(.*)',
   // Marketing site (customer-facing, public)
   '/',
   '/about',
@@ -80,12 +85,12 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files. We exclude .json so
-    // manifest.json and other JSON static files pass through without
-    // triggering the auth redirect. The previous regex `js(?!on)` left
-    // .json files in the matcher, which is why manifest.json was 307ing
-    // to the sign-in page.
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|json|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Skip Next.js internals and all static files. We exclude .json
+    // and .txt so manifest.json, robots.txt, sitemap.xml, and
+    // security.txt pass through without triggering the auth redirect.
+    // The previous regex `js(?!on)` left .json files in the matcher,
+    // which is why manifest.json was 307ing to the sign-in page.
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|json|txt|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     // Always run for API routes
     '/(api|trpc)(.*)',
   ],

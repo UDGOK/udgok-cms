@@ -1289,7 +1289,16 @@ function PayAppsTab({
   workspace: string;
   project: ProjectData;
 }) {
-  const contractTotal = project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
+  // The 3D chart's "Contract" total needs to match the project
+  // header's "$X contract" exactly. Both should show the
+  // contractValue (the user-entered contract amount) when set,
+  // not the sum of division budgets — because division budgets
+  // can be a subset of the contract (contingency, allowances,
+  // unallocated portions). If contractValue isn't set, fall
+  // back to the sum of division budgets.
+  const contractTotal =
+    project.contractValue != null ? Number(project.contractValue) :
+    project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
   const payAppFlowItems = project.payApps
     .map((p) => ({
       id: p.id,

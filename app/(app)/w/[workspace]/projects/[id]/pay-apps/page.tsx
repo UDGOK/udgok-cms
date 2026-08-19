@@ -34,7 +34,7 @@ export default async function ProjectPayAppsPage({
         orderBy: { drawNumber: 'desc' },
         include: { divisions: true },
       },
-      divisions: { select: { id: true } },
+      divisions: { select: { id: true, budget: true } },
       _count: {
         select: { tasks: true, subAssignments: true },
       },
@@ -46,12 +46,17 @@ export default async function ProjectPayAppsPage({
     where: { projectId: params.id },
   });
 
-  // Contract total = sum of all division budgets
-  const divisions = await prisma.projectDivision.findMany({
-    where: { projectId: project.id },
-    select: { budget: true },
-  });
-  const contractTotal = divisions.reduce((acc, d) => acc + Number(d.budget), 0);
+  // Contract total = the project-level contractValue when set,
+  // else the sum of division budgets. We use contractValue
+  // (the user-entered amount) when available so the 3D chart's
+  // "Contract" matches the project header's $X contract exactly.
+  // Without this, contracts with unallocated portions (e.g.
+  // contingency, allowances) would show a smaller contract
+  // total in the 3D than in the page header.
+  const contractTotal =
+    project.contractValue != null
+      ? Number(project.contractValue)
+      : project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
   const payAppFlowItems = project.payApps.map((p) => ({
     id: p.id,
     number: p.drawNumber,
