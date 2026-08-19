@@ -659,9 +659,14 @@ function Lightbox({
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/95 flex items-center justify-center p-4 md:p-8" onClick={onClose}>
-      <div className="bg-paper max-w-5xl w-full max-h-[92vh] overflow-y-auto border-2 border-ink shadow-[8px_8px_0_rgba(255,90,31,0.3)]" onClick={(e) => e.stopPropagation()}>
-        {/* Top bar: close + counter + actions */}
-        <div className="flex items-center justify-between gap-2 p-3 border-b-2 border-ink bg-cream-2">
+      <div
+        className="bg-paper max-w-5xl w-full max-h-[92vh] flex flex-col border-2 border-ink shadow-[8px_8px_0_rgba(255,90,31,0.3)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top bar: close + counter + actions — sticky so the
+            Edit button is always reachable even when the
+            content below is scrolled. */}
+        <div className="flex items-center justify-between gap-2 p-3 border-b-2 border-ink bg-cream-2 sticky top-0 z-10">
           <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50">
             {currentIndex + 1} / {totalCount}
           </div>
@@ -686,37 +691,50 @@ function Lightbox({
           </div>
         </div>
 
-        {/* Two-column layout: photo on left, details on right */}
-        <div className={`grid ${editing ? 'md:grid-cols-[1fr_1fr]' : 'grid-cols-1'} max-h-[80vh]`}>
-          {/* Photo */}
-          <div className="bg-cream-2 flex items-center justify-center p-4 min-h-[300px]">
-            <img
-              src={photo.url}
-              alt={photo.caption || photo.filename}
-              className="max-w-full max-h-[70vh] object-contain"
-            />
-          </div>
-
-          {/* Details / Editor */}
-          <div className="p-5 overflow-y-auto">
-            {editing ? (
-              <PhotoEditForm
-                photo={photo}
-                workspaceSlug={workspaceSlug}
-                folders={folders}
-                onClose={() => setEditing(false)}
-                onApplied={(patch) => onApplyEdit(photo.id, patch)}
-                onDeleted={onDelete}
+        {/* Scrollable content area. flex-1 + min-h-0 is the
+            critical combo — without min-h-0 the inner details
+            panel grows to its content size and the layout
+            overlaps (caption sitting on top of the bottom bar).
+            min-h-0 lets the flex child shrink so the scroll
+            actually triggers. */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div
+            className={`grid ${
+              editing ? 'md:grid-cols-[1fr_1fr]' : 'grid-cols-1'
+            }`}
+          >
+            {/* Photo */}
+            <div className="bg-cream-2 flex items-center justify-center p-4 min-h-[300px]">
+              <img
+                src={photo.url}
+                alt={photo.caption || photo.filename}
+                className="max-w-full max-h-[70vh] object-contain"
               />
-            ) : (
-              <PhotoDetailsView photo={photo} />
-            )}
+            </div>
+
+            {/* Details / Editor */}
+            <div className="p-5">
+              {editing ? (
+                <PhotoEditForm
+                  photo={photo}
+                  workspaceSlug={workspaceSlug}
+                  folders={folders}
+                  onClose={() => setEditing(false)}
+                  onApplied={(patch) => onApplyEdit(photo.id, patch)}
+                  onDeleted={onDelete}
+                />
+              ) : (
+                <PhotoDetailsView photo={photo} />
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Bottom bar: prev / next / delete */}
+        {/* Bottom bar: prev / next / delete — sticky so the
+            Delete button stays reachable. flex-shrink-0 prevents
+            it from being squeezed if the content above is tall. */}
         {totalCount > 1 ? (
-          <div className="flex items-center justify-between p-3 border-t-2 border-ink bg-cream-2">
+          <div className="flex items-center justify-between gap-2 p-3 border-t-2 border-ink bg-cream-2 sticky bottom-0 z-10 flex-shrink-0">
             <button
               type="button"
               onClick={onPrev}
@@ -742,7 +760,7 @@ function Lightbox({
             </button>
           </div>
         ) : canEdit ? (
-          <div className="flex items-center justify-end p-3 border-t-2 border-ink bg-cream-2">
+          <div className="flex items-center justify-end p-3 border-t-2 border-ink bg-cream-2 sticky bottom-0 z-10 flex-shrink-0">
             <button
               type="button"
               onClick={onDelete}
