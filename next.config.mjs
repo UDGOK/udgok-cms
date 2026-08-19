@@ -96,9 +96,9 @@ const nextConfig = {
     //   - Clerk (auth)
     //   - OpenStreetMap tiles (map feature)
     //   - Nominatim (geocoding API)
-    //   - The AI service (NVIDIA NIM — currently we call it
-    //     server-side only, but we list it for forward-compat
-    //     if we ever proxy through)
+    //   - The AI service (OpenRouter — server-side only, no
+    //     CSP entry needed; the key is in env, never exposed
+    //     to the browser)
     //   - data: / blob: images (PWA offline, camera capture)
     //
     // 'unsafe-inline' is allowed in script-src because Next.js
@@ -116,12 +116,17 @@ const nextConfig = {
       "style-src 'self' 'unsafe-inline' https://clerk.udgok.com",
       // Images: self, blob: (camera capture / image resizing),
       // data: (small inline icons / QR codes), and the Clerk CDN
-      // (user avatars), plus OSM tile servers for the map.
-      "img-src 'self' data: blob: https://clerk.udgok.com https://img.clerk.com https://*.tile.openstreetmap.org",
+      // (user avatars), OSM tile servers for the map, and Vercel
+      // Blob storage for project photos / file uploads. Note
+      // Vercel Blob URLs are subdomains of public.blob.vercel-
+      // storage.com (e.g. 15c4iwiin1qbgxzg.public.blob.vercel-
+      // storage.com) — the wildcard must be on the subdomain
+      // part, not the host.
+      "img-src 'self' data: blob: https://clerk.udgok.com https://img.clerk.com https://*.tile.openstreetmap.org https://*.public.blob.vercel-storage.com https://public.blob.vercel-storage.com ",
       "font-src 'self' data:",
       // Connections: our own server, Clerk, the OSM geocoder +
       // tile servers, and Vercel Blob. Add Nominatim too.
-      "connect-src 'self' https://clerk.udgok.com https://*.tile.openstreetmap.org https://nominatim.openstreetmap.org https://api.weather.gov https://*.public.blob.vercel-storage.com https://api.resend.com",
+      "connect-src 'self' https://clerk.udgok.com https://*.tile.openstreetmap.org https://*.public.blob.vercel-storage.com https://public.blob.vercel-storage.com https://nominatim.openstreetmap.org https://api.weather.gov https://*.public.blob.vercel-storage.com https://api.resend.com",
       // We don't render PDF inline, we don't use <object>, and
       // we don't host user-uploaded HTML. Lock these down.
       "object-src 'none'",
