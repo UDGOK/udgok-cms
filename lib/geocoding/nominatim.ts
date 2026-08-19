@@ -40,6 +40,8 @@ const USER_AGENT =
   'udgok-cms/0.1.0 (https://cms.udgok.com; support@udgok.com)';
 
 const REQUEST_TIMEOUT_MS = 4500;
+const MAX_RETRIES = 2; // initial + 2 retries
+const RETRY_BACKOFF_MS = [800, 1600]; // exponential, 2 attempts
 
 interface NominatimResult {
   lat: string;
@@ -73,55 +75,71 @@ export async function nominatimGeocode(
 
   const url = `${BASE_URL}/search?${params.toString()}`;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        // OSM requires a real User-Agent. Many corporate proxies strip
-        // these; we also send a Referer as a fallback identifier.
-        'User-Agent': USER_AGENT,
-        Referer: 'https://cms.udgok.com',
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      // 429 = rate limited. We log nothing for these — the backfill
-      // script handles its own pacing. The caller treats null as
-      // "couldn't geocode, try again".
-      return null;
-    }
-    const data = (await res.json()) as NominatimResult[] | { error: string };
-    if (!Array.isArray(data) || data.length === 0) return null;
-    const top = data[0];
-    const lat = Number(top.lat);
-    const lon = Number(top.lon);
-    if (!isFinite(lat) || !isFinite(lon)) return null;
-    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
-
-    const result: GeocodeResult = {
-      latitude: lat,
-      longitude: lon,
-      formattedAddress: top.display_name,
-      source: 'nominatim',
-      category: top.category,
-      type: top.type,
-    };
-    if (top.boundingbox) {
-      const [south, north, west, east] = top.boundingbox.map(Number);
-      if (isFinite(south) && isFinite(north) && isFinite(west) && isFinite(east)) {
-        result.bbox = [south, north, west, east];
+  // Retry loop for transient failures (network blip, 5xx, 429 rate limit).
+  // Backs off exponentially: 800ms then 1600ms. Bounded to 3 total
+  // attempts (1 + 2 retries) so the form-driven geocoder doesn't
+  // block the user for more than ~4s worst case.
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          // OSM requires a real User-Agent. Many corporate proxies strip
+          // these; we also send a Referer as a fallback identifier.
+          'User-Agent': USER_AGENT,
+          Referer: 'https://cms.udgok.com',
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        // 429 = rate limited. 5xx = upstream error. Both are transient.
+        // 4xx (other than 429) = bad request, don't retry.
+        const retryable = res.status === 429 || res.status >= 500;
+        if (retryable && attempt < MAX_RETRIES) {
+          await sleep(RETRY_BACKOFF_MS[attempt]);
+          continue;
+        }
+        return null;
       }
+      const data = (await res.json()) as NominatimResult[] | { error: string };
+      if (!Array.isArray(data) || data.length === 0) return null;
+      const top = data[0];
+      const lat = Number(top.lat);
+      const lon = Number(top.lon);
+      if (!isFinite(lat) || !isFinite(lon)) return null;
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+
+      const result: GeocodeResult = {
+        latitude: lat,
+        longitude: lon,
+        formattedAddress: top.display_name,
+        source: 'nominatim',
+        category: top.category,
+        type: top.type,
+      };
+      if (top.boundingbox) {
+        const [south, north, west, east] = top.boundingbox.map(Number);
+        if (isFinite(south) && isFinite(north) && isFinite(west) && isFinite(east)) {
+          result.bbox = [south, north, west, east];
+        }
+      }
+      return result;
+    } catch {
+      // Timeout, network error, malformed JSON — all treated as null,
+      // unless we have retries left for a transient.
+      if (attempt < MAX_RETRIES) {
+        await sleep(RETRY_BACKOFF_MS[attempt]);
+        continue;
+      }
+      return null;
+    } finally {
+      clearTimeout(timer);
     }
-    return result;
-  } catch {
-    // Timeout, network error, malformed JSON — all treated as null.
-    return null;
-  } finally {
-    clearTimeout(timer);
   }
+  return null;
 }
 
 /**

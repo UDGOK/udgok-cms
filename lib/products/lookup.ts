@@ -108,33 +108,57 @@ async function lookupLocal(workspaceId: string, code: string): Promise<ProductIn
  *     }]
  *   }
  */
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function lookupUPCitemdb(code: string): Promise<ProductInfo | null> {
   const url = `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(code)}`;
-  let resp: Response;
-  try {
-    resp = await fetch(url, {
-      // 4.5s timeout — UPCitemdb's trial is usually <2s but we
-      // don't want a slow API call to block the scan UX forever.
-      signal: AbortSignal.timeout(4500),
-    });
-  } catch (err) {
-    // Network error / timeout / DNS — treat as not-found rather
-    // than crashing the scan flow.
-    console.warn('[product-lookup] UPCitemdb network error:', err instanceof Error ? err.message : err);
-    return null;
+  // Retry transient failures (429/5xx/timeout) up to 2 times with
+  // exponential backoff. Capped at 3 total attempts so the scan
+  // UX doesn't hang longer than ~6s worst case.
+  const BACKOFFS = [600, 1200];
+  for (let attempt = 0; attempt <= BACKOFFS.length; attempt++) {
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        // 4.5s timeout — UPCitemdb's trial is usually <2s but we
+        // don't want a slow API call to block the scan UX forever.
+        signal: AbortSignal.timeout(4500),
+      });
+    } catch (err) {
+      // Network error / timeout / DNS. Retry if we have attempts left.
+      console.warn('[product-lookup] UPCitemdb network error:', err instanceof Error ? err.message : err);
+      if (attempt < BACKOFFS.length) {
+        await sleep(BACKOFFS[attempt]);
+        continue;
+      }
+      return null;
+    }
+    if (!resp.ok) {
+      const retryable = resp.status === 429 || resp.status >= 500;
+      if (retryable && attempt < BACKOFFS.length) {
+        console.warn(`[product-lookup] UPCitemdb ${resp.status}, retrying in ${BACKOFFS[attempt]}ms`);
+        await sleep(BACKOFFS[attempt]);
+        continue;
+      }
+      // 404 = code not in their DB, 4xx (other) = bad request. Not retryable.
+      console.warn(`[product-lookup] UPCitemdb returned ${resp.status}`);
+      return null;
+    }
+    let data: UPCitemdbResponse;
+    try {
+      data = await resp.json();
+    } catch {
+      return null;
+    }
+    return parseUPCitemdbResponse(code, data);
   }
-  if (!resp.ok) {
-    // 429 = rate limited, 404 = code not in their DB, 5xx = their
-    // outage. All of these = "not found" from our perspective.
-    console.warn(`[product-lookup] UPCitemdb returned ${resp.status}`);
-    return null;
-  }
-  let data: UPCitemdbResponse;
-  try {
-    data = await resp.json();
-  } catch {
-    return null;
-  }
+  return null;
+}
+
+function parseUPCitemdbResponse(code: string, data: UPCitemdbResponse): ProductInfo | null {
+  if (!data) return null;
   if (!data.items || data.items.length === 0) return null;
   const it = data.items[0];
   if (!it.title) return null;
