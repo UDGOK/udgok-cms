@@ -342,7 +342,7 @@ export function AIBoard({
                 action: ins.action,
               }}
               style={style}
-              source="deepseek"
+              source="openrouter"
             />
           );
         })}
@@ -376,9 +376,9 @@ function InsightRow({
               <span className="text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50">
                 {CATEGORY_ICON[ins.category as keyof typeof CATEGORY_ICON] ?? '◉'} {ins.category}
               </span>
-              {source === 'deepseek' ? (
+              {source === 'openrouter' ? (
                 <span className="text-[9px] font-mono uppercase tracking-[0.1em] text-orange-d">
-                  · DeepSeek
+                  · OpenRouter
                 </span>
               ) : null}
             </div>
