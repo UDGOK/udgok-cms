@@ -28,6 +28,19 @@ export function CodePicker({
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const suggestionRef = useRef<HTMLButtonElement | null>(null);
+
+  // Smart suggestions: based on the trade text, suggest a CSI division
+  const suggestions: CSISuggestion[] = useMemo(() => {
+    return suggestCSI(trade, 6);
+  }, [trade]);
+
+  // If the user has manually typed a code, the suggestions hide (they're
+  // explicitly overriding). Otherwise show the top suggestion as a hint.
+  const topSuggestion = suggestions.find((s) => s.isTopMatch) ?? null;
+  const showSuggestionHint = !code && !open && topSuggestion && trade.length >= 3;
 
   // Close on outside click
   useEffect(() => {
@@ -39,15 +52,40 @@ export function CodePicker({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
 
-  // Smart suggestions: based on the trade text, suggest a CSI division
-  const suggestions: CSISuggestion[] = useMemo(() => {
-    return suggestCSI(trade, 6);
-  }, [trade]);
-
-  // If the user has manually typed a code, the suggestions hide (they're
-  // explicitly overriding). Otherwise show the top suggestion as a hint.
-  const topSuggestion = suggestions.find((s) => s.isTopMatch) ?? null;
-  const showSuggestionHint = !code && !open && topSuggestion && trade.length >= 3;
+  // Position the dropdown (or suggestion hint) just below the
+  // CSI code input. On mobile (where these use position: fixed
+  // so they can span the viewport), the `top` CSS property is
+  // in viewport coordinates. We compute it from the input's
+  // getBoundingClientRect() so the popup always anchors directly
+  // below the field, even if the user scrolled.
+  //
+  // On desktop they use position: absolute with `top-full`, so
+  // the inline `top` style is ignored and there's nothing to
+  // update.
+  useEffect(() => {
+    if (!open && !showSuggestionHint) return;
+    function reposition() {
+      if (!inputRef.current) return;
+      // Pick whichever popup is currently rendered.
+      const popup = dropdownRef.current ?? suggestionRef.current;
+      if (!popup) return;
+      const r = inputRef.current.getBoundingClientRect();
+      // Place popup 4px below the input's bottom edge.
+      // Clamp so it never falls off the bottom of the viewport.
+      const desiredTop = r.bottom + 4;
+      const popupHeight = popup.offsetHeight || 320;
+      const maxTop = window.innerHeight - popupHeight - 8;
+      const top = Math.min(desiredTop, Math.max(8, maxTop));
+      popup.style.top = `${top}px`;
+    }
+    reposition();
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, { passive: true });
+    return () => {
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition);
+    };
+  }, [open, showSuggestionHint]);
 
   function pickDivision(d: CSIDivision) {
     onChange({ code: d.number, trade: d.name });
@@ -76,6 +114,7 @@ export function CodePicker({
         CSI Code
       </label>
       <input
+        ref={inputRef}
         type="text"
         value={code}
         onChange={(e) => onChange({ code: e.target.value, trade })}
@@ -91,12 +130,20 @@ export function CodePicker({
         <p className="text-[11px] text-error font-semibold mt-1">{codeError}</p>
       ) : null}
 
-      {/* Suggestion hint (when user is typing trade, no code yet) */}
+      {/* Suggestion hint (when user is typing trade, no code yet).
+       *  Same width strategy as the main dropdown below. */}
       {showSuggestionHint ? (
         <button
+          ref={suggestionRef}
           type="button"
           onClick={() => pickDivision(topSuggestion.division)}
-          className="absolute left-0 right-0 top-full mt-1 z-10 text-left bg-cream border-2 border-orange px-3 py-2 hover:bg-orange hover:text-paper transition-colors"
+          className="
+            z-30 text-left
+            fixed left-4 right-4
+            md:absolute md:left-0 md:right-auto md:top-full md:mt-1
+            md:min-w-[320px] md:w-[min(28rem,calc(100vw-2rem))]
+            bg-cream border-2 border-orange px-3 py-2 hover:bg-orange hover:text-paper transition-colors
+          "
         >
           <div className="text-[9px] font-mono uppercase tracking-[0.1em] text-orange-d group-hover:text-paper">
             Suggested
@@ -109,9 +156,33 @@ export function CodePicker({
         </button>
       ) : null}
 
-      {/* Open dropdown: full CSI library */}
+      {/* Open dropdown: full CSI library.
+       *
+       *  Width strategy:
+       *    - Mobile: position: fixed with viewport insets
+       *      (left-4 right-4). The "top" comes from the
+       *      input's measured position via JS so the dropdown
+       *      anchors just below it. This is wide enough to
+       *      read the descriptions and stays inside the
+       *      viewport regardless of where the input is.
+       *    - Desktop: position: absolute relative to the
+       *      col-span-2 cell, but with a min-width of 320px
+       *      (and a left offset of -120px to break out of
+       *      the narrow cell). This makes the dropdown
+       *      wide enough to fit a division name on one line
+       *      on desktop, where the form is 12 cols and the
+       *      CodePicker cell is only ~94px wide.
+       */}
       {open ? (
-        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-paper border-2 border-ink max-h-[320px] overflow-y-auto shadow-lg">
+        <div
+          ref={dropdownRef}
+          className="
+            z-30 bg-paper border-2 border-ink max-h-[320px] overflow-y-auto shadow-lg
+            fixed left-4 right-4
+            md:absolute md:left-0 md:right-auto md:top-full md:mt-1
+            md:min-w-[320px] md:w-[min(28rem,calc(100vw-2rem))]
+          "
+        >
           <div className="px-3 py-2 border-b border-line bg-cream-2 text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 sticky top-0">
             CSI MasterFormat · {CSI_MASTERFORMAT.length} divisions
           </div>
