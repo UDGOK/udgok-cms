@@ -78,6 +78,20 @@ export async function setWorkspacePlanAction(
   revalidatePath('/admin');
   revalidatePath(`/admin/workspaces/${parsed.data.workspaceId}`);
   revalidatePath(`/w/${before.slug}/settings`);
+
+  // Audit log — the master admin changed a workspace's plan tier.
+  // This is the kind of high-impact change that absolutely must
+  // leave a trail.
+  await logActivity({
+    workspaceId: parsed.data.workspaceId,
+    actorId: g.userId,
+    action: 'updated',
+    entityType: 'workspace',
+    entityId: parsed.data.workspaceId,
+    entityName: before.name,
+    details: `Plan changed from ${before.plan} to ${parsed.data.plan}`,
+    metadata: { before: before.plan, after: parsed.data.plan },
+  });
   return { ok: true };
 }
 
@@ -151,6 +165,15 @@ export async function editWorkspaceAction(
   revalidatePath(`/admin/workspaces/${parsed.data.workspaceId}`);
   revalidatePath(`/w/${parsed.data.slug}/settings`);
   revalidatePath(`/w/${existing.slug}/settings`);
+
+  await logActivity({
+    workspaceId: parsed.data.workspaceId,
+    actorId: g.userId,
+    action: 'updated',
+    entityType: 'workspace',
+    entityId: parsed.data.workspaceId,
+    details: `Workspace details updated (name=${parsed.data.name}, slug=${parsed.data.slug})`,
+  });
   return { ok: true };
 }
 
@@ -256,6 +279,17 @@ export async function deleteWorkspaceAction(
   revalidatePath('/admin/workspaces');
   revalidatePath(`/w/${ws.slug}`);
 
+  // Audit log — workspace deletion is destructive and irreversible.
+  // Use the synthetic 'admin' workspaceId since the real one is gone.
+  await logActivity({
+    workspaceId: 'admin',
+    actorId: g.userId,
+    action: 'deleted',
+    entityType: 'workspace',
+    entityId: workspaceId,
+    entityName: ws.name,
+    details: `Workspace deleted: ${ws.name} (${ws.slug})`,
+  });
   return { ok: true };
 }
 
@@ -281,6 +315,15 @@ export async function promoteToOwnerAction(
   });
 
   revalidatePath(`/admin/workspaces/${workspaceId}`);
+
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'updated',
+    entityType: 'member',
+    entityId: targetUserId,
+    details: 'Promoted to OWNER by master admin',
+  });
   return { ok: true };
 }
 
@@ -308,6 +351,15 @@ export async function changeMemberRoleAction(
 
   revalidatePath(`/admin/workspaces/${workspaceId}`);
   revalidatePath(`/w/${workspaceId}/team`);
+
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'updated',
+    entityType: 'member',
+    entityId: userId,
+    details: `Role changed to ${parsed.data.role} by master admin`,
+  });
   return { ok: true };
 }
 
@@ -323,6 +375,15 @@ export async function removeMemberAction(
   });
 
   revalidatePath(`/admin/workspaces/${workspaceId}`);
+
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'deleted',
+    entityType: 'member',
+    entityId: userId,
+    details: 'Member removed by master admin',
+  });
   return { ok: true };
 }
 
@@ -356,6 +417,16 @@ export async function forceAddMemberAction(
   }
 
   revalidatePath(`/admin/workspaces/${workspaceId}`);
+
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'invited',
+    entityType: 'member',
+    entityId: targetUser.id,
+    entityName: targetUser.email,
+    details: `Force-added (or role-changed) to ${role} by master admin`,
+  });
   return { ok: true };
 }
 
@@ -391,6 +462,15 @@ export async function deleteUserAction(
 
   revalidatePath('/admin');
   revalidatePath('/admin/users');
+
+  await logActivity({
+    workspaceId: 'admin',
+    actorId: g.userId,
+    action: 'deleted',
+    entityType: 'member',
+    entityId: userId,
+    details: 'User hard-deleted by master admin',
+  });
   return { ok: true };
 }
 
@@ -408,6 +488,15 @@ export async function removeUserFromAllWorkspacesAction(
 
   revalidatePath('/admin');
   revalidatePath('/admin/users');
+
+  await logActivity({
+    workspaceId: 'admin',
+    actorId: g.userId,
+    action: 'deleted',
+    entityType: 'member',
+    entityId: userId,
+    details: `Removed user from all workspaces (${result.count} memberships) by master admin`,
+  });
   return { ok: true, count: result.count };
 }
 
@@ -462,6 +551,16 @@ export async function deleteProjectAction(
   revalidatePath('/admin');
   revalidatePath('/admin/projects');
   revalidatePath(`/w/${project.workspace.slug}/projects`);
+
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'deleted',
+    entityType: 'project',
+    entityId: projectId,
+    entityName: project.name,
+    details: 'Project deleted by master admin',
+  });
   return { ok: true };
 }
 
@@ -485,6 +584,15 @@ export async function deletePayAppAction(
   await prisma.payApp.delete({ where: { id: payAppId } });
   revalidatePath('/admin');
   revalidatePath(`/w/${workspaceId}/projects`);
+
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'deleted',
+    entityType: 'pay_app',
+    entityId: payAppId,
+    details: 'Pay app deleted by master admin',
+  });
   return { ok: true };
 }
 
@@ -508,6 +616,15 @@ export async function deleteClientAction(
   await prisma.client.delete({ where: { id: clientId } });
   revalidatePath('/admin');
   revalidatePath(`/w/${workspaceId}/clients`);
+
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'deleted',
+    entityType: 'client',
+    entityId: clientId,
+    details: 'Client deleted by master admin',
+  });
   return { ok: true };
 }
 
@@ -529,7 +646,19 @@ export async function startImpersonationAction(
   if (!g.ok) return { ok: false, error: g.error };
   // No actual state change needed — caller will set the cookie.
   // Just verify the workspace exists.
-  const ws = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+  const ws = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true, name: true } });
   if (!ws) return { ok: false, error: 'Workspace not found' };
+
+  // Log the impersonation start. This is the kind of action that
+  // absolutely must leave a trail.
+  await logActivity({
+    workspaceId,
+    actorId: g.userId,
+    action: 'viewed',
+    entityType: 'workspace',
+    entityId: workspaceId,
+    entityName: ws.name,
+    details: 'Master admin started impersonation session',
+  });
   return { ok: true };
 }
