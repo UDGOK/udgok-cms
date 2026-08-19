@@ -17,7 +17,13 @@ export default async function ProjectPhotosPage({
   params: { workspace: string; id: string };
   searchParams: { folder?: string };
 }) {
-  const { userId } = await requireMembership(params.workspace);
+  const { userId, membership } = await requireMembership(params.workspace);
+
+  // OWNER/ADMIN can edit/delete any photo in the workspace
+  // (the backend actions already enforce this; this just
+  // surfaces the buttons in the UI). Other roles (PM,
+  // ESTIMATOR, FIELD) can only act on photos they uploaded.
+  const canDeleteAny = membership?.role === 'OWNER' || membership?.role === 'ADMIN';
 
   const project = await prisma.project.findUnique({
     where: { id: params.id },
@@ -79,7 +85,7 @@ export default async function ProjectPhotosPage({
           initialFolders={folders}
           activeFolderId={activeFolderId}
           currentUserId={userId}
-          canDeleteAny={false}
+          canDeleteAny={canDeleteAny}
         />
       </div>
     </div>

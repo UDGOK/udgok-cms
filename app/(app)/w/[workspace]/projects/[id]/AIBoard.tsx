@@ -107,7 +107,7 @@ export function AIBoard({
   // Merge insights for the at-a-glance summary
   const all = [
     ...ruleInsights.map((i) => ({ ...i, source: 'rule' as const })),
-    ...deepInsights.map((i) => ({ ...i, source: 'nvidia' as const })),
+    ...deepInsights.map((i) => ({ ...i, source: 'openrouter' as const })),
   ];
   const counts = {
     success: all.filter((i) => i.level === 'success').length,
@@ -130,7 +130,7 @@ export function AIBoard({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-orange-d font-extrabold">
-                  {'// NVIDIA executive summary'}
+                  {'// OpenRouter executive summary'}
                 </div>
                 <div className="space-y-2 mt-2">
                   <div className="h-3 bg-cream-2 w-full animate-pulse" />
@@ -205,7 +205,7 @@ export function AIBoard({
               </div>
               <div className="min-w-0">
                 <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-orange-d font-extrabold">
-                  {'// NVIDIA executive summary'}
+                  {'// OpenRouter executive summary'}
                 </div>
                 <p className="text-[15px] md:text-[16px] text-ink mt-1 leading-relaxed font-medium">
                   {deepAnalysis.summary}
@@ -358,7 +358,7 @@ function InsightRow({
 }: {
   ins: { id: string; level: keyof typeof LEVEL_STYLE; category: string; title: string; body: string; action?: { label: string; href: string } };
   style: typeof LEVEL_STYLE[keyof typeof LEVEL_STYLE];
-  source: 'rule' | 'deepseek';
+  source: 'rule' | 'openrouter';
 }) {
   return (
     <div className={`${style.bg} border-2 p-4 md:p-5 flex gap-3 md:gap-4`}>

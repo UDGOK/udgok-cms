@@ -1337,7 +1337,7 @@ function PayAppsTab({
           </p>
         </div>
         <GeneratePayAppButton
-          workspaceSlug={workspace}
+          workspaceSlug={workspace.slug}
           projectId={projectId}
           hasDivisions={project.divisions.length > 0}
         />
