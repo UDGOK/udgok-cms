@@ -30,11 +30,19 @@ const aliases = {
   NEXT_PUBLIC_APP_URL: ['UDGOK_CMS_APP_URL'],
   // Master admin emails (JSON array, optional — yasir@udgok.com is always master)
   UDGOK_CMS_MASTERS: ['MASTERS'],
-  // NVIDIA NIM AI (replaces DeepSeek). Two-way aliasing so both
-  // UDGOK_CMS_NVIDIA_API_KEY and NVIDIA_API_KEY resolve either way.
+  // OpenRouter AI gateway. Two-way aliasing so both
+  // UDGOK_CMS_OPENROUTER_API_KEY and OPENROUTER_API_KEY
+  // resolve either way. Set the env var on Vercel (or in
+  // .env.local for dev) to enable AI features. No hardcoded
+  // fallback — secrets in source get flagged by GitHub's
+  // push-protection, so the key must be in env.
+  OPENROUTER_API_KEY: ['UDGOK_CMS_OPENROUTER_API_KEY'],
+  UDGOK_CMS_OPENROUTER_API_KEY: ['OPENROUTER_API_KEY'],
+  // Legacy NVIDIA NIM / DeepSeek env vars (kept so any
+  // leftover env vars on Vercel don't crash reads — code
+  // no longer references them).
   NVIDIA_API_KEY: ['UDGOK_CMS_NVIDIA_API_KEY'],
   UDGOK_CMS_NVIDIA_API_KEY: ['NVIDIA_API_KEY'],
-  // Legacy DeepSeek aliases (kept so any leftover env vars don't crash reads)
   DEEPSEEK_API_KEY: ['UDGOK_CMS_DEEPSEEK_API_KEY'],
   UDGOK_CMS_DEEPSEEK_API_KEY: ['DEEPSEEK_API_KEY'],
   // Nominatim (OpenStreetMap) geocoder. We use the OSM public service —

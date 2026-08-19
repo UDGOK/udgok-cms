@@ -14,7 +14,7 @@
  * is specific (not generic).
  */
 
-import { nvidiaJson, isNvidiaConfigured } from './nvidia';
+import { openrouterJson, isOpenRouterConfigured } from './openrouter';
 import { computeProjectCompletion, type ProjectMeta } from '@/lib/projects/insights';
 
 export interface DeepInsight {
@@ -233,7 +233,7 @@ export async function analyzeProjectDeep(
   projectId: string,
   extras: Parameters<typeof buildProjectContext>[2] = {},
 ): Promise<DeepAnalysis | null> {
-  if (!isNvidiaConfigured()) return null;
+  if (!isOpenRouterConfigured()) return null;
 
   const completion = computeProjectCompletion(project);
   const ctx = buildProjectContext(project, completion, extras);
@@ -250,7 +250,7 @@ Base href for any actions: /w/${workspaceSlug}/projects/${projectId}
 Use fragments like /tasks, /pay-apps, /subs, etc. for the action links.`;
 
   try {
-    const result = await nvidiaJson<{
+    const result = await openrouterJson<{
       summary: string;
       healthScore: number;
       risks: string[];
@@ -265,7 +265,7 @@ Use fragments like /tasks, /pay-apps, /subs, etc. for the action links.`;
       opportunities: result.opportunities ?? [],
       nextActions: result.nextActions ?? [],
       generatedAt: new Date().toISOString(),
-      model: 'nvidia/llama-3.3-70b-instruct',
+      model: 'openrouter/nemotron-3.5-lightning',
     };
   } catch (e) {
     console.error('[DeepSeek] analyzeProjectDeep failed:', e);
@@ -283,7 +283,7 @@ export async function generateDeepInsights(
   projectId: string,
   extras: Parameters<typeof buildProjectContext>[2] = {},
 ): Promise<DeepInsight[]> {
-  if (!isNvidiaConfigured()) return [];
+  if (!isOpenRouterConfigured()) return [];
 
   const completion = computeProjectCompletion(project);
   const ctx = buildProjectContext(project, completion, extras);
@@ -305,7 +305,7 @@ ${INSIGHTS_SCHEMA_HINT}
 Base href for any action links: /w/${workspaceSlug}/projects/${projectId}`;
 
   try {
-    const result = await nvidiaJson<{ insights: DeepInsight[] }>(
+    const result = await openrouterJson<{ insights: DeepInsight[] }>(
       SYSTEM_PROMPT,
       userPrompt,
       { temperature: 0.6, maxTokens: 1200 },
@@ -330,7 +330,7 @@ export async function draftSubMessage(
     notes?: string;
   },
 ): Promise<SubMessageDraft | null> {
-  if (!isNvidiaConfigured()) return null;
+  if (!isOpenRouterConfigured()) return null;
 
   const completion = computeProjectCompletion(project);
 
@@ -361,7 +361,7 @@ Return JSON:
 ${SUB_MESSAGE_SCHEMA_HINT}`;
 
   try {
-    const result = await nvidiaJson<{
+    const result = await openrouterJson<{
       subject: string;
       body: string;
       confidence: number;

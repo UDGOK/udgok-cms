@@ -33,10 +33,10 @@ export function GlobalHealthDashboard({ health }: { health: GlobalHealth }) {
           color={health.atRiskCount > 0 ? 'warning' : 'success'}
         />
         <SummaryCard
-          label="DeepSeek"
-          value={health.deepseekEnabled ? 'ON' : 'OFF'}
+          label="AI"
+          value={health.aiEnabled ? 'ON' : 'OFF'}
           sub={`${health.rows.filter((r) => r.hasDeepAnalysis).length} analyzed`}
-          color={health.deepseekEnabled ? 'success' : 'ink'}
+          color={health.aiEnabled ? 'success' : 'ink'}
         />
       </div>
 

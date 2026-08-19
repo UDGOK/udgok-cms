@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/client';
 import { getProjectWithRelations, type ProjectMeta } from '@/lib/projects/insights';
 import { analyzeProjectDeep, generateDeepInsights } from '@/lib/ai/project-analyzer';
-import { isNvidiaConfigured } from '@/lib/ai/nvidia';
+import { isOpenRouterConfigured } from '@/lib/ai/openrouter';
 
 export const dynamic = 'force-dynamic';
 // Generous timeout — the AI model can take up to 60s for a full project
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
   }
-  if (!isNvidiaConfigured()) {
+  if (!isOpenRouterConfigured()) {
     return NextResponse.json({ error: 'AI not configured' }, { status: 503 });
   }
 

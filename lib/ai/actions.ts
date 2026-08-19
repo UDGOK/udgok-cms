@@ -4,7 +4,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/client';
 import { getProjectWithRelations, computeProjectCompletion, type ProjectMeta } from '@/lib/projects/insights';
 import { draftSubMessage } from '@/lib/ai/project-analyzer';
-import { isNvidiaConfigured } from '@/lib/ai/nvidia';
+import { isOpenRouterConfigured } from '@/lib/ai/openrouter';
 
 interface SubLite {
   id: string;
@@ -91,7 +91,7 @@ export async function draftSubMessageAction(
 ): Promise<{ ok: boolean; draft?: { subject: string; body: string; confidence: number; why: string }; error?: string }> {
   const { userId } = await auth();
   if (!userId) return { ok: false, error: 'Not signed in' };
-  if (!isNvidiaConfigured()) return { ok: false, error: 'AI not configured' };
+  if (!isOpenRouterConfigured()) return { ok: false, error: 'AI not configured' };
 
   const ctx = await loadProjectContext(workspaceSlug, projectId);
   if (!ctx) return { ok: false, error: 'Project not found' };
