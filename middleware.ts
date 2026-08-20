@@ -65,6 +65,11 @@ const isPublicRoute = createRouteMatcher([
   // vendor's view + submit endpoints (token-authed).
   '/q/(.*)',
   '/api/q/(.*)',
+  // ---- DEBUG / HEALTH ----
+  // The blob-health endpoint only returns { ok, storeId, blobs }
+  // — no PII, no auth needed, useful for the user to verify
+  // the BLOB_READ_WRITE_TOKEN is alive without an actual upload.
+  '/api/debug/blob-health',
   // Static assets
   '/manifest.json',
   '/sw.js',
