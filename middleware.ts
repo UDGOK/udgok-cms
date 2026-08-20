@@ -70,6 +70,12 @@ const isPublicRoute = createRouteMatcher([
   // — no PII, no auth needed, useful for the user to verify
   // the BLOB_READ_WRITE_TOKEN is alive without an actual upload.
   '/api/debug/blob-health',
+  // ---- CRON ----
+  // Vercel Cron calls these with no Clerk session — the
+  // CRON_SECRET bearer token is the credential, validated
+  // inside the route. If the middleware 307s the cron
+  // call to /sign-in, the cron never runs.
+  '/api/cron/(.*)',
   // Static assets
   '/manifest.json',
   '/sw.js',
