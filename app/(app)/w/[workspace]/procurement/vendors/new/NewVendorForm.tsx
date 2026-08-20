@@ -32,9 +32,14 @@ export function NewVendorForm({
   const fromQS = search.get('prefill') ?? '';
   const initialName = prefillName ?? fromQS;
   const [open, setOpen] = useState(true);
+  // useFormState passes (prevState, formData). createVendorAction
+  // wants (workspaceId, prevState, formData). Bind workspaceId so
+  // the React runtime doesn't need to know about it.
   const [state, formAction] = useFormState(
-    (prev: ActionResult<{ id: string }> | undefined, formData: FormData) =>
-      createVendorAction(workspaceId, prev, formData),
+    createVendorAction.bind(null, workspaceId) as unknown as (
+      prev: ActionResult<{ id: string }> | undefined,
+      formData: FormData,
+    ) => Promise<ActionResult<{ id: string }>>,
     undefined,
   );
 
