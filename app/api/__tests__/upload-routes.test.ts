@@ -30,6 +30,7 @@ const UPLOAD_ROUTE_PATHS = [
   'app/api/clients/files/route.ts',
   'app/api/subs/[id]/documents/route.ts',
   'app/api/projects/[id]/bim/route.ts',
+  'app/api/projects/[id]/photos/upload/route.ts',
 ] as const;
 
 describe('Upload routes use handleUpload (no 4.5MB function body cap)', () => {

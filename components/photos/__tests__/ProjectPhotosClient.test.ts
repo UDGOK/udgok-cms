@@ -10,6 +10,13 @@ import { join } from 'node:path';
  * submit because the second `required` file input was empty, so
  * iPhone photo uploads silently failed.
  *
+ * After the direct-to-Vercel-Blob refactor (PR for the photos
+ * progress fix), the form was renamed from `PhotoUploadForm` to
+ * `PhotoUploadSheet` and now lives inside the BottomSheet on both
+ * mobile and desktop. The test patterns below follow the new
+ * function name; the "no duplicate file inputs" check still
+ * searches the whole file regardless of function name.
+ *
  * NOTE: we only catch this for file inputs specifically. Duplicate
  * `name=` attributes on radio buttons are FINE (they form a radio
  * group). Duplicate `name=` on text/hidden inputs is at worst a
@@ -17,17 +24,20 @@ import { join } from 'node:path';
  * the only case where the browser silently refuses to submit.
  */
 describe('ProjectPhotosClient form', () => {
-  it('has exactly one <input type="file" name="file"> (regression: PR a033643 added a duplicate)', () => {
+  it('has exactly one <input type="file" name="file"> inside PhotoUploadSheet (regression: PR a033643 added a duplicate)', () => {
     const file = join(process.cwd(), 'components/photos/ProjectPhotosClient.tsx');
     const src = readFileSync(file, 'utf8');
-    // Find the PhotoUploadForm function body
-    const start = src.indexOf('function PhotoUploadForm');
-    expect(start).toBeGreaterThan(-1);
-    const end = src.indexOf('\nfunction ', start + 1);
-    const body = src.slice(start, end > -1 ? end : undefined);
-    // Count <input type="file" ... name="file" /> inside the function body
-    const fileInputs = body.match(/<input[^>]*type=["']file["'][^>]*name=["']file["']/g) ?? [];
-    expect(fileInputs).toHaveLength(1);
+    // Find the PhotoUploadSheet function body. The form was
+    // renamed from PhotoUploadForm to PhotoUploadSheet when we
+    // moved from a server action to direct browser→Vercel Blob
+    // uploads. We search the whole file for the file input and
+    // then count the ones with name="file" — that should be 1.
+    const fileInputs =
+      src.match(/<input[^>]*type=["']file["'][^>]*>/g) ?? [];
+    const namedFileInputs = fileInputs.filter(
+      (s) => /name=["']file["']/.test(s),
+    );
+    expect(namedFileInputs).toHaveLength(1);
   });
 
   it('has no duplicate file inputs across the whole file', () => {
@@ -44,15 +54,27 @@ describe('ProjectPhotosClient form', () => {
     expect(dups, `Duplicate file input name(s): ${JSON.stringify(dups)}`).toEqual([]);
   });
 
-  it('closes the bottom sheet via useEffect, not useState (regression: PR a033643 used useState which only runs once on mount)', () => {
+  it('uses the shared useBlobUpload hook for direct browser uploads (regression: server-action upload silently dropped 4.5MB+ files)', () => {
+    // The original implementation called uploadProjectPhotoAction
+    // which used server-side put() from @vercel/blob — that goes
+    // through the 4.5MB function body limit. The fix: use the
+    // shared useBlobUpload hook so the browser PUTs directly to
+    // Vercel Blob, bypassing the function body cap. This test
+    // pins that the import + the useBlobUpload call are present.
     const file = join(process.cwd(), 'components/photos/ProjectPhotosClient.tsx');
     const src = readFileSync(file, 'utf8');
-    // The upload-state-driven sheet close must be a useEffect. Catches
-    // the bug where someone writes `useState(() => { if (ok) close() })`
-    // — the lazy initializer runs only on mount when state is undefined.
-    const closeSheetPattern = /use(State|Effect)\s*\(\s*\(\s*\)\s*=>\s*\{[\s\S]*?uploadState\?\.ok[\s\S]*?setSheetOpen\(false\)[\s\S]*?\}\s*\)/;
-    const m = src.match(closeSheetPattern);
-    expect(m, 'No uploadState.ok -> setSheetOpen(false) hook found').not.toBeNull();
-    expect(m![1]).toBe('Effect');
+    expect(src).toMatch(/from\s+['"]@\/lib\/blob\/client-upload['"]/);
+    expect(src).toMatch(/useBlobUpload\s*\(/);
+  });
+
+  it('does not use the raw fetch upload pattern (regression: 4.5MB function body cap)', () => {
+    // The wrong pattern: any `fetch('/api/...')` for upload.
+    // We want the browser to go DIRECTLY to Vercel Blob via
+    // the useBlobUpload hook. A raw fetch POST to the upload
+    // endpoint puts the file body through the function payload
+    // again, which is exactly the bug we're fixing.
+    const file = join(process.cwd(), 'components/photos/ProjectPhotosClient.tsx');
+    const src = readFileSync(file, 'utf8');
+    expect(src).not.toMatch(/fetch\(\s*['"`]\/api\/projects\/.*photos\/upload/);
   });
 });

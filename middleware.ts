@@ -43,6 +43,7 @@ const isPublicRoute = createRouteMatcher([
   '/api/clients/files',
   '/api/subs/(.*)/documents',
   '/api/projects/(.*)/bim',
+  '/api/projects/(.*)/photos/upload',
   // Static assets
   '/manifest.json',
   '/sw.js',
