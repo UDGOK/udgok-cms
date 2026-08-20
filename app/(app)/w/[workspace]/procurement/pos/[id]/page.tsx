@@ -18,6 +18,10 @@ export default async function PoDetailPage({
       vendor: { select: { id: true, name: true } },
       lines: { orderBy: { position: 'asc' } },
       quote: { select: { id: true, revision: true, vendorReference: true } },
+      events: {
+        orderBy: { createdAt: 'desc' },
+        take: 50, // cap for the detail page; full history in dedicated audit view
+      },
     },
   });
   if (!po) notFound();
@@ -47,6 +51,11 @@ export default async function PoDetailPage({
           issuedAt: po.issuedAt ? po.issuedAt.toISOString() : null,
           issuedBy: po.issuedBy,
           createdAt: po.createdAt.toISOString(),
+          deliveryName: po.deliveryName,
+          deliveryAddress: po.deliveryAddress,
+          deliveryContactName: po.deliveryContactName,
+          deliveryContactPhone: po.deliveryContactPhone,
+          deliveryContactEmail: po.deliveryContactEmail,
           lines: po.lines.map((l) => ({
             id: l.id,
             position: l.position,
@@ -59,6 +68,13 @@ export default async function PoDetailPage({
             isSubstitute: l.isSubstitute,
             substituteNote: l.substituteNote,
             notes: l.notes,
+          })),
+          events: po.events.map((e) => ({
+            id: e.id,
+            type: e.type,
+            actor: e.actor,
+            createdAt: e.createdAt.toISOString(),
+            meta: e.meta,
           })),
         }}
         workspaceId={workspace.id}

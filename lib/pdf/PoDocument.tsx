@@ -65,6 +65,15 @@ export interface PoPdfData {
   taxAmount: number;
   total: number;
   notes: string | null;
+  // Delivery block (where the driver physically drops off,
+  // plus the on-site receiver). Separate from shipTo which
+  // is the buyer's general destination. The driver needs
+  // both pieces of info printed clearly on the PO.
+  deliveryName: string | null;
+  deliveryAddress: string | null;
+  deliveryContactName: string | null;
+  deliveryContactPhone: string | null;
+  deliveryContactEmail: string | null;
   lines: PoPdfLine[];
 }
 
@@ -287,6 +296,53 @@ const styles = StyleSheet.create({
     fontFamily: font.mono,
     letterSpacing: 0.5,
   },
+  // Delivery block — distinct from the meta row above. Uses
+  // a left orange accent so the driver (looking at the printed
+  // PO in the cab of the truck) sees the drop-off + on-site
+  // PoC without scanning the whole document.
+  deliveryBlock: {
+    marginTop: 12,
+    marginBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.orange,
+    backgroundColor: colors.paper2,
+  },
+  deliveryHeader: {
+    fontSize: 8,
+    fontFamily: font.bodyBold,
+    color: colors.ink,
+    letterSpacing: 0.6,
+    marginBottom: 6,
+  },
+  deliveryRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  deliveryCol: {
+    flex: 1,
+  },
+  deliveryLabel: {
+    fontSize: 6.5,
+    fontFamily: font.bodyBold,
+    color: colors.ink50,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  deliveryValue: {
+    fontSize: 9,
+    fontFamily: font.bodyBold,
+    color: colors.ink,
+  },
+  deliverySub: {
+    fontSize: 8,
+    fontFamily: font.mono,
+    color: colors.ink70,
+    marginTop: 1,
+  },
 });
 
 function fmtUsd(n: number): string {
@@ -396,6 +452,37 @@ export function PoDocument({ data }: { data: PoPdfData }) {
             <Text style={styles.metaValue}>{data.terms ?? '—'}</Text>
           </View>
         </View>
+
+        {/* Delivery block — only rendered when any delivery
+            field is set. Uses an accent color so the driver's
+            eye lands on it. Distinct from the "Ship to"
+            column above; the driver needs the on-site point
+            of contact to call when they arrive. */}
+        {data.deliveryAddress || data.deliveryName || data.deliveryContactName ? (
+          <View style={styles.deliveryBlock} wrap={false}>
+            <Text style={styles.deliveryHeader}>DELIVERY — driver drop-off + on-site point of contact</Text>
+            <View style={styles.deliveryRow}>
+              <View style={styles.deliveryCol}>
+                <Text style={styles.deliveryLabel}>Site / location</Text>
+                <Text style={styles.deliveryValue}>{data.deliveryName ?? '—'}</Text>
+              </View>
+              <View style={styles.deliveryCol}>
+                <Text style={styles.deliveryLabel}>Address</Text>
+                <Text style={styles.deliveryValue}>{data.deliveryAddress ?? '—'}</Text>
+              </View>
+              <View style={styles.deliveryCol}>
+                <Text style={styles.deliveryLabel}>On-site PoC</Text>
+                <Text style={styles.deliveryValue}>{data.deliveryContactName ?? '—'}</Text>
+                {data.deliveryContactPhone ? (
+                  <Text style={styles.deliverySub}>{data.deliveryContactPhone}</Text>
+                ) : null}
+                {data.deliveryContactEmail ? (
+                  <Text style={styles.deliverySub}>{data.deliveryContactEmail}</Text>
+                ) : null}
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         {/* Line items */}
         <View style={styles.tableHead}>

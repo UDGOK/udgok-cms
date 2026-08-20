@@ -46,6 +46,15 @@ interface Props {
   initialNotes: string | null;
   initialFreight: number;
   initialTax: number;
+  // Delivery fields (separate from shipTo — delivery is
+  // the physical drop-off site + on-site receiver, the
+  // point of contact at the jobsite for the driver to call
+  // when they arrive)
+  initialDeliveryName: string | null;
+  initialDeliveryAddress: string | null;
+  initialDeliveryContactName: string | null;
+  initialDeliveryContactPhone: string | null;
+  initialDeliveryContactEmail: string | null;
 }
 
 const STATUS_EDITABLE = new Set(['PENDING_APPROVAL', 'DRAFT']);
@@ -62,6 +71,19 @@ export function PoEditor(props: Props) {
   const [notes, setNotes] = useState(props.initialNotes ?? '');
   const [freight, setFreight] = useState(String(props.initialFreight));
   const [tax, setTax] = useState(String(props.initialTax));
+
+  // Delivery state — separate block in the editor.
+  const [deliveryName, setDeliveryName] = useState(props.initialDeliveryName ?? '');
+  const [deliveryAddress, setDeliveryAddress] = useState(props.initialDeliveryAddress ?? '');
+  const [deliveryContactName, setDeliveryContactName] = useState(
+    props.initialDeliveryContactName ?? '',
+  );
+  const [deliveryContactPhone, setDeliveryContactPhone] = useState(
+    props.initialDeliveryContactPhone ?? '',
+  );
+  const [deliveryContactEmail, setDeliveryContactEmail] = useState(
+    props.initialDeliveryContactEmail ?? '',
+  );
 
   const [lines, setLines] = useState<EditorLine[]>(() =>
     props.initialLines.map((l) => ({
@@ -111,6 +133,11 @@ export function PoEditor(props: Props) {
       notes: notes || null,
       freightAmount: Number(freight) || 0,
       taxAmount: Number(tax) || 0,
+      deliveryName: deliveryName || null,
+      deliveryAddress: deliveryAddress || null,
+      deliveryContactName: deliveryContactName || null,
+      deliveryContactPhone: deliveryContactPhone || null,
+      deliveryContactEmail: deliveryContactEmail || null,
       lines: lines.map((l) => ({
         // New lines have id starting with `new_` — strip
         // the id when sending so the server treats them
@@ -172,6 +199,69 @@ export function PoEditor(props: Props) {
             className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px]"
           />
         </Field>
+      </div>
+
+      {/* ── Delivery block ─────────────────────────────────────
+          Separate from the ship-to/terms row above. The vendor
+          needs a clear physical drop-off address (often a
+          jobsite, not the buyer's office) and an on-site point
+          of contact — the foreman or warehouse receiver who
+          signs for the load. Without this, the driver shows up
+          at the wrong gate or finds nobody to receive the
+          materials. */}
+      <div className="mb-3 border-t border-line pt-3">
+        <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-2">
+          {'// Delivery — where the driver physically drops off'}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+          <Field label="Site / location name">
+            <input
+              type="text"
+              placeholder="e.g. Main Site — Building A"
+              value={deliveryName}
+              onChange={(e) => setDeliveryName(e.target.value)}
+              className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px]"
+            />
+          </Field>
+          <Field label="Delivery phone (vendor's dispatch)">
+            <input
+              type="text"
+              placeholder="e.g. (918) 555-0123"
+              value={deliveryContactPhone}
+              onChange={(e) => setDeliveryContactPhone(e.target.value)}
+              className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px] font-mono"
+            />
+          </Field>
+          <Field label="Delivery email (PoC)">
+            <input
+              type="email"
+              placeholder="foreman@jobsite.com"
+              value={deliveryContactEmail}
+              onChange={(e) => setDeliveryContactEmail(e.target.value)}
+              className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px] font-mono"
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Field label="Delivery address">
+            <textarea
+              placeholder="Full street address — gate, dock, suite"
+              value={deliveryAddress}
+              onChange={(e) => setDeliveryAddress(e.target.value)}
+              rows={2}
+              className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px] resize-y"
+            />
+          </Field>
+          <Field label="On-site point of contact (foreman / receiver)">
+            <input
+              type="text"
+              placeholder="Name of the person at the site"
+              value={deliveryContactName}
+              onChange={(e) => setDeliveryContactName(e.target.value)}
+              className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px]"
+            />
+          </Field>
+        </div>
       </div>
 
       <div className="space-y-2 mb-3">

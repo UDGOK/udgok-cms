@@ -115,6 +115,11 @@ export async function GET(
     taxAmount: Number(po.taxAmount),
     total: Number(po.total),
     notes: po.notes,
+    deliveryName: po.deliveryName,
+    deliveryAddress: po.deliveryAddress,
+    deliveryContactName: po.deliveryContactName,
+    deliveryContactPhone: po.deliveryContactPhone,
+    deliveryContactEmail: po.deliveryContactEmail,
     lines: po.lines.map((l) => ({
       position: l.position,
       description: l.description,

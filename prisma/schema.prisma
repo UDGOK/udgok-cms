@@ -59,6 +59,7 @@ model Workspace {
   rfqEvents         RfqEvent[]
   vendorQuotes      VendorQuote[]
   vendorQuoteLines  VendorQuoteLine[]
+  poEvents          PoEvent[]
   purchaseOrders    PurchaseOrder[]
   polines           POLine[]
   priceObservations PriceObservation[]
@@ -2105,6 +2106,27 @@ model PurchaseOrder {
   neededBy DateTime?
   notes    String?
 
+  // ---- DELIVERY ----
+  // Where the vendor physically delivers (separate from
+  // the vendor's billing address). For construction POs
+  // this is usually a jobsite — the vendor is the supplier
+  // (Locke, Lowe's) but the delivery point is a specific
+  // site address with a foreman/receiver who's the
+  // on-site point of contact.
+  //
+  // deliveryName: e.g. "Main Site — Building A" — short
+  //   label the vendor's driver will recognize on the
+  //   dispatch sheet.
+  // deliveryAddress: full address (one line, free-form;
+  //   jobsite addresses don't fit a structured schema).
+  // deliveryContactName/Phone/Email: who's at the
+  //   delivery site to receive + sign for the load.
+  deliveryName           String?
+  deliveryAddress        String?
+  deliveryContactName    String?
+  deliveryContactPhone   String?
+  deliveryContactEmail   String?
+
   // Approval: PM or ADMIN signs off before ISSUED.
   // We store the approver + when for audit; the
   // PENDING_APPROVAL → ISSUED transition is the gate.
@@ -2128,6 +2150,33 @@ model PurchaseOrder {
   @@index([workspaceId, vendorId])
   @@index([workspaceId, projectId])
   @@index([workspaceId, approvedAt])
+  // Activity log of everything that happens to a PO.
+  // Mirrors the RfqEvent pattern — append-only, with an
+  // actor (clerk userId) and a JSON meta blob for
+  // event-specific details (line counts, totals, before/
+  // after snapshots). Edit PoEvent records use meta to
+  // store { added, removed, modified: [lineIds] } so the
+  // buyer can see "Bob added 2 lines, removed 1, changed
+  // qty on 3" without diffing the line table.
+  events PoEvent[]
+}
+
+model PoEvent {
+  id          String       @id @default(cuid())
+  workspaceId String
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  // CREATED EDITED ISSUED RESENT CANCELLED ACKNOWLEDGED RECEIVED CLOSED
+  type    String
+  actor   String? // clerk userId
+  meta    Json?
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, poId, createdAt])
+  @@index([type])
 }
 
 model POLine {

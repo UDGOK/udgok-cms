@@ -59,6 +59,11 @@ describe('PO PDF render', () => {
       taxAmount: 8.5,
       total: 118.5,
       notes: 'Leave at receiving dock',
+      deliveryName: 'Main Site — Building A',
+      deliveryAddress: '742 Evergreen Terrace, Springfield IL 62704',
+      deliveryContactName: 'Bob Foreman',
+      deliveryContactPhone: '(918) 555-0123',
+      deliveryContactEmail: 'foreman@jobsite.com',
       lines: [
         {
           position: 0,
@@ -109,6 +114,11 @@ describe('PO PDF render', () => {
       taxAmount: 0,
       total: 0,
       notes: null,
+      deliveryName: null,
+      deliveryAddress: null,
+      deliveryContactName: null,
+      deliveryContactPhone: null,
+      deliveryContactEmail: null,
       lines: [
         {
           position: 0,

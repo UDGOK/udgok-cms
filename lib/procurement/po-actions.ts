@@ -101,7 +101,11 @@ export async function acceptQuoteAndCreatePoAction(
         freightAmount: quote.freightAmount,
         total: subtotal.add(quote.taxAmount).add(quote.freightAmount),
         terms: quote.terms ?? rfq.vendor.defaultTerms ?? null,
+        // Pre-fill delivery from the list's deliverTo (if set
+        // by the buyer at list-creation time). The PO editor
+        // can override before the buyer hits "Issue PO".
         shipTo: rfq.list.deliverTo,
+        deliveryAddress: rfq.list.deliverTo,
         notes: quote.notes,
         lines: { create: lines },
       },
@@ -123,6 +127,18 @@ export async function acceptQuoteAndCreatePoAction(
         type: 'ACCEPTED',
         actor: userId,
         meta: { poId: created.id, poNumber: created.number },
+      },
+    });
+
+    // PoEvent: CREATED. Mirrors the RFQ CREATED event so
+    // the buyer's audit trail shows the moment of creation.
+    await tx.poEvent.create({
+      data: {
+        workspaceId,
+        poId: created.id,
+        type: 'CREATED',
+        actor: userId,
+        meta: { source: 'ACCEPT_QUOTE', quoteId: quote.id, rfqId: rfq.id },
       },
     });
 
@@ -178,6 +194,16 @@ export async function issuePoAction(
     data: { status: 'ISSUED', issuedAt: new Date(), issuedBy: userId },
   });
   if (result.count === 0) return { ok: false, error: 'PO not in PENDING_APPROVAL' };
+
+  // PoEvent: ISSUED. Captures who + when for the audit trail.
+  await prisma.poEvent.create({
+    data: {
+      workspaceId,
+      poId: parsed.data.poId,
+      type: 'ISSUED',
+      actor: userId,
+    },
+  });
 
   // Try to email the vendor with the PDF. Failure is logged
   // and surfaced to the UI, but does NOT un-issue the PO —
@@ -258,6 +284,11 @@ async function emailPoToVendor(
     taxAmount: Number(po.taxAmount),
     total: Number(po.total),
     notes: po.notes,
+    deliveryName: po.deliveryName,
+    deliveryAddress: po.deliveryAddress,
+    deliveryContactName: po.deliveryContactName,
+    deliveryContactPhone: po.deliveryContactPhone,
+    deliveryContactEmail: po.deliveryContactEmail,
     lines: po.lines.map((l) => ({
       position: l.position,
       description: l.description,
@@ -282,12 +313,83 @@ async function emailPoToVendor(
     neededBy: po.neededBy,
     shipTo: po.shipTo,
     terms: po.terms,
+    deliveryName: po.deliveryName,
+    deliveryAddress: po.deliveryAddress,
+    deliveryContactName: po.deliveryContactName,
+    deliveryContactPhone: po.deliveryContactPhone,
+    deliveryContactEmail: po.deliveryContactEmail,
     pdf,
   });
 
   if (!res.sent) {
     return { ok: false, reason: res.reason ?? 'UNKNOWN', message: res.message };
   }
+  return { ok: true };
+}
+
+// ───────────────────────────────────────────────────────────────────
+//  Re-send PO email — the buyer hits a "Resend" button on the
+//  detail page when the issue-time email failed (e.g. vendor's
+//  address was wrong, or the email landed in spam).
+// ───────────────────────────────────────────────────────────────────
+
+/**
+ * Re-send a PO email to the vendor. Allowed for any ISSUED
+ * PO (or later status). Same gate as issue — OWNER | ADMIN
+ * | PM.
+ *
+ * Returns the same shape as issuePoAction: ok: true on
+ * success, ok: false with a reason on failure (so the UI
+ * can show "Email not delivered: NO_VENDOR_EMAIL" etc.).
+ */
+export async function resendPoEmailAction(
+  workspaceId: string,
+  poId: string,
+): Promise<ActionResult<{ resendId?: string }>> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: 'Not signed in' };
+  try {
+    await assertRole(workspaceId, ['OWNER', 'ADMIN', 'PM']);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Forbidden' };
+  }
+
+  // Verify the PO exists in this workspace and is issued (or
+  // further along). The buyer shouldn't be able to resend
+  // an email for a DRAFT that was never sent.
+  const po = await prisma.purchaseOrder.findFirst({
+    where: { id: poId, workspaceId },
+    select: { id: true, status: true },
+  });
+  if (!po) return { ok: false, error: 'PO not found' };
+  if (po.status === 'DRAFT' || po.status === 'CANCELLED' || po.status === 'PENDING_APPROVAL') {
+    return { ok: false, error: `Cannot resend for a ${po.status} PO. Issue it first.` };
+  }
+
+  try {
+    const sent = await emailPoToVendor(workspaceId, poId);
+    if (!sent.ok) {
+      return { ok: false, error: sent.reason, ...(sent.message ? { message: sent.message } : {}) };
+    }
+  } catch (e) {
+    console.error('[resendPoEmailAction] threw:', e);
+    return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
+
+  // PoEvent: RESENT. Records who triggered the resend and
+  // when — important for audit because the buyer might
+  // resend multiple times (typo'd address, then fix and
+  // resend, etc.).
+  await prisma.poEvent.create({
+    data: {
+      workspaceId,
+      poId,
+      type: 'RESENT',
+      actor: userId,
+    },
+  });
+
+  revalidatePath(`/w/_/procurement/pos/${poId}`);
   return { ok: true };
 }
 

@@ -113,6 +113,20 @@ export type SendRfqResult =
   | { sent: true; resendId?: string }
   | { sent: false; reason: 'NO_API_KEY' | 'NO_FROM' | 'RESEND_ERROR'; message: string; url: string };
 
+/**
+ * Render the RFQ email body without sending. Used by the
+ * PII redaction test (`__tests__/email-pii.test.ts`) and
+ * any preview tooling. NOT for production use — the public
+ * path is `sendRfqEmail` which adds the magic link.
+ */
+export function renderRfqEmail(input: RfqEmailInput): { subject: string; text: string; html: string } {
+  return {
+    subject: SUBJECT(input.rfqNumber),
+    text: text(input),
+    html: html(input),
+  };
+}
+
 /** Send the RFQ. Always returns the magic link URL (even on
  *  Resend failure) so the buyer can copy-paste it manually.
  *  No API key? Returns sent:false with a reason, and the URL
@@ -199,6 +213,18 @@ export type PoEmailInput = {
   neededBy: Date | null;
   shipTo: string | null;
   terms: string | null;
+  // Delivery block (separate from shipTo) — the driver
+  // needs to see where to physically drop off + who to
+  // call at the site. Always rendered if any field is set.
+  deliveryName: string | null;
+  deliveryAddress: string | null;
+  deliveryContactName: string | null;
+  deliveryContactPhone: string | null;
+  deliveryContactEmail: string | null;
+  // BCC — the buyer's purchasing inbox gets a copy for
+  // records. Comes from PROCUREMENT_BCC_EMAIL env var; if
+  // unset, no BCC.
+  bcc?: string;
   // PDF rendered ahead of time; attached to the email.
   pdf: Buffer;
 };
@@ -226,6 +252,24 @@ function poText(input: PoEmailInput): string {
   const ship = input.shipTo ? `Ship to: ${input.shipTo}` : null;
   const terms = input.terms ? `Terms: ${input.terms}` : null;
   const meta = [needed, ship, terms].filter(Boolean).join('\n');
+  // Delivery block — only render if any field is set.
+  const hasDelivery =
+    input.deliveryAddress || input.deliveryName || input.deliveryContactName;
+  const deliveryLines: string[] = [];
+  if (hasDelivery) {
+    deliveryLines.push('', 'DELIVERY — driver drop-off + on-site point of contact:');
+    if (input.deliveryName) deliveryLines.push(`  Site: ${input.deliveryName}`);
+    if (input.deliveryAddress) deliveryLines.push(`  Address: ${input.deliveryAddress}`);
+    if (input.deliveryContactName) {
+      deliveryLines.push(`  On-site PoC: ${input.deliveryContactName}`);
+      if (input.deliveryContactPhone) {
+        deliveryLines.push(`  Phone: ${input.deliveryContactPhone}`);
+      }
+      if (input.deliveryContactEmail) {
+        deliveryLines.push(`  Email: ${input.deliveryContactEmail}`);
+      }
+    }
+  }
   return [
     greet,
     '',
@@ -233,6 +277,7 @@ function poText(input: PoEmailInput): string {
     '',
     `Total: $${input.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     meta,
+    ...deliveryLines,
     '',
     'The attached PDF is the binding order. Please confirm receipt and any ship date at your earliest convenience.',
     '',
@@ -261,6 +306,19 @@ function poHtml(input: PoEmailInput): string {
       `<p style="margin:0 0 4px;font-size:13px;color:#444;"><strong>Terms:</strong> ${escapeHtml(input.terms)}</p>`,
     );
   }
+  // Delivery block — only render if any field is set.
+  // Visually distinct (orange left border) so the vendor's
+  // dispatcher sees it without scrolling.
+  const hasDelivery =
+    input.deliveryAddress || input.deliveryName || input.deliveryContactName;
+  const deliveryHtml = hasDelivery
+    ? `<div style="margin:20px 0;padding:14px 16px;background:#fff7ed;border-left:3px solid #ff5a1f;border-radius:2px;">
+        <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#78716c;font-family:ui-monospace,Menlo,monospace;">// DELIVERY — driver drop-off + on-site point of contact</p>
+        ${input.deliveryName ? `<p style="margin:0 0 4px;font-size:13px;color:#1a1a1a;"><strong>Site:</strong> ${escapeHtml(input.deliveryName)}</p>` : ''}
+        ${input.deliveryAddress ? `<p style="margin:0 0 4px;font-size:13px;color:#1a1a1a;"><strong>Address:</strong> ${escapeHtml(input.deliveryAddress)}</p>` : ''}
+        ${input.deliveryContactName ? `<p style="margin:0 0 4px;font-size:13px;color:#1a1a1a;"><strong>On-site PoC:</strong> ${escapeHtml(input.deliveryContactName)}${input.deliveryContactPhone ? ` · <span style="font-family:ui-monospace,Menlo,monospace;">${escapeHtml(input.deliveryContactPhone)}</span>` : ''}${input.deliveryContactEmail ? ` · <span style="font-family:ui-monospace,Menlo,monospace;">${escapeHtml(input.deliveryContactEmail)}</span>` : ''}</p>` : ''}
+      </div>`
+    : '';
   return `<!doctype html>
 <html>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fafaf9;padding:24px;color:#1a1a1a;">
@@ -272,6 +330,7 @@ function poHtml(input: PoEmailInput): string {
     <p style="margin:0 0 16px;font-size:14px;">${escapeHtml(input.ourCompanyName)} has issued purchase order <strong>${escapeHtml(input.poNumber)}</strong> to ${escapeHtml(input.vendorName)}.</p>
     <p style="margin:0 0 8px;font-size:18px;font-weight:700;">Total: $${input.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
     <div style="margin:16px 0;">${meta.join('')}</div>
+    ${deliveryHtml}
     <p style="margin:16px 0;font-size:14px;">The attached PDF is the binding order. Please confirm receipt and any ship date at your earliest convenience.</p>
     <hr style="border:none;border-top:1px solid #e7e5e4;margin:24px 0;" />
     <p style="margin:0;font-size:12px;color:#78716c;">Questions? Reply to this email.</p>
@@ -306,9 +365,15 @@ export async function sendPoEmail(
 
   try {
     const resend = new Resend(apiKey);
+    // BCC: buyer's purchasing inbox. Sourced from the input
+    // (preferred — caller knows the right address) with
+    // PROCUREMENT_BCC_EMAIL as fallback. If neither is set,
+    // no BCC is added.
+    const bcc = input.bcc ?? process.env.PROCUREMENT_BCC_EMAIL;
     const { data, error } = await resend.emails.send({
       from,
       to: [input.to],
+      ...(bcc ? { bcc: [bcc] } : {}),
       replyTo: input.replyTo,
       subject: PO_SUBJECT(input.poNumber),
       html: poHtml(input),

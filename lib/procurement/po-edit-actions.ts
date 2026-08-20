@@ -47,6 +47,12 @@ const editPoSchema = z.object({
   notes: z.string().max(2000).nullable().optional(),
   freightAmount: z.coerce.number().min(0).max(1_000_000).optional(),
   taxAmount: z.coerce.number().min(0).max(1_000_000).optional(),
+  // Delivery fields (where the driver physically drops off)
+  deliveryName: z.string().max(200).nullable().optional(),
+  deliveryAddress: z.string().max(500).nullable().optional(),
+  deliveryContactName: z.string().max(200).nullable().optional(),
+  deliveryContactPhone: z.string().max(50).nullable().optional(),
+  deliveryContactEmail: z.string().max(200).nullable().optional(),
 });
 
 /**
@@ -102,6 +108,15 @@ export async function editPoAction(
       }
     }
 
+    // Diff tracking for the PoEvent log. The buyer can
+    // see "added 2 lines, removed 1, modified 3" without
+    // diffing the line table themselves.
+    const addedLineIds: string[] = [];
+    const modifiedLineIds: string[] = [];
+    const removedLineIds: string[] = po.lines
+      .filter((l) => !incomingIds.has(l.id))
+      .map((l) => l.id);
+
     // Delete lines that are no longer in the incoming set.
     const toDelete = po.lines.filter((l) => !incomingIds.has(l.id));
     if (toDelete.length > 0) {
@@ -125,7 +140,7 @@ export async function editPoAction(
       subtotal = subtotal.add(lineTotal);
 
       if (isNew) {
-        await tx.pOLine.create({
+        const created = await tx.pOLine.create({
           data: {
             workspaceId,
             poId: po.id,
@@ -139,7 +154,17 @@ export async function editPoAction(
             notes: incoming.notes ?? null,
           },
         });
+        addedLineIds.push(created.id);
       } else if (existing) {
+        // Track modifications — anything that changes the
+        // numbers (qty, unit price) or the description
+        // counts as a modification for the audit log.
+        const existingQty = Number(existing.quantity);
+        const existingPrice = Number(existing.unitPrice);
+        const modified =
+          existingQty !== quantity ||
+          existingPrice !== unitPrice ||
+          existing.description !== description;
         await tx.pOLine.update({
           where: { id: existing.id },
           data: {
@@ -153,6 +178,7 @@ export async function editPoAction(
             notes: incoming.notes ?? existing.notes,
           },
         });
+        if (modified) modifiedLineIds.push(existing.id);
       }
       nextPosition += 1;
     }
@@ -171,8 +197,55 @@ export async function editPoAction(
         taxAmount,
         subtotal,
         total: newTotal,
+        // Delivery fields. Using `?? po.<field>` so the
+        // caller can pass `null` to clear a field.
+        deliveryName: parsed.deliveryName !== undefined ? parsed.deliveryName : po.deliveryName,
+        deliveryAddress:
+          parsed.deliveryAddress !== undefined ? parsed.deliveryAddress : po.deliveryAddress,
+        deliveryContactName:
+          parsed.deliveryContactName !== undefined
+            ? parsed.deliveryContactName
+            : po.deliveryContactName,
+        deliveryContactPhone:
+          parsed.deliveryContactPhone !== undefined
+            ? parsed.deliveryContactPhone
+            : po.deliveryContactPhone,
+        deliveryContactEmail:
+          parsed.deliveryContactEmail !== undefined
+            ? parsed.deliveryContactEmail
+            : po.deliveryContactEmail,
       },
     });
+
+    // PoEvent: EDITED. Only write if anything actually
+    // changed — saves on log noise when the buyer clicks
+    // "Save" without making changes.
+    const changed =
+      addedLineIds.length > 0 ||
+      modifiedLineIds.length > 0 ||
+      removedLineIds.length > 0 ||
+      po.shipTo !== (parsed.shipTo ?? po.shipTo) ||
+      po.terms !== (parsed.terms ?? po.terms) ||
+      po.notes !== (parsed.notes ?? po.notes) ||
+      po.deliveryName !== (parsed.deliveryName !== undefined ? parsed.deliveryName : po.deliveryName) ||
+      po.deliveryAddress !== (parsed.deliveryAddress !== undefined ? parsed.deliveryAddress : po.deliveryAddress);
+    if (changed) {
+      await tx.poEvent.create({
+        data: {
+          workspaceId,
+          poId: po.id,
+          type: 'EDITED',
+          actor: userId,
+          meta: {
+            added: addedLineIds,
+            modified: modifiedLineIds,
+            removed: removedLineIds,
+            newTotal: Number(newTotal),
+            newSubtotal: Number(subtotal),
+          },
+        },
+      });
+    }
 
     return { lineCount: parsed.lines.length, total: Number(newTotal) };
   }).catch((e) => {

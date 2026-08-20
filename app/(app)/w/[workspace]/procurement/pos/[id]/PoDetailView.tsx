@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { issuePoAction, cancelPoAction } from '@/lib/procurement/po-actions';
+import { issuePoAction, cancelPoAction, resendPoEmailAction } from '@/lib/procurement/po-actions';
 import { PoEditor } from './PoEditor';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -31,6 +31,13 @@ interface PoDto {
   issuedAt: string | null;
   issuedBy: string | null;
   createdAt: string;
+  // Delivery block (separate from shipTo) — where the
+  // driver physically drops off + on-site point of contact
+  deliveryName: string | null;
+  deliveryAddress: string | null;
+  deliveryContactName: string | null;
+  deliveryContactPhone: string | null;
+  deliveryContactEmail: string | null;
   lines: Array<{
     id: string;
     position: number;
@@ -43,6 +50,16 @@ interface PoDto {
     isSubstitute: boolean;
     substituteNote: string | null;
     notes: string | null;
+  }>;
+  // Activity log — most recent 50 events. Append-only,
+  // records every meaningful change to the PO so the buyer
+  // has an audit trail without diffing the line table.
+  events: Array<{
+    id: string;
+    type: string;
+    actor: string | null;
+    createdAt: string;
+    meta: unknown;
   }>;
 }
 
@@ -69,6 +86,20 @@ export function PoDetailView({
       const res = await issuePoAction(workspaceId, undefined, fd);
       if (res.ok) router.refresh();
       else setError(res.error);
+    });
+  }
+
+  function resend() {
+    if (!confirm(`Re-send the PO email for ${po.number} to ${po.vendor.name}?`)) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await resendPoEmailAction(workspaceId, po.id);
+      if (res.ok) {
+        alert(`Re-sent ${po.number} to the vendor's contact email.`);
+        router.refresh();
+      } else {
+        setError(res.error);
+      }
     });
   }
 
@@ -113,6 +144,17 @@ export function PoDetailView({
           >
             ↓ Download PDF
           </a>
+          {po.status !== 'DRAFT' && po.status !== 'PENDING_APPROVAL' && po.status !== 'CANCELLED' ? (
+            <button
+              type="button"
+              onClick={resend}
+              disabled={pending}
+              className="px-3 py-2 border-2 border-info text-info text-[11px] font-extrabold uppercase tracking-[0.12em] hover:bg-info/10 disabled:opacity-50"
+              title="Re-send the PO email to the vendor's contact"
+            >
+              {pending ? 'Sending…' : '↻ Resend email'}
+            </button>
+          ) : null}
           {po.status === 'PENDING_APPROVAL' || po.status === 'DRAFT' ? (
             <button
               type="button"
@@ -161,6 +203,46 @@ export function PoDetailView({
         <Field label="Issued" value={po.issuedAt ? new Date(po.issuedAt).toLocaleString() : '—'} />
       </div>
 
+      {/* Delivery block — only show if any delivery field is set.
+          Distinct from shipTo because the delivery address is
+          often a jobsite, not the buyer's office, and the
+          vendor's driver needs the on-site point of contact. */}
+      {po.deliveryAddress || po.deliveryName || po.deliveryContactName ? (
+        <div className="bg-info/5 border border-info p-3 mb-4">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-info mb-2">
+            {'// Delivery — driver drop-off + on-site point of contact'}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[12px]">
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-0.5">
+                Site / location
+              </div>
+              <div className="text-ink font-semibold">{po.deliveryName ?? '—'}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-0.5">
+                Address
+              </div>
+              <div className="text-ink whitespace-pre-wrap">{po.deliveryAddress ?? '—'}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-0.5">
+                On-site point of contact
+              </div>
+              <div className="text-ink">
+                {po.deliveryContactName ?? '—'}
+                {po.deliveryContactPhone ? (
+                  <span className="text-ink-70"> · {po.deliveryContactPhone}</span>
+                ) : null}
+                {po.deliveryContactEmail ? (
+                  <span className="text-ink-70"> · {po.deliveryContactEmail}</span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {editing ? (
         <div className="mb-4">
           <PoEditor
@@ -182,6 +264,11 @@ export function PoDetailView({
             initialNotes={po.notes}
             initialFreight={po.freightAmount}
             initialTax={po.taxAmount}
+            initialDeliveryName={po.deliveryName}
+            initialDeliveryAddress={po.deliveryAddress}
+            initialDeliveryContactName={po.deliveryContactName}
+            initialDeliveryContactPhone={po.deliveryContactPhone}
+            initialDeliveryContactEmail={po.deliveryContactEmail}
           />
         </div>
       ) : null}
@@ -273,6 +360,70 @@ export function PoDetailView({
             Notes
           </div>
           {po.notes}
+        </div>
+      ) : null}
+
+      {/* Activity log — every meaningful change to the PO.
+          Append-only audit trail; the buyer can see who
+          edited the PO, when, and what they changed (added
+          / removed / modified line counts from the EDITED
+          event's meta). */}
+      {po.events.length > 0 ? (
+        <div className="mt-4">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-2">
+            {'// Activity log'}
+          </div>
+          <div className="border border-line bg-paper">
+            {po.events.map((e, i) => {
+              const meta = (e.meta ?? {}) as {
+                added?: string[];
+                removed?: string[];
+                modified?: string[];
+                newTotal?: number;
+                newSubtotal?: number;
+              };
+              const lineDelta =
+                meta.added?.length || meta.removed?.length || meta.modified?.length
+                  ? `+${meta.added?.length ?? 0} / −${meta.removed?.length ?? 0} / ~${meta.modified?.length ?? 0}`
+                  : null;
+              return (
+                <div
+                  key={e.id}
+                  className={`px-3 py-2 text-[12px] flex items-start gap-3 ${
+                    i > 0 ? 'border-t border-line' : ''
+                  }`}
+                >
+                  <span className="text-[10px] font-mono text-ink-50 whitespace-nowrap">
+                    {new Date(e.createdAt).toLocaleString()}
+                  </span>
+                  <span className="font-extrabold text-ink-50 uppercase tracking-[0.1em] text-[10px] whitespace-nowrap w-[60px]">
+                    {e.type}
+                  </span>
+                  <span className="text-ink-70 flex-1">
+                    {e.type === 'EDITED' && lineDelta
+                      ? `lines: ${lineDelta}`
+                      : e.type === 'ISSUED'
+                      ? 'PO issued and emailed to vendor'
+                      : e.type === 'RESENT'
+                      ? 'PO email re-sent to vendor'
+                      : e.type === 'CREATED'
+                      ? 'PO created from accepted quote'
+                      : e.type === 'CANCELLED'
+                      ? 'PO cancelled'
+                      : '—'}
+                    {meta.newTotal != null ? (
+                      <span className="font-mono text-ink-50 ml-2">
+                        total ${meta.newTotal.toFixed(2)}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="text-[10px] font-mono text-ink-50">
+                    {e.actor ? e.actor.slice(-6) : 'system'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>
