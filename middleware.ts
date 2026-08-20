@@ -28,6 +28,11 @@ const isPublicRoute = createRouteMatcher([
   '/features',
   // Public pay app share links (token-based, no auth)
   '/pay-apps/(.*)',
+  // Public estimate approval links (token-based, no auth)
+  // The token IS the credential: anyone with the URL
+  // can view + approve / reject. The typed name + email
+  // in the form is the audit trail of "who clicked what".
+  '/e/(.*)',
   // Public site check-in / check-out (token-based, no auth)
   // The token IS the credential: anyone with the sticker
   // can scan it. The route itself decides whether to ask

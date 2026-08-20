@@ -8,6 +8,7 @@ import { PLAN_INFO } from '@/lib/workspace/tier';
 import { Plan } from '@prisma/client';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 import { WorkspaceSettingsForm, InviteMemberForm, DeleteWorkspaceSection, BackupSection } from './SettingsClient';
+import { TimezoneForm } from './TimezoneForm';
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   OWNER: 'Full access including billing and member management.',
@@ -50,13 +51,17 @@ export default async function SettingsPage({
     /* not owner */
   }
 
-  const [members, activity] = await Promise.all([
+  const [members, activity, currentUser] = await Promise.all([
     prisma.membership.findMany({
       where: { workspaceId: workspace.id },
       orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
       include: { user: true },
     }),
     listWorkspaceActivity(workspace.id, 25),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, timezone: true },
+    }),
   ]);
 
   const planInfo = PLAN_INFO[workspace.plan as Plan];
@@ -129,6 +134,15 @@ export default async function SettingsPage({
           <span>slug: <span className="text-ink-70">{workspace.slug}</span></span>
           <span>created: <span className="text-ink-70">{workspace.createdAt.toLocaleDateString('en-US')}</span></span>
         </div>
+      </div>
+
+      {/* Personal preferences — your timezone for date displays */}
+      <div className="bg-paper border-2 border-line p-6 mb-6">
+        <div className="label-eyebrow mb-3">{'// Your preferences'}</div>
+        <div className="text-[12px] text-ink-70 mb-4">
+          All dates in the app (check-in times, timesheets, notifications) render in your selected timezone.
+        </div>
+        <TimezoneForm currentTimezone={currentUser?.timezone ?? null} />
       </div>
 
       {/* Plan & billing */}

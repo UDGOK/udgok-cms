@@ -4,7 +4,7 @@ import { auth } from '@clerk/nextjs/server';
 import { getClient } from '@/lib/clients/queries';
 import { listEntityActivity } from '@/lib/activity/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
-import { StatusBadge, Button } from '@/components/ui';
+import { StatusBadge } from '@/components/ui';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { ClientAddNoteForm } from './ClientAddNoteForm';
 import { ClientTaskRow } from './ClientTaskRow';
@@ -113,7 +113,12 @@ export default async function ClientDetailPage({
             </svg>
             Edit
           </Link>
-          <Button variant="primary">+ NEW ESTIMATE</Button>
+          <Link
+            href={`/w/${workspace.slug}/estimates/new?clientId=${client.id}`}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange text-paper border-2 border-orange text-[12px] font-extrabold uppercase tracking-[0.1em] hover:bg-orange-d"
+          >
+            + NEW ESTIMATE
+          </Link>
         </div>
       </div>
 

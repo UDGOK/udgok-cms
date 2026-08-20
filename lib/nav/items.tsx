@@ -136,6 +136,22 @@ export const navItems: NavItem[] = [
     ),
   },
   {
+    // Estimates — client-facing proposals. Lives
+    // after Timesheets so the sidebar reads: project
+    // → client → deal → invoice/estimate → time.
+    href: (s) => `/w/${s}/estimates`,
+    label: 'Estimates',
+    section: 'workspace',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="9" y1="13" x2="15" y2="13" />
+        <line x1="9" y1="17" x2="13" y2="17" />
+      </svg>
+    ),
+  },
+  {
     // Site check-in admin: generate QR codes, see who
     // is on site now across all projects, and review
     // history. Sits next to Scan in the sidebar so the

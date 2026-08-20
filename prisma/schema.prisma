@@ -28,6 +28,7 @@ model Workspace {
   clients  Client[]
   deals    Deal[]
   projects Project[]
+  estimates Estimate[]
   tasks    Task[]
   files    File[]
   teams    Team[]
@@ -57,6 +58,12 @@ model User {
   email     String   @unique
   name      String?
   avatarUrl String?
+  // IANA timezone string, e.g. "America/Chicago".
+  // When set, the app renders all dates in this
+  // timezone instead of the server's (UTC). When
+  // null, we fall back to the server timezone.
+  // Settings page lets the user pick.
+  timezone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -82,6 +89,7 @@ model User {
   weeklyTimesheetsRejected  WeeklyTimesheet[] @relation("timesheetRejecter")
   notificationsReceived Notification[] @relation("notificationRecipient")
   notificationsCreated  Notification[] @relation("notificationCreator")
+  estimatesCreated Estimate[] @relation("estimateCreator")
 
   @@index([email])
 }
@@ -164,6 +172,7 @@ model Client {
   properties Property[]
   deals      Deal[]
   projects   Project[]
+  estimates  Estimate[]
   tasks      Task[]
   notes      Note[]
   files      File[]
@@ -224,6 +233,10 @@ model Deal {
   // The project this deal was converted into. null until
   // "Convert to project" is clicked on the deal detail page.
   convertedProject Project? @relation("DealConversion")
+  // Estimates sent to the client during the deal
+  // pipeline (when stage=ESTIMATE_SENT). One deal
+  // can have many estimates (rev 1, rev 2, etc).
+  estimates  Estimate[] @relation("estimateDeal")
   notes     Note[]
   files     File[]
   tasks     Task[]
@@ -239,6 +252,188 @@ enum DealStage {
   NEGOTIATING
   WON
   LOST
+}
+
+// =========================================
+// ESTIMATES — client-facing proposal + approval
+// =========================================
+//
+// An Estimate is a proposal sent to a client. It can
+// be standalone (built directly from a client page
+// when the client requests a quote) or tied to an
+// existing project (a change-order scope) or
+// generated from a Deal in the pipeline. The same
+// model covers all three cases via the optional
+// projectId / dealId fields.
+//
+// Lifecycle:
+//   DRAFT → SENT → VIEWED → APPROVED → CONVERTED
+//                 ↘ REJECTED
+//   EXPIRED — only set if the admin manually retires
+//             the estimate or if the validUntil date
+//             passes (we don't auto-set EXPIRED; the
+//             UI just shows "Expired" in red).
+//
+// The shareToken is the credential for the public
+// /e/[token] page — same pattern as the pay-app
+// share tokens. Anyone with the URL can view; the
+// approve / reject actions on the public page take
+// a viewerEmail (typed by the user) so we have an
+// audit trail of who clicked what.
+//
+// On APPROVED, the admin can hit "Convert to
+// project" in the app. That action creates a new
+// Project (with the client + contract value from
+// the estimate) and stamps convertedProjectId so
+// the estimate closes out. Once converted, the
+// project picks up the standard project lifecycle
+// (tasks, pay apps, etc.).
+//
+// Line items live in a child table so the
+// estimate has a real breakdown (not just a total)
+// and the convert-to-project action can pre-create
+// default CSI divisions from the line items if
+// the user wants.
+
+model Estimate {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  clientId      String
+  // Optional — null when the estimate is standalone
+  // (no existing project context). When set, the
+  // estimate is a scope change for that project.
+  projectId     String?
+  // Optional — null when the estimate wasn't spawned
+  // from a Deal. When set, the Deal's stage moves to
+  // ESTIMATE_SENT on send, NEGOTIATING if the client
+  // views, WON on approval.
+  dealId        String?
+  // The token for the public approval URL.
+  // Generated server-side; never sent to the client
+  // until "Send" is clicked.
+  shareToken    String?  @unique
+
+  title         String
+  description   String?
+  // The proposal number shown on the PDF / public
+  // view, e.g. EST-2026-0142. Auto-generated on create.
+  number        String   @unique
+  // ISO date string. The estimate is considered
+  // expired after this date (the UI shows "Expired"
+  // in red; we don't auto-transition status to keep
+  // the state machine simple).
+  validUntil    DateTime?
+
+  // Money — stored as Decimal for precision. The
+  // total is computed as subtotal + taxAmount. We
+  // persist the taxAmount + taxRate so the PDF can
+  // show the breakdown.
+  subtotal      Decimal  @db.Decimal(12, 2)
+  taxRate       Decimal? @db.Decimal(5, 4) // 0.0825 = 8.25%
+  taxAmount     Decimal? @db.Decimal(12, 2)
+  total         Decimal  @db.Decimal(12, 2)
+
+  status        EstimateStatus @default(DRAFT)
+
+  // Audit timestamps.
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  // When "Send" was clicked. Distinct from createdAt
+  // because the admin might draft a quote days before
+  // sending it.
+  sentAt        DateTime?
+  firstViewedAt DateTime?
+  // Approval audit (public page, no auth — the
+  // viewerEmail is typed by the client so we have a
+  // paper trail of who clicked approve).
+  approvedAt    DateTime?
+  approvedByEmail String?
+  approvedByName  String?
+  // Rejection audit.
+  rejectedAt    DateTime?
+  rejectedByEmail String?
+  rejectedByName  String?
+  rejectNote    String?
+  // Set when the admin runs "Convert to project".
+  convertedProjectId String? @unique
+  convertedAt   DateTime?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project     Project?  @relation("estimateProject", fields: [projectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deal        Deal?     @relation("estimateDeal", fields: [dealId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // The project that was created from this estimate
+  // (when convertedProjectId is set). The Project
+  // side has the matching "estimateConversion"
+  // back-relation.
+  sourceProject Project? @relation("estimateConversion", fields: [convertedProjectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdBy   User      @relation("estimateCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  lineItems   EstimateLineItem[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, clientId])
+  @@index([workspaceId, projectId])
+  @@index([clientId])
+}
+
+enum EstimateStatus {
+  // Admin is still building the quote. Not visible
+  // to the client.
+  DRAFT
+  // Admin clicked Send. shareToken is live; the
+  // public URL is shareable. The line items are
+  // locked from edits (a new estimate must be sent
+  // instead of mutating the old one — keeps the
+  // audit trail clean).
+  SENT
+  // Client opened the public URL. firstViewedAt
+  // is set. Admin sees "Viewed" in the list.
+  VIEWED
+  // Client clicked Approve. The estimate is locked;
+  // the only remaining action is "Convert to project"
+  // (or "Void" if the admin wants to discard).
+  APPROVED
+  // Client clicked Reject. The estimate is closed;
+  // a new estimate would need to be drafted to
+  // re-engage.
+  REJECTED
+  // Admin ran "Convert to project". The estimate
+  // is closed and the project is now active. The
+  // convertedProjectId field points at the new
+  // project.
+  CONVERTED
+}
+
+// Line items on an estimate. Description + quantity
+// + unit price = line total. We persist the line
+// total so the PDF doesn't have to re-compute on
+// every render and so the convert-to-project
+// action has the per-line numbers available.
+model EstimateLineItem {
+  id          String   @id @default(cuid())
+  estimateId  String
+  // Order on the estimate (1, 2, 3, ...). Drives
+  // the render order; users can re-order later.
+  position    Int
+  // Optional CSI division code (e.g. "09 30 00"
+  // for tile). The convert-to-project action uses
+  // this to seed the project's default divisions.
+  divisionCode String?
+  description String
+  quantity    Decimal  @db.Decimal(10, 2)
+  // Unit shorthand (EA, SF, LF, HR, LS, etc.). Free
+  // text so the user can record any unit they bought
+  // (board-feet, cubic-yard, pallet, etc.).
+  unit        String   @default("EA")
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  // quantity * unitPrice, persisted for fast PDF
+  // generation + convert-to-project.
+  lineTotal   Decimal  @db.Decimal(12, 2)
+
+  estimate Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  @@index([estimateId, position])
 }
 
 model Note {
@@ -314,6 +509,18 @@ model Project {
   equipment     Equipment[]
   siteCheckInCodes SiteCheckInCode[]
   checkInEvents    CheckInEvent[]
+  // Estimates created for this project (scope changes
+  // or change orders). null when the project was
+  // created from a Won deal (the deal is the source
+  // of the original scope) and no follow-on
+  // estimates have been drafted.
+  estimates Estimate[] @relation("estimateProject")
+  // The estimate that was approved and converted
+  // into this project. Inverse of
+  // Estimate.convertedProjectId. At most one
+  // estimate can convert into a project — enforced
+  // by @unique on convertedProjectId.
+  sourceEstimate Estimate? @relation("estimateConversion")
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])

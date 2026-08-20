@@ -20,6 +20,8 @@ import { dayLabel, formatHours } from '@/lib/timesheets/hours';
 import { closeCheckInEventAction } from '@/lib/timesheets/actions';
 import { EditEventModal } from './EditEventModal';
 import { TimesheetActions } from './TimesheetActions';
+import { useWorkspace } from '../workspace/WorkspaceContext';
+import { formatInUserTz } from '@/lib/timezone';
 import type { WeeklyTimesheetStatus } from '@prisma/client';
 
 interface EventDto {
@@ -92,6 +94,7 @@ export function PersonDetailView({
   canSubmit,
   canApprove,
 }: PersonDetailViewProps) {
+  const { timezone } = useWorkspace();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<EventDto | null>(null);
@@ -260,6 +263,7 @@ export function PersonDetailView({
               event={e}
               workspaceSlug={workspaceSlug}
               canEdit={canEdit && !timesheet?.isLocked}
+              timezone={timezone}
               onEdit={() => setEditing(e)}
             />
           ))}
@@ -291,11 +295,13 @@ function EventRow({
   event,
   workspaceSlug,
   canEdit,
+  timezone,
   onEdit,
 }: {
   event: EventDto;
   workspaceSlug: string;
   canEdit: boolean;
+  timezone: string;
   onEdit: () => void;
 }) {
   const [pending] = useTransition();
@@ -331,10 +337,19 @@ function EventRow({
           ) : null}
         </div>
         <div className="text-[10px] font-mono text-ink-50 mt-0.5">
-          {new Date(event.checkedInAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          {formatInUserTz(event.checkedInAt, { timezone }, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })}
           {' → '}
           {event.checkedOutAt
-            ? new Date(event.checkedOutAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+            ? formatInUserTz(event.checkedOutAt, { timezone }, {
+                hour: 'numeric',
+                minute: '2-digit',
+              })
             : 'still on site'}
         </div>
         {event.note ? (

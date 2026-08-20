@@ -25,10 +25,19 @@ export default async function WorkspaceLayout({
   });
   if (!workspace) notFound();
 
-  // Verify the user is a member.
-  const membership = await prisma.membership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
-  });
+  // Verify the user is a member. Also fetch the
+  // user's timezone preference in parallel so the
+  // workspace context can ship it to every client
+  // component.
+  const [membership, currentUser] = await Promise.all([
+    prisma.membership.findUnique({
+      where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    }),
+  ]);
   if (!membership) {
     redirect('/workspaces');
   }
@@ -77,6 +86,7 @@ export default async function WorkspaceLayout({
         slug: workspace.slug,
         name: workspace.name,
         role: membership.role,
+        timezone: currentUser?.timezone ?? 'UTC',
       }}
     >
       <PresenceShell workspaceId={workspace.id}>

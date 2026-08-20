@@ -8,6 +8,12 @@ export interface WorkspaceContextValue {
   slug: string;
   name: string;
   role: Role;
+  // IANA timezone string for the current user
+  // (User.timezone). Used by date displays in
+  // client components that don't otherwise have
+  // access to the User row. Falls back to 'UTC' when
+  // the user hasn't picked a timezone yet.
+  timezone: string;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
