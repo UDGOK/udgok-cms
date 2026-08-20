@@ -1,5 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "pnpm exec prisma db push --skip-generate --accept-data-loss && rm -rf node_modules/.prisma && pnpm exec prisma generate && pnpm exec next build",
-  "installCommand": "pnpm install --no-frozen-lockfile"
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "crons": [
+    {
+      "path": "/api/cron/rfq-expire",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/rate-limit-gc",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }
