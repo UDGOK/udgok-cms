@@ -376,7 +376,10 @@ ${SUB_MESSAGE_SCHEMA_HINT}`;
       generatedAt: new Date().toISOString(),
     };
   } catch (e) {
-    console.error('[DeepSeek] draftSubMessage failed:', e);
-    return null;
+    // Don't swallow — let the action surface the real error to
+    // the user. console.error keeps it in Vercel logs for
+    // debugging too.
+    console.error('[OpenRouter] draftSubMessage failed:', e);
+    throw e;
   }
 }

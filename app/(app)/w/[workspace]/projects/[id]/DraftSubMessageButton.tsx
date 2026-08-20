@@ -117,8 +117,18 @@ export function DraftSubMessageButton({ workspaceSlug, projectId, sub }: DraftSu
           ) : null}
 
           {error ? (
-            <div className="text-[12px] text-error bg-error/5 border border-error p-2">
-              {error}
+            <div className="space-y-2">
+              <div className="text-[12px] text-error bg-error/5 border border-error p-2 leading-relaxed">
+                {error}
+              </div>
+              <button
+                type="button"
+                onClick={generate}
+                disabled={pending}
+                className="w-full px-4 py-2.5 border-2 border-error text-error text-[11px] font-extrabold uppercase tracking-[0.15em] hover:bg-error hover:text-paper disabled:opacity-50"
+              >
+                {pending ? 'Drafting…' : '↻ Try again'}
+              </button>
             </div>
           ) : null}
 

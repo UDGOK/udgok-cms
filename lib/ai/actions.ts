@@ -108,7 +108,23 @@ export async function draftSubMessageAction(
     divisionLabels: subAssignment.divisionLinks.map((dl) => `${dl.division.code} ${dl.division.trade}`),
   };
 
-  const draft = await draftSubMessage(ctx.projectMeta, workspaceSlug, { ...sub }, opts);
-  if (!draft) return { ok: false, error: 'Failed to generate draft' };
+  let draft;
+  try {
+    draft = await draftSubMessage(ctx.projectMeta, workspaceSlug, { ...sub }, opts);
+  } catch (e) {
+    // Surface the actual failure to the user. The previous version
+    // returned a generic "Failed to generate draft" which hid
+    // everything — was the env var unset, the model down, a
+    // malformed response? Now the user sees what actually went
+    // wrong so they can retry, copy for support, or try a
+    // different model.
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[draftSubMessageAction] AI call failed:', msg);
+    return {
+      ok: false,
+      error: `AI service is unavailable right now. ${msg.slice(0, 280)}`,
+    };
+  }
+  if (!draft) return { ok: false, error: 'AI returned no draft — try again' };
   return { ok: true, draft };
 }
