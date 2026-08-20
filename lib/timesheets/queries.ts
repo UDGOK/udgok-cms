@@ -19,6 +19,7 @@ import {
   sumHours,
   weekDays,
 } from './hours';
+import type { WeeklyTimesheetStatus } from '@prisma/client';
 
 export type EventRow = {
   id: string;
@@ -48,6 +49,10 @@ export type PersonRow = {
   dailyHours: (number | null)[];
   totalHours: number;
   openCount: number; // count of still-open events this week
+  // Approval status for this person's week. Null
+  // when no WeeklyTimesheet row exists yet (treated
+  // as DRAFT in the UI).
+  timesheetStatus: WeeklyTimesheetStatus | null;
 };
 
 export type WeeklyGrid = {
@@ -78,20 +83,32 @@ export async function getWeeklyGrid(
 
   // Fetch all events in this week, eager-loaded with
   // the user / sub / project we need to display.
-  const events = await prisma.checkInEvent.findMany({
-    where: {
-      workspaceId,
-      checkedInAt: { gte: weekStart, lt: weekEnd },
-    },
-    include: {
-      project: { select: { id: true, name: true, code: true } },
-      user: { select: { id: true, name: true, email: true, memberships: { where: { workspaceId }, select: { role: true } } } },
-      subcontractor: { select: { id: true, name: true, primaryTrade: true } },
-      siteCheckInCode: { select: { label: true } },
-      editedBy: { select: { name: true, email: true } },
-    },
-    orderBy: { checkedInAt: 'asc' },
-  });
+  // Plus the WeeklyTimesheet status for each (person, week)
+  // so the grid can show a status badge per row.
+  const [events, weeklyTimesheets] = await Promise.all([
+    prisma.checkInEvent.findMany({
+      where: {
+        workspaceId,
+        checkedInAt: { gte: weekStart, lt: weekEnd },
+      },
+      include: {
+        project: { select: { id: true, name: true, code: true } },
+        user: { select: { id: true, name: true, email: true, memberships: { where: { workspaceId }, select: { role: true } } } },
+        subcontractor: { select: { id: true, name: true, primaryTrade: true } },
+        siteCheckInCode: { select: { label: true } },
+        editedBy: { select: { name: true, email: true } },
+      },
+      orderBy: { checkedInAt: 'asc' },
+    }),
+    prisma.weeklyTimesheet.findMany({
+      where: { workspaceId, weekStart },
+      select: { personKind: true, personId: true, status: true },
+    }),
+  ]);
+  const statusMap = new Map<string, WeeklyTimesheetStatus>();
+  for (const wt of weeklyTimesheets) {
+    statusMap.set(`${wt.personKind}:${wt.personId}`, wt.status);
+  }
 
   // Bucket events by (kind, id).
   type Bucket = { events: typeof events; row: Omit<PersonRow, 'dailyHours' | 'totalHours' | 'openCount'> };
@@ -106,6 +123,7 @@ export async function getWeeklyGrid(
         kind: 'employee',
         name: e.user.name ?? e.user.email,
         secondaryLabel: e.user.memberships[0]?.role ?? null,
+        timesheetStatus: null,
       };
     } else if (e.subcontractorId && e.subcontractor) {
       key = `sub:${e.subcontractorId}`;
@@ -114,6 +132,7 @@ export async function getWeeklyGrid(
         kind: 'sub',
         name: e.subcontractor.name,
         secondaryLabel: e.subcontractor.primaryTrade,
+        timesheetStatus: null,
       };
     } else {
       // Orphan event (sub got deleted, or user got
@@ -161,6 +180,7 @@ export async function getWeeklyGrid(
       dailyHours,
       totalHours: Math.round(totalHours * 100) / 100,
       openCount,
+      timesheetStatus: statusMap.get(`${row.kind}:${row.id}`) ?? null,
     });
   }
 
@@ -217,13 +237,25 @@ export async function getEmployeeTimesheet(
   totalHours: number;
   openCount: number;
   totalEvents: number;
+  timesheet: {
+    status: WeeklyTimesheetStatus;
+    submittedByName: string | null;
+    submittedAt: string | null;
+    approvedByName: string | null;
+    approvedAt: string | null;
+    rejectedByName: string | null;
+    rejectedAt: string | null;
+    rejectNote: string | null;
+    totalHoursAtApproval: number | null;
+    isLocked: boolean;
+  } | null;
 }> {
   const days = weekDays(anchor);
   const weekStart = days[0];
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 7);
 
-  const [user, rawEvents] = await Promise.all([
+  const [user, rawEvents, timesheet] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -243,6 +275,21 @@ export async function getEmployeeTimesheet(
       },
       orderBy: { checkedInAt: 'asc' },
     }),
+    prisma.weeklyTimesheet.findUnique({
+      where: {
+        workspaceId_personKind_personId_weekStart: {
+          workspaceId,
+          personKind: 'employee',
+          personId: userId,
+          weekStart,
+        },
+      },
+      include: {
+        submittedBy: { select: { name: true, email: true } },
+        approvedBy: { select: { name: true, email: true } },
+        rejectedBy: { select: { name: true, email: true } },
+      },
+    }),
   ]);
 
   if (!user) {
@@ -255,6 +302,7 @@ export async function getEmployeeTimesheet(
       totalHours: 0,
       openCount: 0,
       totalEvents: 0,
+      timesheet: null,
     };
   }
 
@@ -289,6 +337,22 @@ export async function getEmployeeTimesheet(
     totalHours: Math.round(sumHours(rawEvents) * 100) / 100,
     openCount: events.filter((e) => e.isOpen).length,
     totalEvents: events.length,
+    timesheet: timesheet
+      ? {
+          status: timesheet.status,
+          submittedByName: timesheet.submittedBy?.name ?? timesheet.submittedBy?.email ?? null,
+          submittedAt: timesheet.submittedAt ? timesheet.submittedAt.toISOString() : null,
+          approvedByName: timesheet.approvedBy?.name ?? timesheet.approvedBy?.email ?? null,
+          approvedAt: timesheet.approvedAt ? timesheet.approvedAt.toISOString() : null,
+          rejectedByName: timesheet.rejectedBy?.name ?? timesheet.rejectedBy?.email ?? null,
+          rejectedAt: timesheet.rejectedAt ? timesheet.rejectedAt.toISOString() : null,
+          rejectNote: timesheet.rejectNote,
+          totalHoursAtApproval: timesheet.totalHoursAtApproval
+            ? Number(timesheet.totalHoursAtApproval)
+            : null,
+          isLocked: timesheet.status === 'APPROVED',
+        }
+      : null,
   };
 }
 
@@ -309,13 +373,25 @@ export async function getSubTimesheet(
   totalHours: number;
   openCount: number;
   totalEvents: number;
+  timesheet: {
+    status: WeeklyTimesheetStatus;
+    submittedByName: string | null;
+    submittedAt: string | null;
+    approvedByName: string | null;
+    approvedAt: string | null;
+    rejectedByName: string | null;
+    rejectedAt: string | null;
+    rejectNote: string | null;
+    totalHoursAtApproval: number | null;
+    isLocked: boolean;
+  } | null;
 }> {
   const days = weekDays(anchor);
   const weekStart = days[0];
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 7);
 
-  const [sub, rawEvents] = await Promise.all([
+  const [sub, rawEvents, timesheet] = await Promise.all([
     prisma.subcontractor.findUnique({ where: { id: subId } }),
     prisma.checkInEvent.findMany({
       where: {
@@ -330,6 +406,21 @@ export async function getSubTimesheet(
       },
       orderBy: { checkedInAt: 'asc' },
     }),
+    prisma.weeklyTimesheet.findUnique({
+      where: {
+        workspaceId_personKind_personId_weekStart: {
+          workspaceId,
+          personKind: 'sub',
+          personId: subId,
+          weekStart,
+        },
+      },
+      include: {
+        submittedBy: { select: { name: true, email: true } },
+        approvedBy: { select: { name: true, email: true } },
+        rejectedBy: { select: { name: true, email: true } },
+      },
+    }),
   ]);
 
   if (!sub) {
@@ -342,6 +433,7 @@ export async function getSubTimesheet(
       totalHours: 0,
       openCount: 0,
       totalEvents: 0,
+      timesheet: null,
     };
   }
 
@@ -371,6 +463,22 @@ export async function getSubTimesheet(
     totalHours: Math.round(sumHours(rawEvents) * 100) / 100,
     openCount: events.filter((e) => e.isOpen).length,
     totalEvents: events.length,
+    timesheet: timesheet
+      ? {
+          status: timesheet.status,
+          submittedByName: timesheet.submittedBy?.name ?? timesheet.submittedBy?.email ?? null,
+          submittedAt: timesheet.submittedAt ? timesheet.submittedAt.toISOString() : null,
+          approvedByName: timesheet.approvedBy?.name ?? timesheet.approvedBy?.email ?? null,
+          approvedAt: timesheet.approvedAt ? timesheet.approvedAt.toISOString() : null,
+          rejectedByName: timesheet.rejectedBy?.name ?? timesheet.rejectedBy?.email ?? null,
+          rejectedAt: timesheet.rejectedAt ? timesheet.rejectedAt.toISOString() : null,
+          rejectNote: timesheet.rejectNote,
+          totalHoursAtApproval: timesheet.totalHoursAtApproval
+            ? Number(timesheet.totalHoursAtApproval)
+            : null,
+          isLocked: timesheet.status === 'APPROVED',
+        }
+      : null,
   };
 }
 
@@ -430,6 +538,131 @@ export async function getOpenCheckIns(
       siteLabel: e.siteCheckInCode.label,
     };
   });
+}
+
+// =====================================================================
+// Pending approvals — for the admin's /timesheets/approvals page.
+// =====================================================================
+
+export interface PendingApprovalRow {
+  id: string;
+  personKind: 'employee' | 'sub';
+  personId: string;
+  personName: string;
+  personSecondary: string | null;
+  weekStart: string;
+  weekEnd: string;
+  totalHours: number;
+  eventCount: number;
+  submittedAt: string;
+  submittedByName: string | null;
+  totalHoursAtApproval: number | null;
+}
+
+/**
+ * All SUBMITTED timesheets in the workspace,
+ * most-recent-submission first. Joined with the
+ * person + computed total hours so the approver
+ * sees the snapshot they're about to sign off on.
+ */
+export async function getPendingApprovals(
+  workspaceId: string,
+  anchor: Date = new Date(),
+): Promise<PendingApprovalRow[]> {
+  const rows = await prisma.weeklyTimesheet.findMany({
+    where: {
+      workspaceId,
+      status: 'SUBMITTED',
+    },
+    include: {
+      submittedBy: { select: { name: true, email: true } },
+    },
+    orderBy: { submittedAt: 'desc' },
+  });
+
+  // Hydrate the person + total hours. Two queries
+  // (one for employees, one for subs) — easier than
+  // a polymorphic join.
+  const employeeIds = rows.filter((r) => r.personKind === 'employee').map((r) => r.personId);
+  const subIds = rows.filter((r) => r.personKind === 'sub').map((r) => r.personId);
+
+  const [employees, subs] = await Promise.all([
+    employeeIds.length > 0
+      ? prisma.user.findMany({
+          where: { id: { in: employeeIds } },
+          include: { memberships: { where: { workspaceId }, select: { role: true } } },
+        })
+      : Promise.resolve([] as Array<{ id: string; name: string | null; email: string; memberships: { role: string }[] }>),
+    subIds.length > 0
+      ? prisma.subcontractor.findMany({ where: { id: { in: subIds } } })
+      : Promise.resolve([] as Array<{ id: string; name: string; primaryTrade: string | null }>),
+  ]);
+
+  const empMap = new Map(employees.map((e) => [e.id, e]));
+  const subMap = new Map(subs.map((s) => [s.id, s]));
+
+  const weekEnd = new Date(anchor);
+  void weekEnd;
+
+  const out: PendingApprovalRow[] = [];
+  for (const r of rows) {
+    const end = new Date(r.weekStart);
+    end.setDate(end.getDate() + 7);
+    const events = await prisma.checkInEvent.findMany({
+      where: {
+        workspaceId,
+        [r.personKind === 'employee' ? 'userId' : 'subcontractorId']: r.personId,
+        checkedInAt: { gte: r.weekStart, lt: end },
+      },
+      select: { editedHours: true, checkedInAt: true, checkedOutAt: true },
+    });
+    let total = 0;
+    for (const e of events) {
+      if (e.editedHours !== null) {
+        total += Number(e.editedHours);
+      } else if (e.checkedOutAt) {
+        total += (e.checkedOutAt.getTime() - e.checkedInAt.getTime()) / 3_600_000;
+      }
+    }
+    total = Math.round(total * 100) / 100;
+    const weekEndDate = new Date(end.getTime() - 1);
+
+    if (r.personKind === 'employee') {
+      const e = empMap.get(r.personId);
+      out.push({
+        id: r.id,
+        personKind: 'employee',
+        personId: r.personId,
+        personName: e?.name ?? e?.email ?? 'Unknown',
+        personSecondary: e?.memberships?.[0]?.role ?? null,
+        weekStart: r.weekStart.toISOString(),
+        weekEnd: weekEndDate.toISOString(),
+        totalHours: total,
+        eventCount: events.length,
+        submittedAt: r.submittedAt!.toISOString(),
+        submittedByName: r.submittedBy?.name ?? r.submittedBy?.email ?? null,
+        totalHoursAtApproval: null,
+      });
+    } else {
+      const s = subMap.get(r.personId);
+      out.push({
+        id: r.id,
+        personKind: 'sub',
+        personId: r.personId,
+        personName: s?.name ?? 'Unknown',
+        personSecondary: s?.primaryTrade ?? null,
+        weekStart: r.weekStart.toISOString(),
+        weekEnd: weekEndDate.toISOString(),
+        totalHours: total,
+        eventCount: events.length,
+        submittedAt: r.submittedAt!.toISOString(),
+        submittedByName: r.submittedBy?.name ?? r.submittedBy?.email ?? null,
+        totalHoursAtApproval: null,
+      });
+    }
+  }
+
+  return out;
 }
 
 // =====================================================================

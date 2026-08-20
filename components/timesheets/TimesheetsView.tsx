@@ -76,7 +76,21 @@ export function TimesheetsView({
             Week of {new Date(weekStart).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
           </h1>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {canEdit ? (
+            <Link
+              href={`/w/${workspaceSlug}/timesheets/approvals`}
+              className="px-3 py-1.5 bg-info text-paper text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-info hover:bg-info/90"
+            >
+              Approvals
+            </Link>
+          ) : null}
+          <a
+            href={`/api/timesheets/csv?week=${weekStart}&slug=${workspaceSlug}`}
+            className="px-3 py-1.5 border-2 border-ink text-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-paper"
+          >
+            CSV
+          </a>
           <button
             type="button"
             onClick={() => shiftWeek(-7)}
@@ -192,6 +206,9 @@ function Section({
                 <th className="text-right px-3 py-2 font-extrabold uppercase tracking-[0.1em] text-[10px] text-ink-50 w-16">
                   Open
                 </th>
+                <th className="text-right px-3 py-2 font-extrabold uppercase tracking-[0.1em] text-[10px] text-ink-50 w-20">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -240,6 +257,9 @@ function Section({
                       <span className="text-ink-30">—</span>
                     )}
                   </td>
+                  <td className="text-right px-3 py-2">
+                    <GridStatusBadge status={row.timesheetStatus} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -247,6 +267,24 @@ function Section({
         </div>
       )}
     </div>
+  );
+}
+
+function GridStatusBadge({ status }: { status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | null }) {
+  const s = status ?? 'DRAFT';
+  const palette: Record<string, { bg: string; fg: string; label: string }> = {
+    DRAFT: { bg: 'bg-cream', fg: 'text-ink-50 border-line', label: 'Draft' },
+    SUBMITTED: { bg: 'bg-info/10', fg: 'text-info border-info/40', label: 'Submitted' },
+    APPROVED: { bg: 'bg-success/15', fg: 'text-success border-success/40', label: '✓' },
+    REJECTED: { bg: 'bg-error/10', fg: 'text-error border-error/40', label: 'Rejected' },
+  };
+  const p = palette[s];
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.1em] border ${p.bg} ${p.fg}`}
+    >
+      {p.label}
+    </span>
   );
 }
 

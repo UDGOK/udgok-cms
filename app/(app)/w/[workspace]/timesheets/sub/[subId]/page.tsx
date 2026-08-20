@@ -44,6 +44,10 @@ export default async function SubTimesheetPage({
   }
   const master = await isMasterAdmin(sessionUserId);
   const canEdit = master || ['OWNER', 'ADMIN', 'PM'].includes(sessionMembership.role);
+  // Subs can't self-submit (no Clerk session).
+  // Only approvers can submit on their behalf.
+  const canSubmit = canEdit;
+  const canApprove = canEdit;
 
   let anchor = new Date();
   if (searchParams.week) {
@@ -88,6 +92,9 @@ export default async function SubTimesheetPage({
       openCount={sheet.openCount}
       totalEvents={sheet.totalEvents}
       canEdit={canEdit}
+      timesheet={sheet.timesheet}
+      canSubmit={canSubmit}
+      canApprove={canApprove}
     />
   );
 }

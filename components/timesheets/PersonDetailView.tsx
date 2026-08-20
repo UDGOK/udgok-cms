@@ -19,6 +19,8 @@ import { useRouter } from 'next/navigation';
 import { dayLabel, formatHours } from '@/lib/timesheets/hours';
 import { closeCheckInEventAction } from '@/lib/timesheets/actions';
 import { EditEventModal } from './EditEventModal';
+import { TimesheetActions } from './TimesheetActions';
+import type { WeeklyTimesheetStatus } from '@prisma/client';
 
 interface EventDto {
   id: string;
@@ -39,6 +41,19 @@ interface EventDto {
   editedHours: number | null;
 }
 
+interface TimesheetStatusDto {
+  status: WeeklyTimesheetStatus;
+  submittedByName: string | null;
+  submittedAt: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  rejectedByName: string | null;
+  rejectedAt: string | null;
+  rejectNote: string | null;
+  totalHoursAtApproval: number | null;
+  isLocked: boolean;
+}
+
 interface PersonDetailViewProps {
   workspaceSlug: string;
   personId: string;
@@ -52,6 +67,12 @@ interface PersonDetailViewProps {
   openCount: number;
   totalEvents: number;
   canEdit: boolean;
+  // Approval workflow data. Null when no
+  // WeeklyTimesheet row exists yet (treated as
+  // DRAFT in the UI).
+  timesheet: TimesheetStatusDto | null;
+  canSubmit: boolean;
+  canApprove: boolean;
 }
 
 export function PersonDetailView({
@@ -67,6 +88,9 @@ export function PersonDetailView({
   openCount,
   totalEvents,
   canEdit,
+  timesheet,
+  canSubmit,
+  canApprove,
 }: PersonDetailViewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -130,6 +154,20 @@ export function PersonDetailView({
             </svg>
             Download PDF
           </a>
+          <a
+            href={
+              kind === 'employee'
+                ? `/api/timesheets/employee/${personId}/csv?week=${weekStart}&slug=${workspaceSlug}`
+                : `/api/timesheets/sub/${personId}/csv?week=${weekStart}&slug=${workspaceSlug}`
+            }
+            className="px-3 py-1.5 border-2 border-ink text-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-paper inline-flex items-center gap-1.5"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            CSV
+          </a>
           <button
             type="button"
             onClick={() => shiftWeek(-7)}
@@ -146,6 +184,23 @@ export function PersonDetailView({
           >
             Next →
           </button>
+        </div>
+      </div>
+
+      {/* Status + actions */}
+      <div className="mb-4 bg-cream-2 border-2 border-line p-3 flex items-start gap-3 flex-wrap">
+        <StatusBadge timesheet={timesheet} />
+        <ApprovalAudit timesheet={timesheet} totalHours={totalHours} />
+        <div className="ml-auto">
+          <TimesheetActions
+            workspaceSlug={workspaceSlug}
+            personKind={kind}
+            personId={personId}
+            weekStart={weekStart}
+            status={timesheet?.status ?? null}
+            canSubmit={canSubmit}
+            canApprove={canApprove}
+          />
         </div>
       </div>
 
@@ -204,7 +259,7 @@ export function PersonDetailView({
               key={e.id}
               event={e}
               workspaceSlug={workspaceSlug}
-              canEdit={canEdit}
+              canEdit={canEdit && !timesheet?.isLocked}
               onEdit={() => setEditing(e)}
             />
           ))}
@@ -224,6 +279,7 @@ export function PersonDetailView({
             editNote: editing.editNote,
             computedHours: editing.computedHours,
           }}
+          readOnly={timesheet?.isLocked ?? false}
           onClose={() => setEditing(null)}
         />
       ) : null}
@@ -355,6 +411,75 @@ function Chip({
         {label}
       </span>
       <span className="text-[14px] font-extrabold">{value}</span>
+    </div>
+  );
+}
+
+function StatusBadge({ timesheet }: { timesheet: TimesheetStatusDto | null }) {
+  const status = timesheet?.status ?? 'DRAFT';
+  const palette: Record<string, { bg: string; fg: string; label: string }> = {
+    DRAFT: { bg: 'bg-cream', fg: 'text-ink-70 border-line', label: 'Draft' },
+    SUBMITTED: { bg: 'bg-info/10', fg: 'text-info border-info/40', label: 'Submitted' },
+    APPROVED: { bg: 'bg-success/15', fg: 'text-success border-success/40', label: '✓ Approved' },
+    REJECTED: { bg: 'bg-error/10', fg: 'text-error border-error/40', label: '✗ Rejected' },
+  };
+  const p = palette[status];
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <div className="text-[9px] font-mono uppercase tracking-[0.15em] text-ink-50">
+        Status
+      </div>
+      <span
+        className={`inline-flex items-center px-2 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] border-2 ${p.bg} ${p.fg}`}
+      >
+        {p.label}
+      </span>
+    </div>
+  );
+}
+
+function ApprovalAudit({
+  timesheet,
+  totalHours,
+}: {
+  timesheet: TimesheetStatusDto | null;
+  totalHours: number;
+}) {
+  if (!timesheet) return null;
+  return (
+    <div className="flex-1 min-w-0 text-[11px] font-mono text-ink-50 leading-relaxed">
+      {timesheet.status === 'SUBMITTED' && timesheet.submittedByName ? (
+        <div>
+          Submitted by <span className="text-ink">{timesheet.submittedByName}</span>
+          {timesheet.submittedAt ? ` on ${new Date(timesheet.submittedAt).toLocaleString()}` : ''}
+        </div>
+      ) : null}
+      {timesheet.status === 'APPROVED' && timesheet.approvedByName ? (
+        <div>
+          Approved by <span className="text-success font-extrabold">{timesheet.approvedByName}</span>
+          {timesheet.approvedAt ? ` on ${new Date(timesheet.approvedAt).toLocaleString()}` : ''}
+          {timesheet.totalHoursAtApproval !== null ? (
+            <span className="ml-1">
+              ({timesheet.totalHoursAtApproval}h
+              {Math.abs(timesheet.totalHoursAtApproval - totalHours) > 0.01 ? (
+                <span className="text-ink-70"> — now {totalHours}h</span>
+              ) : null}
+              )
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {timesheet.status === 'REJECTED' && timesheet.rejectedByName ? (
+        <div>
+          <div>
+            Rejected by <span className="text-error font-extrabold">{timesheet.rejectedByName}</span>
+            {timesheet.rejectedAt ? ` on ${new Date(timesheet.rejectedAt).toLocaleString()}` : ''}
+          </div>
+          {timesheet.rejectNote ? (
+            <div className="text-ink-70 mt-0.5">&ldquo;{timesheet.rejectNote}&rdquo;</div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

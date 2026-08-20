@@ -38,12 +38,19 @@ interface EditEventModalProps {
     computedHours: number | null;
   };
   onClose: () => void;
+  /**
+   * Read-only mode for an approved/locked
+   * timesheet. Disables all inputs and the save
+   * button. The modal becomes "view only".
+   */
+  readOnly?: boolean;
 }
 
 export function EditEventModal({
   workspaceSlug,
   event,
   onClose,
+  readOnly = false,
 }: EditEventModalProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -159,13 +166,20 @@ export function EditEventModal({
         </div>
 
         <form onSubmit={handleSubmit} className="px-4 py-3 space-y-3">
+          {readOnly ? (
+            <div className="text-[11px] font-mono text-success bg-success/10 border-2 border-success/40 px-2 py-1.5">
+              This timesheet is approved and locked. Unlock it to make changes.
+            </div>
+          ) : null}
+
           {/* Hours override */}
           <div>
-            <label className="flex items-center gap-2 text-[11px] font-extrabold text-ink cursor-pointer">
+            <label className={`flex items-center gap-2 text-[11px] font-extrabold text-ink ${readOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
                 checked={useOverride}
                 onChange={(e) => setUseOverride(e.target.checked)}
+                disabled={readOnly}
               />
               Override hours
             </label>
@@ -179,7 +193,8 @@ export function EditEventModal({
                   value={editedHours}
                   onChange={(e) => setEditedHours(e.target.value)}
                   placeholder={event.computedHours !== null ? String(event.computedHours) : '0'}
-                  className="w-24 px-2 py-1 bg-cream border border-line text-[13px] text-ink focus:outline-none focus:border-ink"
+                  disabled={readOnly}
+                  className="w-24 px-2 py-1 bg-cream border border-line text-[13px] text-ink focus:outline-none focus:border-ink disabled:opacity-50"
                 />
                 <span className="text-[11px] text-ink-50 font-mono">hours</span>
                 {event.computedHours !== null ? (
@@ -205,7 +220,8 @@ export function EditEventModal({
                 type="datetime-local"
                 value={checkedInAt}
                 onChange={(e) => setCheckedInAt(e.target.value)}
-                className="w-full px-2 py-1 bg-cream border border-line text-[12px] text-ink focus:outline-none focus:border-ink"
+                disabled={readOnly}
+                className="w-full px-2 py-1 bg-cream border border-line text-[12px] text-ink focus:outline-none focus:border-ink disabled:opacity-50"
               />
             </div>
             <div>
@@ -216,7 +232,8 @@ export function EditEventModal({
                 type="datetime-local"
                 value={checkedOutAt}
                 onChange={(e) => setCheckedOutAt(e.target.value)}
-                className="w-full px-2 py-1 bg-cream border border-line text-[12px] text-ink focus:outline-none focus:border-ink"
+                disabled={readOnly}
+                className="w-full px-2 py-1 bg-cream border border-line text-[12px] text-ink focus:outline-none focus:border-ink disabled:opacity-50"
               />
             </div>
           </div>
@@ -232,7 +249,8 @@ export function EditEventModal({
               maxLength={500}
               rows={2}
               placeholder="e.g. foreman forgot to clock out for lunch"
-              className="w-full px-2 py-1 bg-cream border border-line text-[12px] text-ink resize-none focus:outline-none focus:border-ink"
+              disabled={readOnly}
+              className="w-full px-2 py-1 bg-cream border border-line text-[12px] text-ink resize-none focus:outline-none focus:border-ink disabled:opacity-50"
             />
           </div>
 
@@ -252,7 +270,7 @@ export function EditEventModal({
 
           <div className="flex items-center justify-between pt-1">
             <div>
-              {event.editedHours !== null ? (
+              {event.editedHours !== null && !readOnly ? (
                 <button
                   type="button"
                   onClick={clearOverride}
@@ -269,15 +287,17 @@ export function EditEventModal({
                 onClick={onClose}
                 className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink-70 hover:text-ink"
               >
-                Cancel
+                {readOnly ? 'Close' : 'Cancel'}
               </button>
-              <button
-                type="submit"
-                disabled={pending || (useOverride && !editedHours)}
-                className="px-3 py-1.5 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-orange hover:bg-orange-d disabled:opacity-50"
-              >
-                {pending ? 'Saving…' : 'Save'}
-              </button>
+              {!readOnly ? (
+                <button
+                  type="submit"
+                  disabled={pending || (useOverride && !editedHours)}
+                  className="px-3 py-1.5 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-orange hover:bg-orange-d disabled:opacity-50"
+                >
+                  {pending ? 'Saving…' : 'Save'}
+                </button>
+              ) : null}
             </div>
           </div>
         </form>

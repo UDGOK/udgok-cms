@@ -50,6 +50,14 @@ export default async function EmployeeTimesheetPage({
   }
   const master = await isMasterAdmin(sessionUserId);
   const canEdit = master || ['OWNER', 'ADMIN', 'PM'].includes(sessionMembership.role);
+  // canSubmit: self always, plus approvers (so they
+  // can submit on behalf of others).
+  const canSubmit =
+    master ||
+    sessionMembership.role !== null ||
+    params.userId === sessionUserId;
+  // canApprove: OWNER/ADMIN/PM only.
+  const canApprove = canEdit;
 
   // Resolve the anchor date for the week.
   let anchor = new Date();
@@ -99,6 +107,9 @@ export default async function EmployeeTimesheetPage({
       openCount={sheet.openCount}
       totalEvents={sheet.totalEvents}
       canEdit={canEdit}
+      timesheet={sheet.timesheet}
+      canSubmit={canSubmit}
+      canApprove={canApprove}
     />
   );
 }

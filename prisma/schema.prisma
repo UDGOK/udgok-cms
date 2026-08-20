@@ -46,6 +46,7 @@ model Workspace {
   productCatalog ProductCatalogItem[]
   siteCheckInCodes   SiteCheckInCode[]
   checkInEvents      CheckInEvent[]
+  weeklyTimesheets   WeeklyTimesheet[]
   notifications      Notification[]  @relation("notificationWorkspace")
 
   @@index([slug])
@@ -76,6 +77,9 @@ model User {
   siteCheckInCodes SiteCheckInCode[] @relation("siteCheckInCodeCreator")
   checkInEvents    CheckInEvent[]    @relation("checkInUser")
   checkInEdits     CheckInEvent[]    @relation("checkInEditor")
+  weeklyTimesheetsSubmitted WeeklyTimesheet[] @relation("timesheetSubmitter")
+  weeklyTimesheetsApproved  WeeklyTimesheet[] @relation("timesheetApprover")
+  weeklyTimesheetsRejected  WeeklyTimesheet[] @relation("timesheetRejecter")
   notificationsReceived Notification[] @relation("notificationRecipient")
   notificationsCreated  Notification[] @relation("notificationCreator")
 
@@ -1258,6 +1262,103 @@ model CheckInEvent {
   @@index([subcontractorId, checkedInAt])
   @@index([userId, checkedInAt])
   @@index([siteCheckInCodeId, checkedInAt])
+}
+
+// =========================================
+// TIMESHEET APPROVALS — per-week lockable state
+// =========================================
+//
+// One row per (workspace, person, week). The
+// "person" is either a workspace member (employee)
+// or a subcontractor. A timesheet starts in DRAFT
+// and moves through SUBMITTED → APPROVED | REJECTED
+// via the actions in lib/timesheets/approvals.ts.
+//
+// Why a separate table (not a column on CheckInEvent):
+//   1. The lock is on the WEEK, not on individual
+//      events. A single week can contain N events.
+//   2. The submitter + approver + timestamps are
+//      audit context that doesn't belong on a
+//      per-event row.
+//   3. The "submitted" / "approved" state needs to
+//      be queried independently of the events
+//      (for the approvals list, the lock check, etc.).
+//
+// Lock semantics: when status = APPROVED, edits to
+// events within that week are blocked at the action
+// layer. Unlock moves it back to DRAFT with an audit
+// row (so we know who unlocked + why).
+
+model WeeklyTimesheet {
+  id          String   @id @default(cuid())
+  workspaceId String
+  // "employee" or "sub". We store as a string for
+  // forward-compat — adding a new person kind (e.g.
+  // "owner" for a one-person consultancy) doesn't
+  // require a schema migration.
+  personKind  String
+  // For employees: userId. For subs: subcontractorId.
+  // The action layer enforces the right-of-existence
+  // (i.e. the row must reference a real user or sub
+  // in this workspace).
+  personId    String
+  // The Monday 00:00 UTC of the week this row
+  // represents. We always store the Monday (never a
+  // midweek date) so the (workspace, person, weekStart)
+  // unique constraint is meaningful.
+  weekStart   DateTime
+
+  status      WeeklyTimesheetStatus @default(DRAFT)
+
+  // Submission audit
+  submittedById String?
+  submittedAt   DateTime?
+  // Approval audit
+  approvedById  String?
+  approvedAt    DateTime?
+  // Rejection (note is required for rejection)
+  rejectedById  String?
+  rejectedAt    DateTime?
+  rejectNote    String?
+  // The total hours at the moment of approval —
+  // captures the snapshot so a later edit (after
+  // unlock) can show "approved at 47.5h, now 51h".
+  totalHoursAtApproval Decimal? @db.Decimal(8, 2)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  submittedBy User?     @relation("timesheetSubmitter", fields: [submittedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedBy  User?     @relation("timesheetApprover", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  rejectedBy  User?     @relation("timesheetRejecter", fields: [rejectedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([workspaceId, personKind, personId, weekStart])
+  @@index([workspaceId, status])
+  @@index([workspaceId, weekStart, status])
+  @@index([submittedById])
+  @@index([approvedById])
+}
+
+enum WeeklyTimesheetStatus {
+  // Default state. The timesheet is open for
+  // edits and submissions. Anyone with edit
+  // permission can change the underlying
+  // events freely.
+  DRAFT
+  // Submitter signed off; awaiting approver
+  // review. Edits to the events are still
+  // allowed but warn the user that the timesheet
+  // is mid-flight.
+  SUBMITTED
+  // Approver signed off. The timesheet is
+  // LOCKED — events cannot be edited without
+  // an explicit unlock.
+  APPROVED
+  // Approver rejected the submission. The
+  // submitter can edit and resubmit. The
+  // rejectNote tells them why.
+  REJECTED
 }
 
 // =========================================

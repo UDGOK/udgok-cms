@@ -21,6 +21,7 @@ import { z } from '@/lib/validation';
 import { prisma } from '@/lib/db/client';
 import { requireRole } from '@/lib/auth/require-role';
 import { getWorkspace } from '@/lib/workspace/get-workspace';
+import { findLockingTimesheet } from './approvals';
 
 export type EditResult =
   | { ok: true }
@@ -92,10 +93,26 @@ export async function updateCheckInEventAction(
   // before allowing edits.
   const existing = await prisma.checkInEvent.findFirst({
     where: { id: parsed.data.eventId, workspaceId: workspace.id },
-    select: { id: true, checkedInAt: true, checkedOutAt: true, editedHours: true },
+    select: { id: true, checkedInAt: true, checkedOutAt: true, editedHours: true, userId: true, subcontractorId: true },
   });
   if (!existing) {
     return { ok: false, error: 'Event not found in this workspace' };
+  }
+
+  // Lock check: if the timesheet for this person's
+  // week has been APPROVED, edits are blocked unless
+  // the approver unlocks first.
+  const lock = await findLockingTimesheet(
+    workspace.id,
+    existing.checkedInAt,
+    existing.userId ? 'employee' : existing.subcontractorId ? 'sub' : 'unknown',
+    existing.userId ?? existing.subcontractorId,
+  );
+  if (lock) {
+    return {
+      ok: false,
+      error: 'This week is locked (approved). Unlock the timesheet to make changes.',
+    };
   }
 
   // Build the data to write. Only touch fields the
@@ -193,6 +210,25 @@ export async function closeCheckInEventAction(
 
   const workspace = await getWorkspace(workspaceSlug);
   await requireRole(workspace.id, [...UPDATE_ROLES]);
+
+  // Lock check before close.
+  const event = await prisma.checkInEvent.findFirst({
+    where: { id: parsed.data.eventId, workspaceId: workspace.id },
+    select: { userId: true, subcontractorId: true, checkedInAt: true },
+  });
+  if (!event) return { ok: false, error: 'Event not found' };
+  const lock = await findLockingTimesheet(
+    workspace.id,
+    event.checkedInAt,
+    event.userId ? 'employee' : event.subcontractorId ? 'sub' : 'unknown',
+    event.userId ?? event.subcontractorId,
+  );
+  if (lock) {
+    return {
+      ok: false,
+      error: 'This week is locked (approved). Unlock the timesheet to make changes.',
+    };
+  }
 
   const result = await prisma.checkInEvent.updateMany({
     where: { id: parsed.data.eventId, workspaceId: workspace.id },
