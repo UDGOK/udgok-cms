@@ -97,6 +97,14 @@ const lineItemInput = z.object({
 const createSchema = z.object({
   clientId: z.string().min(1, 'Client is required'),
   projectId: z.string().min(1).optional(),
+  // When the admin picks "Create new project" on the
+  // form, we capture the name (and optional code) here.
+  // Either both blank (legacy: project = estimate title)
+  // or pendingProjectName is set. Code is optional even
+  // when name is set. The convert action then uses these
+  // to name the new project on approval.
+  pendingProjectName: z.string().max(120).optional(),
+  pendingProjectCode: z.string().max(40).optional(),
   dealId: z.string().min(1).optional(),
   title: z.string().min(1, 'Title is required').max(120),
   description: z.string().max(2000).optional(),
@@ -136,6 +144,8 @@ export async function createEstimateAction(
   const parsed = createSchema.safeParse({
     clientId: formData.get('clientId'),
     projectId: (formData.get('projectId') as string | null) || undefined,
+    pendingProjectName: (formData.get('pendingProjectName') as string | null)?.trim() || undefined,
+    pendingProjectCode: (formData.get('pendingProjectCode') as string | null)?.trim() || undefined,
     dealId: (formData.get('dealId') as string | null) || undefined,
     title: (formData.get('title') as string | null)?.trim(),
     description: (formData.get('description') as string | null)?.trim() || undefined,
@@ -172,6 +182,12 @@ export async function createEstimateAction(
       select: { id: true },
     });
     if (!p) return { ok: false, error: 'Project not found in this workspace' };
+  }
+  // Validation: can't pick both "existing project" AND
+  // "create new project" — they conflict. The form
+  // prevents this UI-side but the action double-checks.
+  if (parsed.data.projectId && parsed.data.pendingProjectName) {
+    return { ok: false, error: 'Choose either an existing project OR a new project name, not both' };
   }
   if (parsed.data.dealId) {
     const d = await prisma.deal.findFirst({
@@ -210,6 +226,8 @@ export async function createEstimateAction(
       workspaceId: workspace.id,
       clientId: parsed.data.clientId,
       projectId: parsed.data.projectId ?? null,
+      pendingProjectName: parsed.data.pendingProjectName ?? null,
+      pendingProjectCode: parsed.data.pendingProjectCode ?? null,
       dealId: parsed.data.dealId ?? null,
       title: parsed.data.title,
       description: parsed.data.description ?? null,
@@ -484,6 +502,12 @@ export async function convertEstimateToProjectAction(
       projectId: true,
       total: true,
       number: true,
+      // If the admin selected "Create new project" on
+      // the estimate form, we carry the name + code
+      // they typed into the conversion. Otherwise we
+      // fall back to the estimate title.
+      pendingProjectName: true,
+      pendingProjectCode: true,
     },
   });
   if (!est) return { ok: false, error: 'Estimate not found' };
@@ -499,6 +523,13 @@ export async function convertEstimateToProjectAction(
   // estimate moves to CONVERTED. We don't auto-create
   // CSI divisions from the line items — the admin adds
   // those via the standard project flow after conversion.
+  //
+  // Naming: prefer pendingProjectName (admin set this
+  // explicitly at estimate creation), then estimate
+  // title (legacy behavior). pendingProjectCode follows
+  // the same precedence.
+  const projectName = est.pendingProjectName?.trim() || est.title;
+  const projectCode = est.pendingProjectCode?.trim() || null;
   const project = await prisma.$transaction(async (tx) => {
     const newProject = await tx.project.create({
       data: {
@@ -511,7 +542,8 @@ export async function convertEstimateToProjectAction(
         // set the new project's dealId in admin
         // tools if they want the deal→project link.
         // We leave it null by default.
-        name: est.title,
+        name: projectName,
+        code: projectCode,
         description: est.description,
         contractValue: parseFloat(est.total.toString()),
         status: 'ACTIVE',

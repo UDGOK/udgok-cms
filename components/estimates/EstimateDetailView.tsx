@@ -66,6 +66,8 @@ interface Estimate {
   convertedProjectId: string | null;
   convertedProjectName: string | null;
   convertedAt: string | null;
+  pendingProjectName: string | null;
+  pendingProjectCode: string | null;
   client: { id: string; name: string; email: string | null; phone: string | null };
   project: { id: string; name: string; code: string | null } | null;
   deal: { id: string; title: string; stage: string } | null;
@@ -110,7 +112,17 @@ export function EstimateDetailView({
     run(sendEstimateAction);
   }
   function convert() {
-    if (!confirm('Convert this approved estimate to a project? The estimate will close and a new project will be created.')) return;
+    // Make it clear what project name will be used.
+    // The "create new" path uses the pendingProjectName
+    // the admin typed on the create form; the "none"
+    // path uses the estimate title (legacy default).
+    const projectName =
+      estimate.pendingProjectName?.trim() ||
+      (estimate.project ? estimate.project.name : estimate.title);
+    const msg = estimate.project
+      ? `Convert this approved estimate to a project? The estimate will close. (No new project is created — this estimate is tied to "${estimate.project.name}".)`
+      : `Convert this approved estimate to a new project named "${projectName}"? The estimate will close.`;
+    if (!confirm(msg)) return;
     run(convertEstimateToProjectAction);
   }
   function voidEst() {
@@ -157,6 +169,9 @@ export function EstimateDetailView({
           <div className="text-[12px] text-ink-70 mt-1">
             {estimate.client.name}
             {estimate.project ? ` · ${estimate.project.name}` : ''}
+            {!estimate.project && estimate.pendingProjectName ? (
+              <span className="text-ink-50"> · Will create “{estimate.pendingProjectName}”</span>
+            ) : null}
             {estimate.deal ? ` · Deal: ${estimate.deal.title}` : ''}
           </div>
         </div>

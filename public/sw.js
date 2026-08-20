@@ -7,7 +7,7 @@
 // This caches enough to launch the app and read cached data when offline.
 // Form drafts are persisted in localStorage by the app itself, not here.
 
-const CACHE_VERSION = 'udgok-v2';
+const CACHE_VERSION = 'udgok-v3';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 

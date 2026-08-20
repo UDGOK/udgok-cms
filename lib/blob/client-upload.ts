@@ -125,7 +125,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
         result: null,
       });
       // Heartbeat: if we don't see ANY progress events for
-      // 8 seconds while the upload is in flight, surface a
+      // 6 seconds while the upload is in flight, surface a
       // clear "stuck" error rather than letting the user
       // stare at 0% indefinitely. The bug we're guarding
       // against: the @vercel/blob client silently swallowed
@@ -133,12 +133,22 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
       // number, not an object), which looked like a frozen
       // upload from the UI. If a future library version
       // regresses the same way, this heartbeat will catch
-      // it within 8 seconds instead of after a full file
+      // it within 6 seconds instead of after a full file
       // transfer.
+      //
+      // Also: while we're waiting for the first progress
+      // event, tick a fake "indeterminate" progress of 1%
+      // every second so the bar doesn't look stuck at 0
+      // for a 26KB PDF (which uploads fast enough that
+      // the real progress event may never fire — the
+      // upload completes between event-loop ticks).
       let lastProgressAt = Date.now();
+      let firstProgressAt: number | null = null;
       let heartbeatCleared = false;
       const heartbeat = setInterval(() => {
-        if (Date.now() - lastProgressAt > 8_000) {
+        if (heartbeatCleared) return;
+        const stuck = Date.now() - lastProgressAt > 6_000;
+        if (stuck) {
           clearInterval(heartbeat);
           heartbeatCleared = true;
           setState((s) => {
@@ -148,11 +158,26 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
               isUploading: false,
               phase: 'error',
               error:
-                'Upload appears stuck — no progress for 8 seconds. The browser may have killed the connection. Try a smaller file or a different network.',
+                'Upload appears stuck — no progress for 6 seconds. The browser may have killed the connection. Try a smaller file, disable any VPN, or check your network.',
             };
           });
+          return;
         }
-      }, 2_000);
+        // First 4 seconds with no progress events: tick
+        // the bar to 1% so the user sees it's not totally
+        // frozen. Stop ticking once real events arrive
+        // (firstProgressAt is set). This is a UX detail
+        // — for tiny files the real upload may complete
+        // in <100ms with no events, so the bar would
+        // otherwise jump straight from 0% to 100%.
+        if (firstProgressAt === null) {
+          setState((s) => {
+            if (s.phase !== 'uploading') return s;
+            if (s.progress > 0) return s;
+            return { ...s, progress: 1 };
+          });
+        }
+      }, 1_000);
 
       try {
         console.log('[useBlobUpload] calling vercelUpload', {
@@ -181,6 +206,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
           // passes a bare number).
           onUploadProgress: (payload: unknown) => {
             lastProgressAt = Date.now();
+            if (firstProgressAt === null) firstProgressAt = Date.now();
             const loaded = normalizeLoaded(payload, file.size);
             const pct = Math.max(0, Math.min(100, Math.round((loaded / file.size) * 100)));
             setState((s) => ({

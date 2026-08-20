@@ -407,6 +407,91 @@ describe('convertEstimateToProjectAction', () => {
     );
     expect(res.ok).toBe(false);
   });
+
+  it('uses pendingProjectName when set, not the estimate title', async () => {
+    // Admin picked "Create new project" on the form and
+    // typed a custom name. The converted project should
+    // use that name + the optional code, not the
+    // estimate title.
+    const { prisma } = await import('@/lib/db/client');
+    const txMock = {
+      project: {
+        create: vi.fn().mockResolvedValue({ id: 'proj_new' }),
+      },
+      estimate: {
+        update: vi.fn().mockResolvedValue({ id: 'est_1' }),
+      },
+    };
+    (prisma as unknown as { $transaction: (fn: (tx: typeof txMock) => Promise<unknown>) => Promise<unknown> }).$transaction = (fn) =>
+      fn(txMock);
+
+    estimateFindFirstMock.mockResolvedValue({
+      id: 'est_1',
+      status: 'APPROVED',
+      convertedProjectId: null,
+      title: 'Build-out for Coldstone',  // estimate title
+      description: 'Master bath scope',
+      clientId: 'c_1',
+      projectId: null,  // NOT linked to existing project
+      total: 5000,
+      number: 'EST-2026-0001',
+      // The new fields: admin named the future project.
+      pendingProjectName: 'Coldstone Creamery / Wetzel\'s Pretzels — Build-Out',
+      pendingProjectCode: 'CSC-2026-01',
+    });
+
+    const res = await convertEstimateToProjectAction(
+      'udgok',
+      undefined,
+      fd({ id: 'est_1' }),
+    );
+    expect(res.ok).toBe(true);
+    const projectCreateCall = txMock.project.create.mock.calls[0][0];
+    // The new project uses pendingProjectName, not the estimate title.
+    expect(projectCreateCall.data.name).toBe("Coldstone Creamery / Wetzel's Pretzels — Build-Out");
+    expect(projectCreateCall.data.code).toBe('CSC-2026-01');
+  });
+
+  it('falls back to estimate title when pendingProjectName is null', async () => {
+    // Legacy: admin left project source as "None" — convert
+    // uses the estimate title. This is the original behavior
+    // and we want to keep it working.
+    const { prisma } = await import('@/lib/db/client');
+    const txMock = {
+      project: {
+        create: vi.fn().mockResolvedValue({ id: 'proj_legacy' }),
+      },
+      estimate: {
+        update: vi.fn().mockResolvedValue({ id: 'est_1' }),
+      },
+    };
+    (prisma as unknown as { $transaction: (fn: (tx: typeof txMock) => Promise<unknown>) => Promise<unknown> }).$transaction = (fn) =>
+      fn(txMock);
+
+    estimateFindFirstMock.mockResolvedValue({
+      id: 'est_1',
+      status: 'APPROVED',
+      convertedProjectId: null,
+      title: 'Legacy estimate title',
+      description: null,
+      clientId: 'c_1',
+      projectId: null,
+      total: 1000,
+      number: 'EST-2026-0002',
+      pendingProjectName: null,
+      pendingProjectCode: null,
+    });
+
+    const res = await convertEstimateToProjectAction(
+      'udgok',
+      undefined,
+      fd({ id: 'est_1' }),
+    );
+    expect(res.ok).toBe(true);
+    const projectCreateCall = txMock.project.create.mock.calls[0][0];
+    expect(projectCreateCall.data.name).toBe('Legacy estimate title');
+    expect(projectCreateCall.data.code).toBeNull();
+  });
 });
 
 describe('voidEstimateAction', () => {

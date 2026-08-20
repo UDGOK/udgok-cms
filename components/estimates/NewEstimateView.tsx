@@ -82,6 +82,19 @@ export function NewEstimateView({
   const [taxRate, setTaxRate] = useState(''); // percent
   const [lineItems, setLineItems] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
   const formRef = useRef<HTMLFormElement | null>(null);
+  // Project source: 'none' (no project link at all),
+  // 'existing' (link to a project that already exists),
+  // or 'new' (capture a name + code now so the convert
+  // action can create the project with that name on
+  // approval). The form shows one of three different
+  // UIs based on this state. We default to 'none' so
+  // the legacy "convert-to-project creates a new one
+  // with the estimate title" flow still works.
+  const [projectSource, setProjectSource] = useState<'none' | 'existing' | 'new'>(
+    prefill.projectId ? 'existing' : 'none',
+  );
+  const [pendingProjectName, setPendingProjectName] = useState('');
+  const [pendingProjectCode, setPendingProjectCode] = useState('');
 
   // Filter the project / deal dropdowns by the
   // selected client so the user can't pick a
@@ -134,6 +147,14 @@ export function NewEstimateView({
       setError('Title is required');
       return;
     }
+    if (projectSource === 'new' && !pendingProjectName.trim()) {
+      setError('Project name is required when "Create new project" is selected');
+      return;
+    }
+    if (projectSource === 'existing' && !projectId) {
+      setError('Pick an existing project, or switch to a different option');
+      return;
+    }
     if (lineItems.length === 0) {
       setError('Add at least one line item');
       return;
@@ -159,7 +180,11 @@ export function NewEstimateView({
 
     const fd = new FormData();
     fd.set('clientId', clientId);
-    if (projectId) fd.set('projectId', projectId);
+    if (projectSource === 'existing' && projectId) fd.set('projectId', projectId);
+    if (projectSource === 'new' && pendingProjectName.trim()) {
+      fd.set('pendingProjectName', pendingProjectName.trim());
+      if (pendingProjectCode.trim()) fd.set('pendingProjectCode', pendingProjectCode.trim());
+    }
     if (dealId) fd.set('dealId', dealId);
     fd.set('title', title);
     if (description) fd.set('description', description);
@@ -216,6 +241,8 @@ export function NewEstimateView({
               onChange={(e) => {
                 setClientId(e.target.value);
                 setProjectId('');
+                setPendingProjectName('');
+                setPendingProjectCode('');
                 setDealId('');
               }}
               className="w-full px-3 py-2 bg-cream border border-line text-[13px] text-ink"
@@ -237,20 +264,113 @@ export function NewEstimateView({
               className="w-full px-3 py-2 bg-cream border border-line text-[13px] text-ink"
             />
           </Field>
-          <Field label="Project (optional)">
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="w-full px-3 py-2 bg-cream border border-line text-[13px] text-ink"
-            >
-              <option value="">— None —</option>
-              {filteredProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.code ? ` (${p.code})` : ''}
-                </option>
-              ))}
-            </select>
+          {/* Project source — three options. The "new"
+              branch lets the admin name the future
+              project up front so the convert action
+              uses their wording instead of the estimate
+              title. We use a radio group (not a select)
+              because the three options need very
+              different follow-up UIs. */}
+          <Field label="Project">
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <label className="flex-1 flex items-start gap-2 px-2 py-1.5 bg-cream border border-line cursor-pointer hover:border-ink">
+                  <input
+                    type="radio"
+                    name="projectSource"
+                    value="none"
+                    checked={projectSource === 'none'}
+                    onChange={() => {
+                      setProjectSource('none');
+                      setProjectId('');
+                      setPendingProjectName('');
+                      setPendingProjectCode('');
+                    }}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="text-[12px] font-semibold text-ink">None</div>
+                    <div className="text-[10px] text-ink-50 font-mono">
+                      Standalone estimate. On approval, convert creates a new project using the estimate title.
+                    </div>
+                  </div>
+                </label>
+                <label className="flex-1 flex items-start gap-2 px-2 py-1.5 bg-cream border border-line cursor-pointer hover:border-ink">
+                  <input
+                    type="radio"
+                    name="projectSource"
+                    value="existing"
+                    checked={projectSource === 'existing'}
+                    onChange={() => {
+                      setProjectSource('existing');
+                      setPendingProjectName('');
+                      setPendingProjectCode('');
+                    }}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="text-[12px] font-semibold text-ink">Existing project</div>
+                    <div className="text-[10px] text-ink-50 font-mono">
+                      Tie this estimate to a project (e.g. change-order scope).
+                    </div>
+                  </div>
+                </label>
+                <label className="flex-1 flex items-start gap-2 px-2 py-1.5 bg-cream border border-line cursor-pointer hover:border-ink">
+                  <input
+                    type="radio"
+                    name="projectSource"
+                    value="new"
+                    checked={projectSource === 'new'}
+                    onChange={() => {
+                      setProjectSource('new');
+                      setProjectId('');
+                    }}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="text-[12px] font-semibold text-ink">Create new project</div>
+                    <div className="text-[10px] text-ink-50 font-mono">
+                      Capture the project name now. On approval, the new project uses this name.
+                    </div>
+                  </div>
+                </label>
+              </div>
+              {projectSource === 'existing' ? (
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="w-full px-3 py-2 bg-cream border border-line text-[13px] text-ink"
+                >
+                  <option value="">— Pick an existing project —</option>
+                  {filteredProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.code ? ` (${p.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {projectSource === 'new' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="sm:col-span-2">
+                    <input
+                      type="text"
+                      value={pendingProjectName}
+                      onChange={(e) => setPendingProjectName(e.target.value)}
+                      placeholder="Project name (e.g. Coldstone Creamery — Wetzel's build-out)"
+                      className="w-full px-3 py-2 bg-cream border border-line text-[13px] text-ink"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={pendingProjectCode}
+                    onChange={(e) => setPendingProjectCode(e.target.value)}
+                    placeholder="Code (optional)"
+                    className="w-full px-3 py-2 bg-cream border border-line text-[13px] text-ink font-mono"
+                  />
+                </div>
+              ) : null}
+            </div>
           </Field>
           <Field label="Deal (optional)">
             <select

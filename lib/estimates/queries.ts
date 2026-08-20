@@ -76,6 +76,8 @@ export interface EstimateDetail {
   convertedProjectId: string | null;
   convertedProjectName: string | null;
   convertedAt: string | null;
+  pendingProjectName: string | null;
+  pendingProjectCode: string | null;
   client: { id: string; name: string; email: string | null; phone: string | null };
   project: { id: string; name: string; code: string | null } | null;
   deal: { id: string; title: string; stage: string } | null;
@@ -191,6 +193,8 @@ export async function getEstimate(
     convertedProjectId: row.sourceProject?.id ?? null,
     convertedProjectName: row.sourceProject?.name ?? null,
     convertedAt: row.convertedAt ? row.convertedAt.toISOString() : null,
+    pendingProjectName: row.pendingProjectName,
+    pendingProjectCode: row.pendingProjectCode,
     client: row.client,
     project: row.project,
     deal: row.deal,
@@ -252,6 +256,8 @@ export async function getEstimateByToken(
     convertedProjectId: row.sourceProject?.id ?? null,
     convertedProjectName: row.sourceProject?.name ?? null,
     convertedAt: row.convertedAt ? row.convertedAt.toISOString() : null,
+    pendingProjectName: row.pendingProjectName,
+    pendingProjectCode: row.pendingProjectCode,
     client: row.client,
     project: row.project,
     deal: row.deal,

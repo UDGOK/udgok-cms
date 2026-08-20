@@ -303,6 +303,15 @@ model Estimate {
   // (no existing project context). When set, the
   // estimate is a scope change for that project.
   projectId     String?
+  // When the admin selects "Create new project" on
+  // the estimate form (instead of "Link to existing"
+  // or "None"), we capture the desired name + code
+  // up front. On approval → Convert to project, the
+  // new Project uses these instead of the estimate
+  // title. Both nullable; null = use the legacy path
+  // (project name = estimate title, no code).
+  pendingProjectName String?
+  pendingProjectCode String?
   // Optional — null when the estimate wasn't spawned
   // from a Deal. When set, the Deal's stage moves to
   // ESTIMATE_SENT on send, NEGOTIATING if the client
