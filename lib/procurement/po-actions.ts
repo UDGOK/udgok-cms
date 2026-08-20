@@ -169,13 +169,125 @@ export async function issuePoAction(
   const parsed = issueSchema.safeParse({ poId: formData.get('poId') });
   if (!parsed.success) return { ok: false, error: 'Invalid input' };
 
+  // Flip status first so the PO is "real" before we do any
+  // IO. If email fails, the PO is still issued and the buyer
+  // can re-send manually. Reverse order is worse — buyer
+  // thinks the PO is sent but it's actually still pending.
   const result = await prisma.purchaseOrder.updateMany({
     where: { id: parsed.data.poId, workspaceId, status: 'PENDING_APPROVAL' },
     data: { status: 'ISSUED', issuedAt: new Date(), issuedBy: userId },
   });
   if (result.count === 0) return { ok: false, error: 'PO not in PENDING_APPROVAL' };
 
+  // Try to email the vendor with the PDF. Failure is logged
+  // and surfaced to the UI, but does NOT un-issue the PO —
+  // the buyer can re-send or download the PDF manually.
+  try {
+    const sent = await emailPoToVendor(workspaceId, parsed.data.poId);
+    if (!sent.ok) {
+      console.warn('[po-actions] PO email not sent:', sent.reason, sent.message);
+    }
+  } catch (e) {
+    console.error('[po-actions] PO email threw:', e);
+  }
+
   revalidatePath(`/w/_/procurement/pos/${parsed.data.poId}`);
+  return { ok: true };
+}
+
+/**
+ * Internal helper: render the PO PDF and email it to the
+ * vendor contact (or RFQ respondent email if no contact).
+ * Returns the send result without throwing — the caller
+ * decides what to do with a failure.
+ */
+async function emailPoToVendor(
+  workspaceId: string,
+  poId: string,
+): Promise<{ ok: true } | { ok: false; reason: string; message?: string }> {
+  const po = await prisma.purchaseOrder.findFirst({
+    where: { id: poId, workspaceId },
+    include: {
+      vendor: { select: { name: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true } },
+      quote: {
+        select: {
+          vendorReference: true,
+          respondentName: true,
+          respondentEmail: true,
+          rfq: { select: { contact: { select: { name: true, email: true, phone: true } } } },
+        },
+      },
+      lines: { orderBy: { position: 'asc' } },
+    },
+  });
+  if (!po) return { ok: false, reason: 'PO_NOT_FOUND' };
+
+  const to = po.quote?.respondentEmail ?? po.quote?.rfq?.contact?.email;
+  if (!to) return { ok: false, reason: 'NO_VENDOR_EMAIL' };
+
+  const ourCompanyName = process.env.PROCUREMENT_FROM_NAME ?? 'UDGOK Construction';
+  const ourEmail = process.env.PROCUREMENT_FROM_EMAIL?.match(/<([^>]+)>/)?.[1] ?? 'purchasing@udgok.com';
+  const ourPhone = process.env.UDGOK_CONTACT_PHONE ?? '';
+
+  const { renderPoPdf } = await import('@/lib/procurement/render-po-pdf');
+  const { sendPoEmail } = await import('@/lib/procurement/email');
+
+  const pdf = await renderPoPdf({
+    number: po.number,
+    status: po.status,
+    issuedAt: po.issuedAt,
+    createdAt: po.createdAt,
+    ourCompany: { name: ourCompanyName, contactEmail: ourEmail, contactPhone: ourPhone },
+    vendor: {
+      name: po.vendor.name,
+      contactName: po.quote?.respondentName ?? po.quote?.rfq?.contact?.name ?? null,
+      contactEmail: to,
+      contactPhone: po.quote?.rfq?.contact?.phone ?? null,
+      addressLine1: po.vendor.addressLine1,
+      addressLine2: po.vendor.addressLine2,
+      city: po.vendor.city,
+      state: po.vendor.state,
+      postalCode: po.vendor.postalCode,
+    },
+    shipTo: po.shipTo,
+    neededBy: po.neededBy,
+    terms: po.terms,
+    vendorReference: po.quote?.vendorReference ?? null,
+    subtotal: Number(po.subtotal),
+    freightAmount: Number(po.freightAmount),
+    taxAmount: Number(po.taxAmount),
+    total: Number(po.total),
+    notes: po.notes,
+    lines: po.lines.map((l) => ({
+      position: l.position,
+      description: l.description,
+      quantity: Number(l.quantity),
+      uom: l.uom,
+      vendorSku: l.vendorSku,
+      unitPrice: Number(l.unitPrice),
+      lineTotal: Number(l.lineTotal),
+      isSubstitute: l.isSubstitute,
+      substituteNote: l.substituteNote,
+    })),
+  });
+
+  const res = await sendPoEmail({
+    to,
+    replyTo: ourEmail,
+    poNumber: po.number,
+    vendorName: po.vendor.name,
+    vendorContactName: po.quote?.respondentName ?? po.quote?.rfq?.contact?.name ?? null,
+    ourCompanyName,
+    total: Number(po.total),
+    neededBy: po.neededBy,
+    shipTo: po.shipTo,
+    terms: po.terms,
+    pdf,
+  });
+
+  if (!res.sent) {
+    return { ok: false, reason: res.reason ?? 'UNKNOWN', message: res.message };
+  }
   return { ok: true };
 }
 

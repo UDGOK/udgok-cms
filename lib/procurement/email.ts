@@ -183,3 +183,156 @@ export async function sendRfqEmail(input: RfqEmailInput): Promise<SendRfqResult>
     };
   }
 }
+
+// ───────────────────────────────────────────────────────────────────
+//  PO email — sent to the vendor when the buyer issues a PO.
+// ───────────────────────────────────────────────────────────────────
+
+export type PoEmailInput = {
+  to: string;
+  replyTo?: string;
+  poNumber: string;
+  vendorName: string;
+  vendorContactName: string | null;
+  ourCompanyName: string;
+  total: number;
+  neededBy: Date | null;
+  shipTo: string | null;
+  terms: string | null;
+  // PDF rendered ahead of time; attached to the email.
+  pdf: Buffer;
+};
+
+export type PoEmailResult = {
+  sent: boolean;
+  resendId?: string;
+  reason?: string;
+  message?: string;
+};
+
+const PO_SUBJECT = (n: string) => `Purchase order ${n} — UDGOK Construction`;
+
+function poText(input: PoEmailInput): string {
+  const greet = input.vendorContactName
+    ? `Hello ${input.vendorContactName},`
+    : `Hello ${input.vendorName},`;
+  const needed = input.neededBy
+    ? `Needed by: ${input.neededBy.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })}`
+    : null;
+  const ship = input.shipTo ? `Ship to: ${input.shipTo}` : null;
+  const terms = input.terms ? `Terms: ${input.terms}` : null;
+  const meta = [needed, ship, terms].filter(Boolean).join('\n');
+  return [
+    greet,
+    '',
+    `${input.ourCompanyName} has issued purchase order ${input.poNumber} to ${input.vendorName}.`,
+    '',
+    `Total: $${input.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    meta,
+    '',
+    'The attached PDF is the binding order. Please confirm receipt and any ship date at your earliest convenience.',
+    '',
+    'Questions? Reply to this email.',
+    `${input.ourCompanyName}`,
+  ].join('\n');
+}
+
+function poHtml(input: PoEmailInput): string {
+  const greet = input.vendorContactName
+    ? `Hello ${escapeHtml(input.vendorContactName)},`
+    : `Hello ${escapeHtml(input.vendorName)},`;
+  const meta: string[] = [];
+  if (input.neededBy) {
+    meta.push(
+      `<p style="margin:0 0 4px;font-size:13px;color:#444;"><strong>Needed by:</strong> ${input.neededBy.toLocaleDateString()}</p>`,
+    );
+  }
+  if (input.shipTo) {
+    meta.push(
+      `<p style="margin:0 0 4px;font-size:13px;color:#444;"><strong>Ship to:</strong> ${escapeHtml(input.shipTo)}</p>`,
+    );
+  }
+  if (input.terms) {
+    meta.push(
+      `<p style="margin:0 0 4px;font-size:13px;color:#444;"><strong>Terms:</strong> ${escapeHtml(input.terms)}</p>`,
+    );
+  }
+  return `<!doctype html>
+<html>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fafaf9;padding:24px;color:#1a1a1a;">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e5e4;padding:32px;">
+    <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#78716c;font-family:ui-monospace,Menlo,monospace;">// PURCHASE ORDER</p>
+    <h1 style="margin:0 0 4px;font-size:24px;font-weight:800;letter-spacing:-0.01em;">${escapeHtml(input.poNumber)}</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#57534e;">From <strong>${escapeHtml(input.ourCompanyName)}</strong> — for ${escapeHtml(input.vendorName)}</p>
+    <p style="margin:0 0 16px;font-size:14px;">${greet}</p>
+    <p style="margin:0 0 16px;font-size:14px;">${escapeHtml(input.ourCompanyName)} has issued purchase order <strong>${escapeHtml(input.poNumber)}</strong> to ${escapeHtml(input.vendorName)}.</p>
+    <p style="margin:0 0 8px;font-size:18px;font-weight:700;">Total: $${input.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+    <div style="margin:16px 0;">${meta.join('')}</div>
+    <p style="margin:16px 0;font-size:14px;">The attached PDF is the binding order. Please confirm receipt and any ship date at your earliest convenience.</p>
+    <hr style="border:none;border-top:1px solid #e7e5e4;margin:24px 0;" />
+    <p style="margin:0;font-size:12px;color:#78716c;">Questions? Reply to this email.</p>
+    <p style="margin:4px 0 0;font-size:12px;color:#78716c;">${escapeHtml(input.ourCompanyName)}</p>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendPoEmail(
+  input: PoEmailInput,
+): Promise<PoEmailResult> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromName = process.env.PROCUREMENT_FROM_NAME ?? 'UDGOK Construction';
+  let fromAddress: string;
+  const fromRaw = process.env.PROCUREMENT_FROM_EMAIL ?? '';
+  if (fromRaw) {
+    fromAddress = fromRaw;
+  } else {
+    const domain = process.env.UDGOK_MESSAGING_RESEND_EMAIL_DOMAIN ?? 'udgok.com';
+    fromAddress = `noreply@${domain}`;
+  }
+  const from = fromAddress.includes('<') ? fromAddress : `${fromName} <${fromAddress}>`;
+
+  if (!apiKey) {
+    return {
+      sent: false,
+      reason: 'NO_API_KEY',
+      message: 'RESEND_API_KEY is not set — PO will not be emailed. Re-issue once env is configured.',
+    };
+  }
+
+  try {
+    const resend = new Resend(apiKey);
+    const { data, error } = await resend.emails.send({
+      from,
+      to: [input.to],
+      replyTo: input.replyTo,
+      subject: PO_SUBJECT(input.poNumber),
+      html: poHtml(input),
+      text: poText(input),
+      attachments: [
+        {
+          filename: `${input.poNumber}.pdf`,
+          content: input.pdf,
+        },
+      ],
+      tags: [
+        { name: 'type', value: 'po' },
+        { name: 'po', value: input.poNumber },
+      ],
+    });
+    if (error) {
+      return { sent: false, reason: 'RESEND_ERROR', message: error.message };
+    }
+    return { sent: true, resendId: data?.id };
+  } catch (e) {
+    return {
+      sent: false,
+      reason: 'THROW',
+      message: e instanceof Error ? e.message : 'Unknown error',
+    };
+  }
+}
