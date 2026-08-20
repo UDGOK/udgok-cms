@@ -84,7 +84,7 @@ export default async function MaterialListsPage({
                 >
                   <td className="px-3 py-2">
                     <Link
-                      href={`./${l.id}`}
+                      href={`/w/${workspace.slug}/procurement/lists/${l.id}`}
                       className="font-extrabold text-ink hover:text-orange-d"
                     >
                       {l.name}
