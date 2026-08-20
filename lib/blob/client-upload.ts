@@ -152,33 +152,56 @@ async function uploadWithXhr(
     throw new Error('Upload token response missing clientToken');
   }
 
-  // Parse the JWT to extract the upload URL + headers. The
-  // @vercel/blob token is a base64url-encoded JSON payload
-  // for the body + a "pathname" field. The endpoint URL is
-  // derived from the payload's "vercel_blob_store_id" or
-  // from the response. For simplicity we just request the
-  // token and use the URL embedded in the token.
-  // (We re-use the @vercel/blob client's URL parser by
-  // calling the lib's internal upload() — but we want to
-  // avoid that. Instead, decode the JWT payload ourselves.)
-  const parts = clientToken.split('.');
-  if (parts.length < 2) throw new Error('Malformed upload token');
-  const payloadJson = atob(parts[0].replace(/-/g, '+').replace(/_/g, '/'));
-  const payload = JSON.parse(payloadJson) as {
-    pathname?: string;
-    url?: string;
-    vercel_blob_store_id?: string;
-    token?: string;
-  };
-  if (!payload.url) {
-    throw new Error('Upload token missing URL');
+  // Parse the clientToken to extract the storeId + pathname,
+  // then build the upload URL ourselves. The clientToken
+  // format (per @vercel/blob client.cjs generateClientTokenFromReadWriteToken):
+  //
+  //   vercel_blob_client_{storeId}_{base64(securedKey + '.' + base64(payload))}
+  //
+  // Where `payload` is a base64-encoded JSON object with
+  // `{ pathname, validUntil, onUploadCompleted?, ... }`.
+  // The actual upload URL is built by the library as:
+  //   https://{storeId}.{access}.blob.vercel-storage.com/{pathname}
+  //
+  // We mimic the same shape here so the PUT lands in the
+  // right place.
+  const tokenParts = clientToken.split('_');
+  if (tokenParts.length < 5) {
+    throw new Error('Malformed upload token (expected at least 5 underscore-separated parts)');
   }
+  const storeId = tokenParts[3];
+  const encodedTail = tokenParts.slice(4).join('_');
+  // Decode the base64 tail → "securedKey.payload" (a JWT-like string)
+  let decodedTail: string;
+  try {
+    decodedTail = atob(encodedTail);
+  } catch {
+    throw new Error('Could not decode upload token tail (not valid base64)');
+  }
+  const dot = decodedTail.indexOf('.');
+  if (dot < 0) {
+    throw new Error('Malformed upload token (missing payload separator)');
+  }
+  const encodedPayload = decodedTail.slice(dot + 1);
+  let payload: { pathname?: string; onUploadCompleted?: { callbackUrl?: string; tokenPayload?: string } };
+  try {
+    payload = JSON.parse(atob(encodedPayload));
+  } catch (e) {
+    throw new Error(`Could not decode upload token payload: ${e instanceof Error ? e.message : 'unknown'}`);
+  }
+  const pathname = payload.pathname;
+  if (!pathname) {
+    throw new Error('Upload token payload missing pathname');
+  }
+  // The access defaults to 'public' in the @vercel/blob client
+  // (we set it in our @vercel/blob call; for the XHR path we
+  // hard-code the same default).
+  const uploadUrl = `https://${storeId}.public.blob.vercel-storage.com/${pathname}`;
 
   // Phase 2: PUT. XHR gives us reliable upload progress.
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', payload.url!, true);
-    if (payload.token) xhr.setRequestHeader('Authorization', `Bearer ${payload.token}`);
+    xhr.open('PUT', uploadUrl, true);
     xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress?.(e.loaded, e.total);
@@ -190,7 +213,7 @@ async function uploadWithXhr(
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         // The response body is the JSON blob descriptor:
-        // { url, pathname, contentType, ... }
+        // { url, pathname, contentType, contentDisposition, ... }
         try {
           const body = JSON.parse(xhr.responseText) as {
             url: string;
@@ -198,8 +221,8 @@ async function uploadWithXhr(
           };
           resolve({ url: body.url, pathname: body.pathname });
         } catch {
-          // Fallback: token's URL.
-          resolve({ url: payload.url!, pathname: payload.pathname ?? file.name });
+          // Fallback: build the URL from the path we already know.
+          resolve({ url: uploadUrl, pathname });
         }
       } else {
         reject(
