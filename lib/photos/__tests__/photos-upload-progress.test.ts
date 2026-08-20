@@ -57,7 +57,7 @@ beforeEach(() => {
   vercelUploadMock.mockReset();
 });
 
-function makePendingUpload(percentage = 0) {
+function makePendingUpload() {
   let resolve!: (value: { url: string; pathname: string }) => void;
   const promise = new Promise<{ url: string; pathname: string }>((r) => {
     resolve = r;
@@ -66,9 +66,7 @@ function makePendingUpload(percentage = 0) {
     promise,
     resolve: (url = 'https://blob.test/abc.jpg', pathname = 'abc.jpg') =>
       resolve({ url, pathname }),
-    onUploadProgress: undefined as
-      | ((p: { percentage: number }) => void)
-      | undefined,
+    onUploadProgress: undefined as ((p: unknown) => void) | undefined,
   };
 }
 
@@ -218,13 +216,13 @@ describe('preflightPhoto — validation gates upload', () => {
 // =====================================================================
 
 describe('useBlobUpload — progress events (the heart of the fix)', () => {
-  it('mirrors percentage from onUploadProgress into state 0..100', async () => {
+  it('mirrors loaded bytes from a bare-number progress payload into state 0..100', async () => {
     const pending = makePendingUpload();
     vercelUploadMock.mockImplementation(
       async (
         _name: string,
         _file: File,
-        opts: { onUploadProgress?: (p: { percentage: number }) => void },
+        opts: { onUploadProgress?: (p: unknown) => void },
       ) => {
         pending.onUploadProgress = opts.onUploadProgress;
         return pending.promise;
@@ -247,17 +245,19 @@ describe('useBlobUpload — progress events (the heart of the fix)', () => {
     expect(result.current.state.phase).toBe('uploading');
     expect(result.current.state.progress).toBe(0);
 
-    // Simulate the chunked XHR streaming a series of progress
-    // events. This is exactly the bug the user reported:
-    // "tried to attach drawings again it doesnt upload or show
-    // me any progress of uploading". If the hook isn't
-    // propagating these, the user sees a static "Uploading…"
-    // forever (which is what the old server action did).
-    for (const pct of [10, 33, 67, 95, 100]) {
+    // The @vercel/blob v2.x client calls onUploadProgress
+    // with a bare number (the bytes loaded so far). The
+    // hook computes the percentage from that. This is the
+    // shape that was actually getting passed in production;
+    // the earlier test assumed an object with `percentage`,
+    // which masked the bug.
+    for (const loaded of [1000, 3300, 6700, 9500, 10_000]) {
       await act(async () => {
-        pending.onUploadProgress?.({ percentage: pct });
+        pending.onUploadProgress?.(loaded);
       });
-      expect(result.current.state.progress).toBe(pct);
+      expect(result.current.state.progress).toBe(
+        Math.round((loaded / 10_000) * 100),
+      );
     }
 
     await act(async () => {
@@ -269,19 +269,44 @@ describe('useBlobUpload — progress events (the heart of the fix)', () => {
     expect(result.current.state.result?.url).toBe('https://blob.test/photo.jpg');
   });
 
-  it('clamps percentage to 0..100 even if the library passes garbage', async () => {
+  it('also accepts the { loaded, total, percentage } object shape (older XHR transport)', async () => {
     const pending = makePendingUpload();
     vercelUploadMock.mockImplementation(
       async (
         _name: string,
         _file: File,
-        opts: { onUploadProgress?: (p: { percentage: number }) => void },
+        opts: { onUploadProgress?: (p: unknown) => void },
       ) => {
         pending.onUploadProgress = opts.onUploadProgress;
         return pending.promise;
       },
     );
+    const { result } = renderHook(() =>
+      useBlobUpload({ handleUploadUrl: '/api/projects/abc/photos/upload' }),
+    );
+    const file = new File([new Uint8Array(1000)], 'p.jpg', { type: 'image/jpeg' });
+    act(() => {
+      result.current.upload(file);
+    });
 
+    await act(async () => {
+      pending.onUploadProgress?.({ loaded: 500, total: 1000, percentage: 50 });
+    });
+    expect(result.current.state.progress).toBe(50);
+  });
+
+  it('clamps percentage to 0..100 when bytes exceed file size', async () => {
+    const pending = makePendingUpload();
+    vercelUploadMock.mockImplementation(
+      async (
+        _name: string,
+        _file: File,
+        opts: { onUploadProgress?: (p: unknown) => void },
+      ) => {
+        pending.onUploadProgress = opts.onUploadProgress;
+        return pending.promise;
+      },
+    );
     const { result } = renderHook(() =>
       useBlobUpload({ handleUploadUrl: '/api/projects/abc/photos/upload' }),
     );
@@ -291,12 +316,12 @@ describe('useBlobUpload — progress events (the heart of the fix)', () => {
     });
 
     await act(async () => {
-      pending.onUploadProgress?.({ percentage: 150 });
+      pending.onUploadProgress?.(500);
     });
     expect(result.current.state.progress).toBe(100);
 
     await act(async () => {
-      pending.onUploadProgress?.({ percentage: -10 });
+      pending.onUploadProgress?.(-10);
     });
     expect(result.current.state.progress).toBe(0);
   });

@@ -5,6 +5,50 @@ import { upload as vercelUpload } from '@vercel/blob/client';
 import { formatBytes } from '@/lib/images/compress';
 
 /**
+ * Normalize the @vercel/blob onUploadProgress payload to a
+ * "bytes loaded" number. The library's callback shape has
+ * drifted across versions and transports:
+ *
+ *   - XHR path (older versions, older browsers): the
+ *     callback receives `{ loaded, total, percentage }`
+ *     derived from the XHR progress event.
+ *   - Fetch-with-upload-streams path (modern Chrome via
+ *     undici): the callback receives a bare number
+ *     representing the bytes the chunk transform has
+ *     pushed into the request stream so far.
+ *   - Some intermediate versions pass `{ loaded }` only.
+ *
+ * We handle all three shapes so the progress bar moves
+ * regardless of which transport the browser picks. The
+ * percentage is computed here from the known file size;
+ * we never trust the library's `percentage` field
+ * because it can be 0 until the very end (the chunk
+ * transform reports the number of bytes pushed, not the
+ * percentage of the body that has been sent over the
+ * wire).
+ */
+function normalizeLoaded(
+  payload: unknown,
+  fileSize: number,
+): number {
+  if (typeof payload === 'number') {
+    return payload;
+  }
+  if (payload && typeof payload === 'object') {
+    const obj = payload as { loaded?: unknown; total?: unknown };
+    if (typeof obj.loaded === 'number') {
+      return obj.loaded;
+    }
+    if (typeof obj.total === 'number') {
+      return obj.total;
+    }
+  }
+  // Unknown shape — fall back to the file size so the bar
+  // jumps to 100% on the next tick. Better than stuck.
+  return fileSize;
+}
+
+/**
  * Shared hook for direct browser → Vercel Blob uploads. Bypasses
  * the 4.5MB Vercel function body limit by talking to the Blob
  * API directly with a `handleUpload` token. Files up to 500MB
@@ -80,6 +124,36 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
         totalBytes: file.size,
         result: null,
       });
+      // Heartbeat: if we don't see ANY progress events for
+      // 8 seconds while the upload is in flight, surface a
+      // clear "stuck" error rather than letting the user
+      // stare at 0% indefinitely. The bug we're guarding
+      // against: the @vercel/blob client silently swallowed
+      // the progress callback in v2.x (it passes a bare
+      // number, not an object), which looked like a frozen
+      // upload from the UI. If a future library version
+      // regresses the same way, this heartbeat will catch
+      // it within 8 seconds instead of after a full file
+      // transfer.
+      let lastProgressAt = Date.now();
+      let heartbeatCleared = false;
+      const heartbeat = setInterval(() => {
+        if (Date.now() - lastProgressAt > 8_000) {
+          clearInterval(heartbeat);
+          heartbeatCleared = true;
+          setState((s) => {
+            if (s.phase !== 'uploading') return s;
+            return {
+              ...s,
+              isUploading: false,
+              phase: 'error',
+              error:
+                'Upload appears stuck — no progress for 8 seconds. The browser may have killed the connection. Try a smaller file or a different network.',
+            };
+          });
+        }
+      }, 2_000);
+
       try {
         console.log('[useBlobUpload] calling vercelUpload', {
           fileName: file.name,
@@ -96,24 +170,29 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
           // echoes it back as `tokenPayload` on onUploadCompleted
           // so we can recreate metadata rows server-side.
           clientPayload: JSON.stringify(tokenPayload),
-          onUploadProgress: ({ percentage }) => {
-            // The @vercel/blob client passes the `percentage` value
-            // (0..100) as part of the progress event payload. The
-            // underlying transport is XHR, so this fires for every
-            // chunk the browser sends. We use a callback-stable
-            // setState so the UI ticks even when the callback
-            // identity changes due to dependency churn in the
-            // caller's useCallback.
-            const pct = Math.max(0, Math.min(100, Math.round(percentage ?? 0)));
+          // CRITICAL: the @vercel/blob v2.x client passes the
+          // callback payload as a bare number (the bytes loaded
+          // so far), NOT as an object. Earlier we destructured
+          // `{ percentage }` here and got `undefined` every
+          // time, which clamped progress to 0% and the bar
+          // appeared stuck. Handle both shapes to be safe
+          // across library versions and transports (XHR passes
+          // { loaded, total, percentage }; fetch-with-streams
+          // passes a bare number).
+          onUploadProgress: (payload: unknown) => {
+            lastProgressAt = Date.now();
+            const loaded = normalizeLoaded(payload, file.size);
+            const pct = Math.max(0, Math.min(100, Math.round((loaded / file.size) * 100)));
             setState((s) => ({
               ...s,
               progress: pct,
-              uploadedBytes: Math.round((pct / 100) * file.size),
+              uploadedBytes: loaded,
               totalBytes: file.size,
             }));
             onProgress?.(pct);
           },
         });
+        if (!heartbeatCleared) clearInterval(heartbeat);
         console.log('[useBlobUpload] vercelUpload resolved', { url: result.url });
         setState((s) => ({
           ...s,
@@ -124,6 +203,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
         }));
         return result;
       } catch (e) {
+        if (!heartbeatCleared) clearInterval(heartbeat);
         const msg = e instanceof Error ? e.message : 'Upload failed';
         console.error('[useBlobUpload] vercelUpload failed', { error: msg, name: e instanceof Error ? e.name : 'unknown' });
         setState((s) => ({
