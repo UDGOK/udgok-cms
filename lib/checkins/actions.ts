@@ -8,6 +8,7 @@ import { requireRole } from '@/lib/auth/require-role';
 import { getWorkspace } from '@/lib/workspace/get-workspace';
 import { generateCheckInToken } from './qr';
 import { findOpenCheckIn } from './queries';
+import { emitNotification } from '@/lib/notifications/actions';
 
 // =====================================================================
 // ADMIN: generate / deactivate a SiteCheckInCode
@@ -381,6 +382,43 @@ export async function toggleCheckInAction(
     } catch (err) {
       console.error('[checkin] failed to write ScanEvent:', err);
     }
+  }
+
+  // Notification emit — ping PMs / admins / owners of
+  // the workspace so the bell surfaces the new arrival.
+  // We exclude the user themselves if they happen to
+  // be one of those roles (they already know they're
+  // on site). Sub-foreman check-ins (no userId) still
+  // notify the whole team.
+  try {
+    const managers = await prisma.membership.findMany({
+      where: {
+        workspaceId: code.project.workspaceId,
+        role: { in: ['OWNER', 'ADMIN', 'PM'] },
+      },
+      select: { userId: true },
+    });
+    const managerIds = managers
+      .map((m) => m.userId)
+      .filter((id) => id !== userId);
+    if (managerIds.length > 0) {
+      await emitNotification({
+        workspaceId: code.project.workspaceId,
+        type: 'checkin',
+        title: `${userId ? userName : (subName ?? 'Someone')} checked in`,
+        body: `${code.project.name}${code.label ? ` · ${code.label}` : ''}`,
+        link: `/projects/${code.project.id}/checkins`,
+        recipientIds: managerIds,
+        createdById: userId,
+        metadata: {
+          checkInEventId: event.id,
+          projectId: code.project.id,
+        },
+      });
+    }
+  } catch (err) {
+    // Best-effort — the check-in already succeeded.
+    console.error('[checkin] failed to emit notification:', err);
   }
 
   return {

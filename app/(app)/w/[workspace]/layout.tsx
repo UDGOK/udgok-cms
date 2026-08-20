@@ -46,6 +46,26 @@ export default async function WorkspaceLayout({
     role: m.role,
   }));
 
+  // Workspace member roster — for the notification
+  // bell's compose modal's recipient picker. Only
+  // members of the CURRENT workspace, ordered by
+  // name. The bell renders this list when the user
+  // opens the compose form. We include id, name,
+  // and role; the modal also uses the count for
+  // the "→ N members" preview line.
+  const memberRows = await prisma.membership.findMany({
+    where: { workspaceId: workspace.id },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { user: { name: 'asc' } },
+  });
+  const members = memberRows.map((m) => ({
+    id: m.user.id,
+    name: m.user.name ?? m.user.email,
+    role: m.role,
+  }));
+
   // Master admin check — the platform owner (yasir@udgok.com) gets
   // an "Admin" button in the topbar and bypasses all plan gates.
   const master = await isMasterAdmin(userId);
@@ -71,7 +91,11 @@ export default async function WorkspaceLayout({
               <Sidebar />
             </div>
             <div className="flex-1 flex flex-col min-w-0">
-              <TopbarWithDrawer allWorkspaces={allWorkspaces} isMasterAdmin={master} />
+              <TopbarWithDrawer
+                allWorkspaces={allWorkspaces}
+                isMasterAdmin={master}
+                members={members}
+              />
               {/* pb-16 on mobile to leave room for the bottom tab bar */}
               <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
               {/* Mini footer — desktop only. The mobile

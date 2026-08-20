@@ -46,6 +46,7 @@ model Workspace {
   productCatalog ProductCatalogItem[]
   siteCheckInCodes   SiteCheckInCode[]
   checkInEvents      CheckInEvent[]
+  notifications      Notification[]  @relation("notificationWorkspace")
 
   @@index([slug])
 }
@@ -74,6 +75,8 @@ model User {
   equipment      Equipment[]     @relation("equipmentUploader")
   siteCheckInCodes SiteCheckInCode[] @relation("siteCheckInCodeCreator")
   checkInEvents    CheckInEvent[]    @relation("checkInUser")
+  notificationsReceived Notification[] @relation("notificationRecipient")
+  notificationsCreated  Notification[] @relation("notificationCreator")
 
   @@index([email])
 }
@@ -1226,4 +1229,104 @@ model CheckInEvent {
   @@index([subcontractorId, checkedInAt])
   @@index([userId, checkedInAt])
   @@index([siteCheckInCodeId, checkedInAt])
+}
+
+// =========================================
+// NOTIFICATIONS — per-user bell inbox
+// =========================================
+//
+// One row per (recipient, event). When a team leader
+// broadcasts an alert, the push action fans out into
+// N rows — one per recipient. The bell dropdown reads
+// from the recipient's own rows only.
+//
+// Why fan-out instead of a single "broadcast" row with
+// a recipients join table:
+//   - per-recipient read/dismiss state without a join
+//   - simple "unread count for me" query (no join)
+//   - simple "mark all read" for a single recipient
+//   - the cost is acceptable: a 10-person workspace
+//     broadcasts to 10 rows, not 1
+//
+// The cost ceiling is fine even at 100-person orgs:
+// 1 broadcast = 100 rows, not 1,000,000. At our scale
+// (small construction teams) this is noise.
+
+model Notification {
+  id          String   @id @default(cuid())
+  workspaceId String
+  recipientId String
+  // null = system-generated (auto-events from check-ins
+  // etc.). Non-null = a workspace member pushed the
+  // alert through the compose modal.
+  createdById String?
+
+  // Type — the broad bucket. Used to pick the icon
+  // shown in the bell dropdown and the colour of the
+  // row. Examples:
+  //   "team_push"     — leader sent an alert
+  //   "checkin"       — someone checked in to a project
+  //   "pay_app"       — pay app status change
+  //   "task"          — task assigned / status changed
+  //   "project"       — project created / updated
+  //   "system"        — generic system message
+  type    String
+
+  // Category — secondary grouping for filters. Same
+  // values as type for v1, but kept separate so we can
+  // later split "all project events" without renaming
+  // the type field.
+  category String
+
+  // Title is the bold line in the bell dropdown. Short
+  // — one line. Body is the lighter secondary line;
+  // can be 1-2 sentences. Both are required for human
+  // pushes; body is optional for system events.
+  title String
+  body  String?
+
+  // Optional URL to navigate to when the user clicks
+  // the notification. Workspace-relative, e.g.
+  // "/w/udgok/projects/cmt..." or "/w/udgok/team".
+  // When null, clicking the row just marks it read.
+  link String?
+
+  createdAt   DateTime  @default(now())
+  // null until the user clicks the row OR explicitly
+  // hits "mark all read". Distinct from dismissedAt —
+  // a read notification can still be dismissed later
+  // (e.g. user wants to clear the panel after reading
+  // everything).
+  readAt      DateTime?
+  // null until the user clicks the × button or the
+  // row's dismiss action. Dismissed rows are hidden
+  // from the panel entirely (the "see all" link can
+  // still show them with a filter).
+  dismissedAt DateTime?
+
+  // Optional metadata. Stored as JSON string for
+  // flexibility — typed on the read side via
+  // lib/notifications/types.ts. Examples:
+  //   { projectId: "..." } for project-scoped notifs
+  //   { checkInEventId: "..." } for check-in notifs
+  //   { payAppId: "..." } for pay-app notifs
+  metadata String?
+
+  workspace  Workspace @relation("notificationWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipient  User      @relation("notificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  createdBy  User?     @relation("notificationCreator", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  // Indexes are chosen for the two hot queries:
+  //   1. "Give me my unread + recent in this workspace"
+  //      → (recipientId, readAt) + (recipientId, createdAt DESC)
+  //   2. "List all notifications sent in a workspace"
+  //      → (workspaceId, createdAt DESC) for the audit view
+  // The (workspaceId, recipientId, createdAt) compound is
+  // for the panel "show last N across the user's
+  // workspaces" query.
+  @@index([recipientId, dismissedAt, createdAt(sort: Desc)])
+  @@index([recipientId, readAt])
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, recipientId, createdAt(sort: Desc)])
+  @@index([type])
 }

@@ -6,6 +6,8 @@ import { useWorkspace } from './WorkspaceContext';
 import { usePresence } from '@/components/presence/PresenceProvider';
 import { PresenceDot } from '@/components/presence/PresenceDot';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { PUSH_ROLES } from '@/lib/notifications/types';
 import Link from 'next/link';
 
 interface WorkspaceOption {
@@ -19,10 +21,12 @@ export function Topbar({
   allWorkspaces = [],
   onOpenMobileDrawer,
   isMasterAdmin = false,
+  workspaceMembers = [],
 }: {
   allWorkspaces?: WorkspaceOption[];
   onOpenMobileDrawer?: () => void;
   isMasterAdmin?: boolean;
+  workspaceMembers?: Array<{ id: string; name: string; role: string }>;
 }) {
   const { name, slug, role, id } = useWorkspace();
   const pathname = usePathname();
@@ -124,14 +128,12 @@ export function Topbar({
           </Link>
         ) : null}
 
-        {/* Bell removed — was a stub with no onClick, no
-            panel, no notification data; the orange dot
-            was a hardcoded span that always rendered. A
-            real notification center is a follow-up
-            project (event model, polling, mark-as-read,
-            preferences). In the meantime, the recent-
-            activity surface per project is the right
-            place to discover what changed. */}
+        <NotificationBell
+          workspaceId={id}
+          workspaceSlug={slug}
+          canPush={(PUSH_ROLES as readonly string[]).includes(role)}
+          members={workspaceMembers}
+        />
 
         <UserButton
           appearance={{
