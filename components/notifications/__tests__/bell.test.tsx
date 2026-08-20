@@ -240,3 +240,59 @@ describe('NotificationBell', () => {
     expect(formData.get('type')).toBe('team_push');
   });
 });
+
+// =====================================================================
+// Regression: bell's GET to /api/notifications must NOT
+// throw a JSON-parse SyntaxError when the Clerk middleware
+// 307-redirects the request to /sign-in (unauthenticated
+// state). Before the fix, the fetch followed the redirect
+// to the sign-in HTML page, and res.json() threw
+// "SyntaxError: The string did not match the expected
+// pattern" — which the catch block surfaced to the
+// console as "[notifications] refresh error".
+//
+// The fix: the hook checks res.redirected and surfaces a
+// clean "Not signed in" error instead.
+// =====================================================================
+describe('NotificationBell — fetch redirect handling', () => {
+  it('treats a Clerk sign-in redirect as "not signed in" (not a JSON parse error)', async () => {
+    // Simulate the browser's redirect-following: the fetch
+    // resolves with the redirected URL (the sign-in page) but
+    // res.redirected is true.
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      redirected: true,
+      url: 'https://cms.udgok.com/sign-in?redirect_url=%2Fapi%2Fnotifications',
+      json: async () => {
+        // The OLD code would call json() and crash here.
+        // The NEW code never reaches json() because we
+        // check redirected first.
+        throw new SyntaxError(
+          'The string did not match the expected pattern.',
+        );
+      },
+    });
+
+    render(<NotificationBell {...baseProps} />);
+
+    // After mount, the bell should show "Not signed in" — NOT
+    // log a JSON parse error.
+    await waitFor(() => {
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+        '[notifications] refresh error:',
+        expect.any(SyntaxError),
+      );
+    });
+
+    // Open the panel — the error message must say "Not signed
+    // in", not "Network error" or anything that suggests the
+    // user is broken.
+    const bell = await screen.findByLabelText(/notifications/i);
+    fireEvent.click(bell);
+    expect(await screen.findByText(/not signed in/i)).toBeTruthy();
+
+    consoleErrorSpy.mockRestore();
+  });
+});

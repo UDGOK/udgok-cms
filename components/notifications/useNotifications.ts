@@ -75,7 +75,19 @@ export function useNotifications(): UseNotificationsResult {
     try {
       const res = await fetch('/api/notifications', {
         cache: 'no-store',
+        // The Clerk middleware returns 307 → /sign-in for
+        // unauthenticated API calls. The default fetch
+        // follows that redirect, ending up at an HTML
+        // page that breaks res.json() with a SyntaxError.
+        // The browser fetch API exposes `res.redirected`
+        // so we can detect this case and surface a clean
+        // "not signed in" instead of an opaque JSON
+        // parse error.
       });
+      if (res.redirected) {
+        setError('Not signed in');
+        return;
+      }
       if (!res.ok) {
         setError(res.status === 401 ? 'Not signed in' : 'Failed to load');
         return;
