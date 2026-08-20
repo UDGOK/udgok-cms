@@ -1816,6 +1816,8 @@ model VendorContact {
   role      String?
   isPrimary Boolean @default(false)
 
+  rfqs Rfq[] @relation("RfqContact")
+
   createdAt DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1939,6 +1941,7 @@ model Rfq {
   vendorId    String
   vendor      Vendor       @relation(fields: [vendorId], references: [id])
   contactId   String?
+  contact     VendorContact? @relation("RfqContact", fields: [contactId], references: [id])
   sentToEmail String?
 
   status RfqStatus @default(DRAFT)
@@ -2140,7 +2143,12 @@ model POLine {
   uom         String        @default("EA")
   unitPrice   Decimal       @db.Decimal(19, 4)
   lineTotal   Decimal       @db.Decimal(19, 4)
-  notes       String?
+  // A vendor-quote line can be marked as a substitute for the
+  // original list line. We carry the note through to the PO
+  // so the buyer remembers why this isn't the spec they sent.
+  isSubstitute   Boolean @default(false)
+  substituteNote String?
+  notes          String?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 

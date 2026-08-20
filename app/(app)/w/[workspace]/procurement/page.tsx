@@ -5,12 +5,18 @@ import Link from 'next/link';
 /**
  * Procurement dashboard.
  *
- * Phase 1 surfaces a small status panel — vendor count,
- * active RFQs, recent POs — plus quick-action links to
- * the vendor list, material list builder, and items
- * catalog. Phase 2 will add the open-RFQs feed and
- * awaiting-response card.
+ * Phase 2 surfaces:
+ *   - vendor count (active)
+ *   - items catalog count
+ *   - material lists (open)
+ *   - open RFQs (DRAFT/SENT/VIEWED — waiting for vendor)
+ *   - responded RFQs (need to compare/accept)
+ *   - POs pending approval
+ *   - POs issued
+ *   - quick links + recent activity
  */
+export const dynamic = 'force-dynamic';
+
 export default async function ProcurementDashboardPage({
   params,
 }: {
@@ -18,17 +24,56 @@ export default async function ProcurementDashboardPage({
 }) {
   const { workspace } = await requireMembership(params.workspace);
 
-  const [vendorCount, activeVendorCount, itemCount, listCount, openListCount, poCount] =
-    await Promise.all([
-      prisma.vendor.count({ where: { workspaceId: workspace.id, deletedAt: null } }),
-      prisma.vendor.count({ where: { workspaceId: workspace.id, status: 'ACTIVE', deletedAt: null } }),
-      prisma.item.count({ where: { workspaceId: workspace.id, active: true } }),
-      prisma.materialList.count({ where: { workspaceId: workspace.id, deletedAt: null } }),
-      prisma.materialList.count({
-        where: { workspaceId: workspace.id, status: { in: ['DRAFT', 'QUOTING', 'QUOTED'] }, deletedAt: null },
-      }),
-      prisma.purchaseOrder.count({ where: { workspaceId: workspace.id } }),
-    ]);
+  const [
+    vendorCount,
+    activeVendorCount,
+    itemCount,
+    listCount,
+    openListCount,
+    awaitingResponseCount,
+    respondedCount,
+    pendingPoCount,
+    issuedPoCount,
+    recentRfqs,
+    recentPos,
+  ] = await Promise.all([
+    prisma.vendor.count({ where: { workspaceId: workspace.id, deletedAt: null } }),
+    prisma.vendor.count({ where: { workspaceId: workspace.id, status: 'ACTIVE', deletedAt: null } }),
+    prisma.item.count({ where: { workspaceId: workspace.id, active: true } }),
+    prisma.materialList.count({ where: { workspaceId: workspace.id, deletedAt: null } }),
+    prisma.materialList.count({
+      where: { workspaceId: workspace.id, status: { in: ['DRAFT', 'QUOTING', 'QUOTED'] }, deletedAt: null },
+    }),
+    prisma.rfq.count({
+      where: { workspaceId: workspace.id, status: { in: ['DRAFT', 'SENT', 'VIEWED'] } },
+    }),
+    prisma.rfq.count({
+      where: { workspaceId: workspace.id, status: 'RESPONDED' },
+    }),
+    prisma.purchaseOrder.count({
+      where: { workspaceId: workspace.id, status: 'PENDING_APPROVAL' },
+    }),
+    prisma.purchaseOrder.count({
+      where: { workspaceId: workspace.id, status: 'ISSUED' },
+    }),
+    prisma.rfq.findMany({
+      where: { workspaceId: workspace.id, status: { in: ['SENT', 'VIEWED', 'RESPONDED'] } },
+      orderBy: [{ status: 'asc' }, { sentAt: 'desc' }],
+      take: 5,
+      include: {
+        vendor: { select: { name: true } },
+        list: { select: { name: true } },
+      },
+    }),
+    prisma.purchaseOrder.findMany({
+      where: { workspaceId: workspace.id, status: { in: ['PENDING_APPROVAL', 'ISSUED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: {
+        vendor: { select: { name: true } },
+      },
+    }),
+  ]);
 
   const base = `/w/${workspace.slug}/procurement`;
 
@@ -46,13 +91,97 @@ export default async function ProcurementDashboardPage({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Stat label="Vendors" value={vendorCount} sub={`${activeVendorCount} active`} href={`${base}/vendors`} />
-        <Stat label="Items" value={itemCount} sub="in catalog" href={`${base}/items`} />
-        <Stat label="Material lists" value={listCount} sub={`${openListCount} open`} href={`${base}/lists`} />
+        <Stat label="Material lists" value={openListCount} sub={`${listCount} total`} href={`${base}/lists`} />
+        <Stat label="Open RFQs" value={awaitingResponseCount} sub="awaiting reply" href={`${base}/rfqs`} />
+        <Stat
+          label={pendingPoCount > 0 ? 'POs need approval' : 'Issued POs'}
+          value={pendingPoCount > 0 ? pendingPoCount : issuedPoCount}
+          sub={pendingPoCount > 0 ? 'pending issue' : 'to vendors'}
+          href={`${base}/pos`}
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-paper border-2 border-ink p-4">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-2">
+            Awaiting response
+          </div>
+          {recentRfqs.length === 0 ? (
+            <div className="text-[11px] text-ink-50">No open RFQs. Send one from a material list.</div>
+          ) : (
+            <ul className="divide-y divide-line">
+              {recentRfqs.map((r) => (
+                <li
+                  key={r.id}
+                  className="py-1.5 first:pt-0 last:pb-0 flex items-center gap-2 text-[12px]"
+                >
+                  <span className="font-mono text-[10px] text-ink-50 w-20">{r.number}</span>
+                  <Link
+                    href={`/w/${workspace.slug}/procurement/rfqs/${r.id}`}
+                    className="font-extrabold flex-1 min-w-0 truncate hover:text-orange-d"
+                  >
+                    {r.vendor.name} — {r.list.name}
+                  </Link>
+                  <span className="px-1.5 py-0.5 bg-cream-2 text-ink-50 text-[9px] font-extrabold uppercase tracking-[0.1em]">
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {respondedCount > 0 ? (
+            <div className="mt-2 text-[10px] text-orange-d font-extrabold">
+              {respondedCount} RFQ{respondedCount === 1 ? '' : 's'} ready to compare →
+            </div>
+          ) : null}
+        </div>
+
+        <div className="bg-paper border-2 border-ink p-4">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-2">
+            POs
+          </div>
+          {recentPos.length === 0 ? (
+            <div className="text-[11px] text-ink-50">No POs yet. Accept a quote to create one.</div>
+          ) : (
+            <ul className="divide-y divide-line">
+              {recentPos.map((p) => (
+                <li
+                  key={p.id}
+                  className="py-1.5 first:pt-0 last:pb-0 flex items-center gap-2 text-[12px]"
+                >
+                  <span className="font-mono text-[10px] text-ink-50 w-20">{p.number}</span>
+                  <Link
+                    href={`/w/${workspace.slug}/procurement/pos/${p.id}`}
+                    className="font-extrabold flex-1 min-w-0 truncate hover:text-orange-d"
+                  >
+                    {p.vendor.name}
+                  </Link>
+                  <span className="font-mono">${Number(p.total).toLocaleString()}</span>
+                  <span className="px-1.5 py-0.5 bg-cream-2 text-ink-50 text-[9px] font-extrabold uppercase tracking-[0.1em]">
+                    {p.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        <Link
+          href={`${base}/lists`}
+          className="bg-paper border-2 border-line hover:border-ink p-4 transition-colors"
+        >
+          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+            {'// Lists'}
+          </div>
+          <div className="text-[13px] font-extrabold mt-1">{openListCount} open</div>
+          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d mt-2">
+            Build / request quotes →
+          </div>
+        </Link>
         <Link
           href={`${base}/vendors`}
           className="bg-paper border-2 border-line hover:border-ink p-4 transition-colors"
@@ -66,42 +195,17 @@ export default async function ProcurementDashboardPage({
           </div>
         </Link>
         <Link
-          href={`${base}/lists`}
+          href={`${base}/items`}
           className="bg-paper border-2 border-line hover:border-ink p-4 transition-colors"
         >
           <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
-            {'// Material lists'}
+            {'// Items'}
           </div>
-          <div className="text-[13px] font-extrabold mt-1">{openListCount} open</div>
+          <div className="text-[13px] font-extrabold mt-1">{itemCount} in catalog</div>
           <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d mt-2">
-            Build / request quotes →
+            Price history (the moat) →
           </div>
         </Link>
-      </div>
-
-      <div className="bg-cream-2 border-2 border-line p-4">
-        <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-1">
-          {'// Phase 1 — what works now'}
-        </div>
-        <ul className="text-[12px] text-ink-70 space-y-1 list-disc list-inside">
-          <li>Add vendors (Locke, Broken Arrow Electric, Lowe&apos;s, Home Depot as a starting set)</li>
-          <li>Build the items catalog (optional — free-text lines always work)</li>
-          <li>Build a material list and add line items</li>
-        </ul>
-        <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mt-4 mb-1">
-          {'// Phase 2 — next up'}
-        </div>
-        <ul className="text-[12px] text-ink-50 space-y-1 list-disc list-inside">
-          <li>Send an RFQ to a vendor (tokenised magic link, no login)</li>
-          <li>Vendor types prices, lead time, substitutions</li>
-          <li>Compare quotes side-by-side, accept, generate PO</li>
-          <li>Price history (the moat — every priced line is recorded)</li>
-        </ul>
-        {poCount > 0 ? (
-          <div className="mt-3 text-[10px] font-mono text-ink-50">
-            {poCount} PO{poCount === 1 ? '' : 's'} on file.
-          </div>
-        ) : null}
       </div>
     </div>
   );

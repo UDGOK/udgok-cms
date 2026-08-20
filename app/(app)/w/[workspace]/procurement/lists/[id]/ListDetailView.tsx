@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { addListLineAction, archiveListAction, deleteListLineAction } from '@/lib/procurement/list-actions';
 import { UOMS } from '@/lib/procurement/types';
 
@@ -39,26 +40,42 @@ interface ListDto {
   rfqs: RfqDto[];
 }
 
+interface VendorOption {
+  id: string;
+  name: string;
+  contacts: { id: string; name: string; email: string; isPrimary: boolean }[];
+}
+
 const STATUS_COLOR: Record<string, string> = {
   DRAFT: 'bg-ink-50/15 text-ink-50',
   QUOTING: 'bg-info/15 text-info',
   QUOTED: 'bg-orange/15 text-orange',
   CLOSED: 'bg-success/15 text-success',
+  SENT: 'bg-info/15 text-info',
+  VIEWED: 'bg-info/15 text-info',
+  RESPONDED: 'bg-orange/15 text-orange',
+  ACCEPTED: 'bg-success/15 text-success',
+  DECLINED: 'bg-error/15 text-error',
+  CANCELLED: 'bg-ink-50/15 text-ink-50',
+  EXPIRED: 'bg-error/15 text-error',
 };
 
 export function ListDetailView({
   workspaceId,
   workspaceSlug,
   list,
+  vendors,
 }: {
   workspaceId: string;
   workspaceSlug: string;
   list: ListDto;
+  vendors: VendorOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(list.lines.length === 0);
+  const [showSend, setShowSend] = useState(false);
 
   function deleteLine(lineId: string) {
     if (!confirm('Delete this line?')) return;
@@ -109,10 +126,22 @@ export function ListDetailView({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {list.status === 'DRAFT' && list.lines.length > 0 ? (
-            <span className="text-[10px] font-mono uppercase tracking-[0.1em] text-info bg-info/10 px-2 py-1">
-              Phase 2: Request quotes →
-            </span>
+          {list.status !== 'CLOSED' && list.lines.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowSend(true)}
+              className="px-3 py-2 bg-orange text-paper border-2 border-orange text-[11px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d"
+            >
+              + Send to vendor
+            </button>
+          ) : null}
+          {list.rfqs.length > 1 && list.status === 'QUOTED' ? (
+            <Link
+              href={`/w/${workspaceSlug}/procurement/compare?list=${list.id}`}
+              className="px-3 py-2 bg-ink text-paper border-2 border-ink text-[11px] font-extrabold uppercase tracking-[0.12em]"
+            >
+              Compare quotes
+            </Link>
           ) : null}
           <button
             type="button"
@@ -131,7 +160,7 @@ export function ListDetailView({
         </div>
       ) : null}
 
-      {/* RFQs list (Phase 2 will have a "Send to vendor" action here) */}
+      {/* RFQs list */}
       {list.rfqs.length > 0 ? (
         <div className="bg-paper border-2 border-ink mb-4 p-4">
           <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-2">
@@ -144,11 +173,20 @@ export function ListDetailView({
                 className="py-2 first:pt-0 last:pb-0 flex items-center gap-3 text-[12px]"
               >
                 <span className="font-mono text-[10px] text-ink-50 w-24">{r.number}</span>
-                <span className="font-extrabold flex-1 min-w-0 truncate">{r.vendor.name}</span>
-                <span className="px-1.5 py-0.5 bg-cream-2 text-ink-50 text-[9px] font-extrabold uppercase tracking-[0.1em]">
+                <Link
+                  href={`/w/${workspaceSlug}/procurement/rfqs/${r.id}`}
+                  className="font-extrabold flex-1 min-w-0 truncate hover:text-orange-d"
+                >
+                  {r.vendor.name}
+                </Link>
+                <span
+                  className={`px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.1em] ${
+                    STATUS_COLOR[r.status] ?? 'bg-ink-50/15 text-ink-50'
+                  }`}
+                >
                   {r.status}
                 </span>
-                <span className="text-[10px] text-ink-50 font-mono w-20 text-right">
+                <span className="text-[10px] text-ink-50 font-mono w-24 text-right">
                   {r.respondedAt
                     ? `Replied ${new Date(r.respondedAt).toLocaleDateString()}`
                     : r.sentAt
@@ -159,6 +197,20 @@ export function ListDetailView({
             ))}
           </ul>
         </div>
+      ) : null}
+
+      {showSend ? (
+        <SendRfqModal
+          listId={list.id}
+          listName={list.name}
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          vendors={vendors}
+          existingVendorIds={list.rfqs
+            .filter((r) => ['DRAFT', 'SENT', 'VIEWED'].includes(r.status))
+            .map((r) => r.vendor.id)}
+          onClose={() => setShowSend(false)}
+        />
       ) : null}
 
       {/* Line items table */}
@@ -252,6 +304,180 @@ export function ListDetailView({
       {error ? (
         <div className="mt-3 text-[12px] text-error font-semibold">⚠ {error}</div>
       ) : null}
+    </div>
+  );
+}
+
+function SendRfqModal({
+  listId,
+  listName,
+  workspaceId,
+  workspaceSlug,
+  vendors,
+  existingVendorIds,
+  onClose,
+}: {
+  listId: string;
+  listName: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  vendors: VendorOption[];
+  existingVendorIds: string[];
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [vendorId, setVendorId] = useState(
+    vendors.find((v) => !existingVendorIds.includes(v.id))?.id ?? '',
+  );
+  const [contactId, setContactId] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const selectedVendor = vendors.find((v) => v.id === vendorId);
+  const availableContacts = selectedVendor?.contacts ?? [];
+  const eligible = vendors.filter((v) => !existingVendorIds.includes(v.id));
+
+  function send(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData();
+    fd.set('listId', listId);
+    fd.set('vendorId', vendorId);
+    if (contactId) fd.set('contactId', contactId);
+    if (message) fd.set('message', message);
+    startTransition(async () => {
+      // Dynamic import keeps the action out of the initial
+      // client bundle; it ships as its own chunk.
+      const { createRfqAction } = await import('@/lib/procurement/rfq-actions');
+      const res = await createRfqAction(workspaceId, undefined, fd);
+      if (res.ok) {
+        if (res.magicLinkUrl) {
+          // Email failed — show the link in a prompt so the
+          // buyer can copy it manually before we close.
+          prompt(
+            `Saved as DRAFT — email not sent.\n\nReason: ${res.message}\n\nMagic link (copy this to the vendor):`,
+            res.magicLinkUrl,
+          );
+        }
+        router.push(`/w/${workspaceSlug}/procurement/rfqs/${res.id}`);
+      } else {
+        setError(res.error);
+      }
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <form
+        onSubmit={send}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-paper border-2 border-ink w-full max-w-lg p-6"
+      >
+        <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-1">
+          {'// SEND TO VENDOR'}
+        </div>
+        <h2 className="text-xl font-black mb-1">{listName}</h2>
+        <p className="text-[12px] text-ink-70 mb-4">
+          We&apos;ll email a private magic link to the vendor. They open it, type in their
+          prices, and you get a quote back here.
+        </p>
+
+        {eligible.length === 0 ? (
+          <div className="bg-warning/10 border border-warning p-2 text-[12px] text-warning mb-3">
+            All your active vendors already have an open RFQ for this list. Use &quot;Resend&quot;
+            on the existing RFQ page to rotate the link, or add a new vendor.
+          </div>
+        ) : (
+          <>
+            <label className="block mb-3">
+              <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-1">
+                Vendor
+              </div>
+              <select
+                required
+                value={vendorId}
+                onChange={(e) => {
+                  setVendorId(e.target.value);
+                  setContactId('');
+                }}
+                className="w-full px-3 py-2 bg-cream border border-line text-ink text-sm"
+              >
+                <option value="">— pick a vendor —</option>
+                {eligible.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.contacts.length} contact{v.contacts.length === 1 ? '' : 's'})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {availableContacts.length > 0 ? (
+              <label className="block mb-3">
+                <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-1">
+                  Send to (defaults to primary)
+                </div>
+                <select
+                  value={contactId}
+                  onChange={(e) => setContactId(e.target.value)}
+                  className="w-full px-3 py-2 bg-cream border border-line text-ink text-sm"
+                >
+                  <option value="">
+                    {availableContacts.find((c) => c.isPrimary)
+                      ? `— primary (${availableContacts.find((c) => c.isPrimary)?.name}) —`
+                      : '— pick a contact —'}
+                  </option>
+                  {availableContacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.isPrimary ? '(primary)' : ''} — {c.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            <label className="block mb-3">
+              <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-1">
+                Message to vendor (optional)
+              </div>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                maxLength={4000}
+                rows={3}
+                placeholder="Job context, what they need to know, how to reach us…"
+                className="w-full px-3 py-2 bg-cream border border-line text-ink text-sm resize-none"
+              />
+            </label>
+          </>
+        )}
+
+        {error ? (
+          <div className="bg-error/10 border border-error p-2 text-[12px] text-error font-semibold mb-3">
+            ⚠ {error}
+          </div>
+        ) : null}
+
+        <div className="flex gap-2 justify-end pt-2 border-t border-line">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-2 border border-line text-[11px] font-extrabold uppercase tracking-[0.12em]"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={pending || !vendorId || availableContacts.length === 0}
+            className="px-4 py-2.5 bg-orange text-paper border-2 border-orange text-[11px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d disabled:opacity-50"
+          >
+            {pending ? 'Sending…' : 'Send RFQ'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -185,13 +185,27 @@ export async function listVendorContacts(
   });
 }
 
-/** Vendor option list for the MaterialList/RFQ selectors.
- *  Returns the minimal { id, name } so the dropdown is
- *  fast even with hundreds of vendors. */
+/** Vendor option list for the RFQ selector on a material list.
+ *  Returns the vendor's id, name, and the list of contacts
+ *  with email addresses (used to pick a recipient for the
+ *  magic link). Returns ACTIVE vendors with ≥1 contact. */
 export async function listVendorOptions(workspaceId: string) {
   return prisma.vendor.findMany({
-    where: { workspaceId, deletedAt: null, status: 'ACTIVE' },
+    where: {
+      workspaceId,
+      deletedAt: null,
+      status: 'ACTIVE',
+      contacts: { some: {} },
+    },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, defaultTerms: true },
+    select: {
+      id: true,
+      name: true,
+      defaultTerms: true,
+      contacts: {
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        select: { id: true, name: true, email: true, isPrimary: true },
+      },
+    },
   });
 }

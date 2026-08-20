@@ -2,7 +2,10 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
+import { listVendorOptions } from '@/lib/procurement/queries';
 import { ListDetailView } from './ListDetailView';
+
+export const dynamic = 'force-dynamic';
 
 export default async function MaterialListDetailPage({
   params,
@@ -10,28 +13,31 @@ export default async function MaterialListDetailPage({
   params: { workspace: string; id: string };
 }) {
   const { workspace } = await requireMembership(params.workspace);
-  const list = await prisma.materialList.findFirst({
-    where: { id: params.id, workspaceId: workspace.id, deletedAt: null },
-    include: {
-      lines: {
-        orderBy: { position: 'asc' },
-        include: {
-          item: { select: { id: true, description: true, sku: true } },
+  const [list, vendors] = await Promise.all([
+    prisma.materialList.findFirst({
+      where: { id: params.id, workspaceId: workspace.id, deletedAt: null },
+      include: {
+        lines: {
+          orderBy: { position: 'asc' },
+          include: {
+            item: { select: { id: true, description: true, sku: true } },
+          },
+        },
+        rfqs: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            number: true,
+            status: true,
+            vendor: { select: { id: true, name: true } },
+            sentAt: true,
+            respondedAt: true,
+          },
         },
       },
-      rfqs: {
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          number: true,
-          status: true,
-          vendor: { select: { id: true, name: true } },
-          sentAt: true,
-          respondedAt: true,
-        },
-      },
-    },
-  });
+    }),
+    listVendorOptions(workspace.id),
+  ]);
   if (!list) notFound();
 
   return (
@@ -45,6 +51,11 @@ export default async function MaterialListDetailPage({
       <ListDetailView
         workspaceId={workspace.id}
         workspaceSlug={workspace.slug}
+        vendors={vendors.map((v) => ({
+          id: v.id,
+          name: v.name,
+          contacts: v.contacts,
+        }))}
         list={{
           id: list.id,
           name: list.name,

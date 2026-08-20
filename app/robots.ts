@@ -36,6 +36,9 @@ export default function robots(): MetadataRoute.Robots {
           '/sign-in',
           '/sign-up',
           '/pay-apps/',
+          // Per spec §7.3: vendor portal is token-auth. Never
+          // let crawlers anywhere near it.
+          '/q/',
         ],
       },
     ],

@@ -196,6 +196,32 @@ const nextConfig = {
           },
         ],
       },
+      // Per spec §7.3: don't let the vendor portal be indexed
+      // or cached. /q/[token] carries the credential; bots
+      // must not see it, and CDNs must not serve a stale copy
+      // to the next rep.
+      {
+        source: '/q/:path*',
+        headers: [
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive, nosnippet',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, private',
+          },
+        ],
+      },
+      {
+        source: '/api/q/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, private',
+          },
+        ],
+      },
     ];
   },
 };
