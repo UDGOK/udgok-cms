@@ -6,6 +6,7 @@ import { TopbarWithDrawer } from '@/components/workspace/TopbarWithDrawer';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceContext';
 import { PresenceShell } from '@/components/workspace/PresenceShell';
 import { MobileShellClient } from '@/components/workspace/MobileShellClient';
+import { AppFooter } from '@/components/workspace/AppFooter';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 
 export default async function WorkspaceLayout({
@@ -73,6 +74,11 @@ export default async function WorkspaceLayout({
               <TopbarWithDrawer allWorkspaces={allWorkspaces} isMasterAdmin={master} />
               {/* pb-16 on mobile to leave room for the bottom tab bar */}
               <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
+              {/* Mini footer — desktop only. The mobile
+                  bottom tab bar (rendered by MobileShellClient)
+                  already serves as the visual ground on small
+                  screens, and a 2-line footer would crowd it. */}
+              <AppFooter />
             </div>
           </div>
         </MobileShellClient>
