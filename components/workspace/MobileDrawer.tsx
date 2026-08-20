@@ -95,6 +95,15 @@ const ICON_SCAN = (
     <line x1="3" y1="12" x2="21" y2="12" />
   </svg>
 );
+const ICON_PROCUREMENT = (
+  // Shopping-cart with a clipboard overlay — reads as
+  // "buy materials" without needing a custom shape.
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="9" cy="21" r="1" />
+    <circle cx="20" cy="21" r="1" />
+    <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" />
+  </svg>
+);
 
 export function MobileDrawer({ open, onClose, allWorkspaces, isMasterAdmin }: DrawerProps) {
   const { slug, name, role } = useWorkspace();
@@ -132,6 +141,7 @@ export function MobileDrawer({ open, onClose, allWorkspaces, isMasterAdmin }: Dr
     { label: 'Subcontractors', href: `/w/${slug}/subcontractors`, icon: ICON_SUBS },
     { label: 'Timesheets', href: `/w/${slug}/timesheets`, icon: ICON_SUBS },
     { label: 'Estimates', href: `/w/${slug}/estimates`, icon: ICON_SUBS },
+    { label: 'Procurement', href: `/w/${slug}/procurement`, icon: ICON_PROCUREMENT },
     { label: 'Check-in', href: `/w/${slug}/checkin`, icon: ICON_SCAN },
     { label: 'Settings', href: `/w/${slug}/settings`, icon: ICON_SETTINGS },
   ];
