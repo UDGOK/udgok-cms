@@ -125,4 +125,31 @@ describe('Content-Security-Policy', () => {
     expect(connectSrc).toMatch(/public\.blob\.vercel-storage\.com/);
     expect(imgSrc).toMatch(/public\.blob\.vercel-storage\.com/);
   });
+
+  it('connect-src includes vercel.com for the @vercel/blob PUT', () => {
+    // The @vercel/blob v2.x client uploads to `vercel.com/api/blob/...`
+    // with auth headers, NOT directly to the public blob URL.
+    // Without `vercel.com` in connect-src, every upload silently
+    // fails with "Refused to connect to https://vercel.com/..."
+    // (which is exactly what the browser console says).
+    expect(connectSrc, 'connect-src is missing https://vercel.com').toMatch(
+      /https:\/\/vercel\.com/,
+    );
+  });
+
+  it('worker-src allows blob: workers (PDF preview, image resize)', () => {
+    // PDF.js and image-resize workers use blob: URLs as worker
+    // sources. Without `blob:` in worker-src, the browser blocks
+    // them with "Refused to load blob:... because it does not
+    // appear in the worker-src directive".
+    const workerSrc = findDirective(csp, 'worker-src');
+    expect(workerSrc, 'worker-src is missing blob:').toMatch(/\bblob:/);
+  });
+
+  it('child-src allows blob: for embedded workers', () => {
+    // Older browsers fall back to child-src for worker support.
+    // Without it, some browsers' PDF preview workers are blocked.
+    const childSrc = findDirective(csp, 'child-src');
+    expect(childSrc, 'child-src is missing blob:').toMatch(/\bblob:/);
+  });
 });

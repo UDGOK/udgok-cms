@@ -139,7 +139,12 @@ const nextConfig = {
       "font-src 'self' data:",
       // Connections: our own server, Clerk, the OSM geocoder +
       // tile servers, and Vercel Blob. Add Nominatim too.
-      "connect-src 'self' https://clerk.udgok.com https://*.tile.openstreetmap.org https://*.public.blob.vercel-storage.com https://public.blob.vercel-storage.com https://nominatim.openstreetmap.org https://api.weather.gov https://*.public.blob.vercel-storage.com https://api.resend.com",
+      // `https://vercel.com` is required: the @vercel/blob v2.x
+      // client PUTs the file to `vercel.com/api/blob/?pathname=...`
+      // with auth headers, not directly to the public blob URL.
+      // (Public read URLs are `*.public.blob.vercel-storage.com`,
+      // which is a different host.)
+      "connect-src 'self' https://clerk.udgok.com https://*.tile.openstreetmap.org https://*.public.blob.vercel-storage.com https://public.blob.vercel-storage.com https://nominatim.openstreetmap.org https://api.weather.gov https://vercel.com https://api.resend.com",
       // We don't render PDF inline, we don't use <object>, and
       // we don't host user-uploaded HTML. Lock these down.
       "object-src 'none'",
@@ -147,6 +152,10 @@ const nextConfig = {
       "frame-ancestors 'none'", // clickjacking — no embedding
       "base-uri 'self'",
       "form-action 'self' https://clerk.udgok.com",
+      // PDF preview / image resizing use blob: workers.
+      "worker-src 'self' blob:",
+      // Inline-embedded workers for pdf.js etc.
+      "child-src 'self' blob:",
     ].join('; ');
 
     return [
