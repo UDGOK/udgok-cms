@@ -75,6 +75,7 @@ model User {
   equipment      Equipment[]     @relation("equipmentUploader")
   siteCheckInCodes SiteCheckInCode[] @relation("siteCheckInCodeCreator")
   checkInEvents    CheckInEvent[]    @relation("checkInUser")
+  checkInEdits     CheckInEvent[]    @relation("checkInEditor")
   notificationsReceived Notification[] @relation("notificationRecipient")
   notificationsCreated  Notification[] @relation("notificationCreator")
 
@@ -1218,11 +1219,39 @@ model CheckInEvent {
   checkOutLat       Float?
   checkOutLng       Float?
 
+  // =========================================
+  // Hours-tracking admin overrides
+  // =========================================
+  // An admin (OWNER/ADMIN/PM) can manually adjust the
+  // hours on a closed event. The original timestamps
+  // (checkedInAt / checkedOutAt) stay intact for
+  // audit; effective hours = editedHours ?? (out - in).
+  //
+  // Why a separate field instead of editing the
+  // timestamps directly:
+  //   1. Audit — we keep the "what the system recorded"
+  //      vs "what the admin says" split, so a later
+  //      reviewer can see both.
+  //   2. Edge cases — foremen forget to clock out for
+  //      lunch; the system records checkedInAt at 7am
+  //      and checkedOutAt at 5pm (8 hours wall clock)
+  //      but the real working time was 7 hours. The
+  //      admin sets editedHours=7 with a note
+  //      "forgot to clock out for lunch".
+  editedHours       Decimal?  @db.Decimal(8, 2)
+  // The admin who made the override + when.
+  editedById        String?
+  editedAt          DateTime?
+  // Required when editedHours is set. Audit context
+  // for why the override was made.
+  editNote          String?
+
   workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   siteCheckInCode  SiteCheckInCode  @relation(fields: [siteCheckInCodeId], references: [id], onDelete: Cascade)
   project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user             User?            @relation("checkInUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   subcontractor    Subcontractor?   @relation("checkInSubcontractor", fields: [subcontractorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  editedBy         User?            @relation("checkInEditor", fields: [editedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([workspaceId, projectId, checkedInAt])
   @@index([workspaceId, checkedInAt])

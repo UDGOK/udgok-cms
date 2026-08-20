@@ -118,6 +118,24 @@ export const navItems: NavItem[] = [
     ),
   },
   {
+    // Weekly timesheets — workspace grid + per-employee
+    // + per-sub drill-down + PDF export. Sits next to
+    // Subcontractors because sub hours are a primary
+    // use case.
+    href: (s) => `/w/${s}/timesheets`,
+    label: 'Timesheets',
+    section: 'workspace',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="4" width="18" height="18" rx="1" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <line x1="9" y1="4" x2="9" y2="22" />
+        <line x1="15" y1="4" x2="15" y2="14" />
+        <line x1="15" y1="18" x2="21" y2="18" />
+      </svg>
+    ),
+  },
+  {
     // Site check-in admin: generate QR codes, see who
     // is on site now across all projects, and review
     // history. Sits next to Scan in the sidebar so the
