@@ -120,17 +120,22 @@ export type SendRfqResult =
  *  inline instead of "email sent". */
 export async function sendRfqEmail(input: RfqEmailInput): Promise<SendRfqResult> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromRaw = process.env.PROCUREMENT_FROM_EMAIL ?? '';
   const fromName = process.env.PROCUREMENT_FROM_NAME ?? 'UDGOK Construction';
-  // Require a verified Resend-from format "Name <email@host>".
-  // If the operator forgot to set PROCUREMENT_FROM_EMAIL, fall
-  // back to a sensible default but only if the API key is also
-  // present (otherwise we're just going to fail anyway).
-  const from = fromRaw
-    ? fromRaw.includes('<')
-      ? fromRaw
-      : `${fromName} <${fromRaw}>`
-    : `${fromName} <noreply@udgok.com>`;
+
+  // Construct the from-address. Order of preference:
+  //   1. PROCUREMENT_FROM_EMAIL (already aliased in next.config.mjs)
+  //   2. UDGOK_MESSAGING_RESEND_EMAIL_DOMAIN → noreply@<domain>
+  //   3. Hard default: noreply@udgok.com (will fail SPF/DKIM
+  //      unless udgok.com is set up in Resend — README §6).
+  let fromAddress: string;
+  const fromRaw = process.env.PROCUREMENT_FROM_EMAIL ?? '';
+  if (fromRaw) {
+    fromAddress = fromRaw;
+  } else {
+    const domain = process.env.UDGOK_MESSAGING_RESEND_EMAIL_DOMAIN ?? 'udgok.com';
+    fromAddress = `noreply@${domain}`;
+  }
+  const from = fromAddress.includes('<') ? fromAddress : `${fromName} <${fromAddress}>`;
 
   const htmlBody = html(input);
   const textBody = text(input);

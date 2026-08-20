@@ -24,6 +24,14 @@ const aliases = {
   BLOB_READ_WRITE_TOKEN: ['UDGOK_BLOB_READ_WRITE_TOKEN'],
   // Resend
   RESEND_API_KEY: ['UDGOK_MESSAGING_RESEND_API_KEY'],
+  // Procurement / RFQ from-address. Falls back to a default
+  // in lib/procurement/email.ts; if UDGOK_MESSAGING_RESEND_EMAIL_DOMAIN
+  // is set, we use it to construct noreply@<domain>.
+  PROCUREMENT_FROM_EMAIL: ['UDGOK_MESSAGING_PROCUREMENT_FROM_EMAIL'],
+  // APP_HASH_SALT (for hashed IPs in RfqEvent) and CRON_SECRET
+  // (Vercel cron bearer) — explicit, no aliases.
+  APP_HASH_SALT: ['UDGOK_CMS_APP_HASH_SALT'],
+  CRON_SECRET: ['UDGOK_CMS_CRON_SECRET'],
   // Database
   DATABASE_URL: ['UDGOK_CMS_DATABASE_URL', 'UDGOK_CMS_POSTGRES_URL', 'UDGOK_CMS_POSTGRES_PRISMA_URL'],
   // App
