@@ -44,6 +44,8 @@ model Workspace {
   materials     Material[]
   equipment     Equipment[]
   productCatalog ProductCatalogItem[]
+  siteCheckInCodes   SiteCheckInCode[]
+  checkInEvents      CheckInEvent[]
 
   @@index([slug])
 }
@@ -70,6 +72,8 @@ model User {
   scanEvents     ScanEvent[]
   materials      Material[]      @relation("materialUploader")
   equipment      Equipment[]     @relation("equipmentUploader")
+  siteCheckInCodes SiteCheckInCode[] @relation("siteCheckInCodeCreator")
+  checkInEvents    CheckInEvent[]    @relation("checkInUser")
 
   @@index([email])
 }
@@ -300,6 +304,8 @@ model Project {
   bimTakeoffs   BimTakeoff[]
   materials     Material[]
   equipment     Equipment[]
+  siteCheckInCodes SiteCheckInCode[]
+  checkInEvents    CheckInEvent[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
@@ -339,6 +345,21 @@ model Material {
   unit        String   @default("each")
   unitCost    Decimal? @db.Decimal(12, 2)
   quantity    Decimal  @default(0) @db.Decimal(12, 2)
+  // Vendor info — captured at scan time so a foreman
+  // re-scanning a delivery knows the supplier without
+  // re-typing it. Per-project (the same drywall might come
+  // from Home Depot on one job and from a local yard on
+  // another), so these are columns on Material, not on
+  // ProductCatalogItem.
+  //
+  // - vendor: free-text supplier name ("Home Depot", "Acme
+  //   Lumber Co.")
+  // - vendorPartNumber: the vendor's own SKU (different from
+  //   the universal UPC/EAN we already store in `code`)
+  // - vendorContact: free-text phone/email/contact name
+  vendor          String?
+  vendorPartNumber String?
+  vendorContact   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -349,6 +370,10 @@ model Material {
   @@unique([workspaceId, projectId, code], name: "material_code_per_project")
   @@index([workspaceId, projectId])
   @@index([workspaceId, code])
+  // Vendor index — the project INVENTORY tab's "filter by
+  // vendor" feature hits this so a workspace with hundreds of
+  // materials on a job doesn't have to scan the whole table.
+  @@index([workspaceId, projectId, vendor])
 }
 
 /**
@@ -425,6 +450,16 @@ model ProductCatalogItem {
   name            String
   description     String?
   brand           String?
+  // Vendor / supplier for this product. Populated from
+  // UPCitemdb's `brand` field (and Open Food Facts' `brands`
+  // field) on the first successful online lookup. We keep it
+  // separate from `brand` because a UPC can be branded by one
+  // company but supplied by another (private-label goods).
+  // The Material.vendor field is per-project and is what the
+  // user sees on the INVENTORY tab; this column is the
+  // workspace-wide cache used to pre-fill the form on a
+  // re-scan.
+  vendor          String?
   manufacturer    String?
   category        String?
   imageUrl        String?
@@ -934,6 +969,7 @@ model Subcontractor {
   workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   assignments ProjectSubcontractorAssignment[]
   documents   File[]                      @relation("subcontractorDocuments")
+  checkInEvents CheckInEvent[]            @relation("checkInSubcontractor")
 
   @@index([workspaceId, name])
   @@index([workspaceId, primaryTrade])
@@ -1091,4 +1127,103 @@ enum TakeoffStatus {
   RUNNING
   DONE
   FAILED
+}
+
+// =========================================
+// SITE CHECK-IN / CHECK-OUT (QR codes)
+// =========================================
+
+// One per project, optionally more. A project can have
+// multiple "check-in points" (e.g. "main gate", "shop
+// entrance", "north laydown"). Each SiteCheckInCode row
+// is one printable QR sticker that an employee or sub
+// scans to check in / out.
+//
+// The QR encodes a public URL of the form /c/<token>.
+// The token is the credential: anyone with the sticker
+// can scan it, and the system trusts the on-site phone
+// to attribute the scan.
+//
+// isActive is a soft-disable so an admin can retire a
+// sticker without breaking the FK chain on a CheckInEvent
+// that points at it. Existing rows still resolve; new
+// scans reject.
+model SiteCheckInCode {
+  id          String   @id @default(cuid())
+  workspaceId String
+  projectId   String
+  // Optional friendly label so the admin can tell them
+  // apart ("main gate", "shop door", etc.). Uniqueness
+  // is per-project, not per-workspace.
+  label       String   @default("Main entrance")
+  // The random token encoded in the QR. Unique. Used in
+  // the public scan URL so the public route can resolve
+  // back to a project without revealing the project id.
+  token       String   @unique
+  createdById String
+  // Soft-disable so an admin can retire a sticker without
+  // breaking the FK chain on a CheckInEvent that points at
+  // it. Existing rows still resolve; new scans reject.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("siteCheckInCodeCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  checkInEvents CheckInEvent[]
+
+  @@index([workspaceId, projectId])
+  @@index([token])
+}
+
+// One row per check-in event. Closed on check-out.
+// Either the signed-in workspace member (employee) or the
+// subcontractor (foreman) starts the entry.
+//
+// Geolocation at check-in time is captured if the user
+// grants permission — the browser asks, we don't block
+// the scan if the user denies.
+//
+// We deliberately do NOT link ScanEvent to CheckInEvent
+// with an FK: ScanEvent is the universal audit log, and
+// a single orphan check-in should not break the chain.
+// The check-in page writes its own ScanEvent via the
+// existing ScanEvent.create path (matched: 'checkin',
+// matchedId: siteCheckInCodeId).
+model CheckInEvent {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  siteCheckInCodeId String
+  projectId         String
+  // The "who" — exactly one of these two is set. The
+  // signed-in user can always be inferred from the Clerk
+  // session; the sub is selected from a list at check-in
+  // time (since subs don't sign in to the CMS).
+  userId            String?
+  subcontractorId   String?
+  // Open until checked out.
+  checkedInAt       DateTime  @default(now())
+  checkedOutAt      DateTime?
+  // Optional note for the visit (e.g. "delivering tile",
+  // "rough-in inspection").
+  note              String?
+  // Geolocation at check-in time, if the user grants
+  // permission. The browser asks for it; we don't block
+  // the scan if the user denies.
+  checkInLat        Float?
+  checkInLng        Float?
+  checkOutLat       Float?
+  checkOutLng       Float?
+
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  siteCheckInCode  SiteCheckInCode  @relation(fields: [siteCheckInCodeId], references: [id], onDelete: Cascade)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user             User?            @relation("checkInUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  subcontractor    Subcontractor?   @relation("checkInSubcontractor", fields: [subcontractorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([workspaceId, projectId, checkedInAt])
+  @@index([workspaceId, checkedInAt])
+  @@index([subcontractorId, checkedInAt])
+  @@index([userId, checkedInAt])
+  @@index([siteCheckInCodeId, checkedInAt])
 }

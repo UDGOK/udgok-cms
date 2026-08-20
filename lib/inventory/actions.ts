@@ -16,6 +16,13 @@ const materialSchema = z.object({
   unit: z.string().max(40).optional(),
   unitCost: z.coerce.number().min(0).optional(),
   quantity: z.coerce.number().min(0).optional(),
+  // Vendor info — captured at scan time so the foreman
+  // re-scanning a delivery doesn't have to retype the
+  // supplier. All optional; vendor-less creates still work
+  // (e.g. materials from an unknown source).
+  vendor: z.string().max(200).optional(),
+  vendorPartNumber: z.string().max(200).optional(),
+  vendorContact: z.string().max(500).optional(),
 });
 
 const equipmentSchema = z.object({
@@ -33,10 +40,89 @@ const equipmentSchema = z.object({
  * Result type for inventory create actions. Either ok with the
  * new material/equipment id, or an error message (and optional
  * per-field errors so the form can highlight the bad inputs).
+ *
+ * The Material path also returns a `duplicate` payload when
+ * the (projectId, code) pair already exists — the client form
+ * uses this to render an inline "Add ___ to quantity" form
+ * instead of bouncing the user back to scan a different code.
  */
 export type InventoryCreateState =
   | { ok: true; id: string; kind: 'material' | 'equipment' }
-  | { ok: false; error: string; fieldErrors?: Record<string, string> };
+  | { ok: false; error: string; fieldErrors?: Record<string, string>; duplicate?: DuplicateMaterialPayload };
+
+/**
+ * Payload returned by createMaterialAction when the scanned
+ * code already exists on the chosen project. The form uses
+ * this to render an "add N to quantity" form without leaving
+ * the page.
+ */
+export interface DuplicateMaterialPayload {
+  materialId: string;
+  name: string;
+  unit: string;
+  currentQuantity: string;
+}
+
+/**
+ * Increment a material's on-hand quantity by N. Called by the
+ * scan-create form when the foreman re-scans a code that
+ * already exists on the project — they enter the delivery
+ * count and we add it to the existing balance. No new Material
+ * row is created.
+ *
+ * The (workspace, project) check is the same defense-in-depth
+ * we use on create: even if the client sends a malicious
+ * materialId, we re-verify it belongs to this workspace
+ * before doing anything.
+ */
+export async function incrementMaterialQuantityAction(
+  workspaceSlug: string,
+  _prev: InventoryCreateState | undefined,
+  formData: FormData,
+): Promise<InventoryCreateState> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: 'Not signed in' };
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR', 'FIELD']);
+
+  const materialId = String(formData.get('materialId') ?? '');
+  const addRaw = formData.get('addQuantity');
+  const add = Number(addRaw);
+  if (!materialId) {
+    return { ok: false, error: 'Missing material reference' };
+  }
+  if (!Number.isFinite(add) || add <= 0) {
+    return {
+      ok: false,
+      error: 'Enter a quantity greater than zero',
+      fieldErrors: { addQuantity: 'Must be > 0' },
+    };
+  }
+
+  // Verify the material belongs to this workspace. We use
+  // findFirst instead of updateUnique so we can scope to
+  // workspaceId in one query.
+  const existing = await prisma.material.findFirst({
+    where: { id: materialId, workspaceId: workspace.id },
+    select: { id: true, projectId: true, name: true, unit: true, quantity: true },
+  });
+  if (!existing) {
+    return { ok: false, error: 'Material not found in this workspace' };
+  }
+
+  await prisma.material.update({
+    where: { id: existing.id },
+    data: { quantity: { increment: add } },
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/scan`);
+  revalidatePath(`/w/${workspaceSlug}/projects/${existing.projectId}?tab=inventory`);
+  return {
+    ok: true,
+    id: existing.id,
+    kind: 'material',
+  };
+}
 
 /**
  * Create a new material on a project. Used both by the
@@ -58,14 +144,28 @@ export async function createMaterialAction(
   const workspace = await getWorkspace(workspaceSlug);
   await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR', 'FIELD']);
 
+  // Helper: an empty FormData entry might be '', null, or
+  // whitespace-only (the user typed a space and tabbed
+  // away). We normalize all of those to undefined so the
+  // schema treats them as "not provided" and we end up
+  // with null in the DB instead of a string of spaces.
+  const opt = (v: FormDataEntryValue | null) => {
+    if (v == null) return undefined;
+    const s = String(v).trim();
+    return s.length === 0 ? undefined : s;
+  };
+
   const parsed = materialSchema.safeParse({
     projectId: formData.get('projectId'),
     code: formData.get('code'),
     name: formData.get('name'),
-    description: formData.get('description') || undefined,
-    unit: formData.get('unit') || undefined,
+    description: opt(formData.get('description')),
+    unit: opt(formData.get('unit')),
     unitCost: formData.get('unitCost') || undefined,
     quantity: formData.get('quantity') || undefined,
+    vendor: opt(formData.get('vendor')),
+    vendorPartNumber: opt(formData.get('vendorPartNumber')),
+    vendorContact: opt(formData.get('vendorContact')),
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -87,9 +187,15 @@ export async function createMaterialAction(
     return { ok: false, error: 'Project not found in this workspace' };
   }
 
-  // Detect duplicate code on the same project and surface a
-  // friendly error instead of relying on the unique constraint
-  // (which would throw a P2002 we'd have to catch in the catch).
+  // Detect duplicate code on the same project. The old
+  // behaviour was to error out and send the foreman back to
+  // the form — terrible UX when a delivery driver hands you
+  // a 2nd pallet of the same SKU you already logged five
+  // minutes ago. Instead, we return a structured
+  // `duplicate` payload that the client component turns
+  // into a one-tap "Add ___ to quantity" form. The foreman
+  // picks how many they got on this delivery and the server
+  // bumps the on-hand count.
   const existing = await prisma.material.findUnique({
     where: {
       material_code_per_project: {
@@ -98,13 +204,24 @@ export async function createMaterialAction(
         code: parsed.data.code,
       },
     },
-    select: { id: true },
+    select: {
+      id: true,
+      name: true,
+      unit: true,
+      quantity: true,
+    },
   });
   if (existing) {
     return {
       ok: false,
-      error: `Code "${parsed.data.code}" already exists on this project. Edit the existing material instead.`,
+      error: `Code "${parsed.data.code}" already exists on this project.`,
       fieldErrors: { code: 'Already on this project' },
+      duplicate: {
+        materialId: existing.id,
+        name: existing.name,
+        unit: existing.unit,
+        currentQuantity: existing.quantity.toString(),
+      },
     };
   }
 
@@ -119,6 +236,9 @@ export async function createMaterialAction(
       unit: parsed.data.unit || 'each',
       unitCost: parsed.data.unitCost ?? null,
       quantity: parsed.data.quantity ?? 0,
+      vendor: parsed.data.vendor || null,
+      vendorPartNumber: parsed.data.vendorPartNumber || null,
+      vendorContact: parsed.data.vendorContact || null,
     },
     select: { id: true },
   });

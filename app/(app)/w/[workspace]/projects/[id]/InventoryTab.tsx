@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db/client';
-import { listProjectMaterials, listProjectEquipment } from '@/lib/inventory/queries';
+import { listProjectMaterials, listProjectEquipment, listProjectVendors } from '@/lib/inventory/queries';
+import { VendorFilter } from './VendorFilter';
 
 /**
  * Project INVENTORY tab. Shows materials + equipment scoped
@@ -15,13 +16,22 @@ import { listProjectMaterials, listProjectEquipment } from '@/lib/inventory/quer
 export async function InventoryTab({
   workspaceSlug,
   projectId,
+  searchParams,
 }: {
   workspaceSlug: string;
   projectId: string;
+  searchParams?: { vendor?: string };
 }) {
-  const [materials, equipment] = await Promise.all([
-    listProjectMaterials(projectId),
+  // The vendor filter is a bare string in the URL — empty /
+  // undefined means "show everything". We pass it through
+  // the materials query (case-insensitive equality) and
+  // use the same string to pre-select the dropdown below.
+  const vendorFilter = searchParams?.vendor?.trim() || null;
+
+  const [materials, equipment, vendors] = await Promise.all([
+    listProjectMaterials(projectId, vendorFilter),
     listProjectEquipment(projectId),
+    listProjectVendors(projectId),
   ]);
 
   // We also need the project's name to show in the empty
@@ -91,6 +101,15 @@ export async function InventoryTab({
         <EmptyState projectName={project?.name ?? 'this project'} workspaceSlug={workspaceSlug} />
       ) : (
         <div className="space-y-6">
+          {vendors.length > 0 ? (
+            <VendorFilter
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              vendors={vendors}
+              current={vendorFilter}
+              totalShown={totalMaterialsCount}
+            />
+          ) : null}
           {totalMaterialsCount > 0 ? (
             <MaterialTable rows={materials} />
           ) : null}
@@ -141,6 +160,7 @@ function MaterialTable({ rows }: { rows: Awaited<ReturnType<typeof listProjectMa
             <tr>
               <th className="text-left px-3 py-2">Code</th>
               <th className="text-left px-3 py-2">Name</th>
+              <th className="text-left px-3 py-2">Vendor</th>
               <th className="text-left px-3 py-2">Unit</th>
               <th className="text-right px-3 py-2">Qty</th>
               <th className="text-right px-3 py-2">Unit $</th>
@@ -160,6 +180,20 @@ function MaterialTable({ rows }: { rows: Awaited<ReturnType<typeof listProjectMa
                         {m.description}
                       </div>
                     ) : null}
+                  </td>
+                  <td className="px-3 py-2 text-ink-70">
+                    {m.vendor ? (
+                      <div>
+                        <div className="font-semibold text-ink">{m.vendor}</div>
+                        {m.vendorPartNumber ? (
+                          <div className="text-[10px] font-mono text-ink-50 mt-0.5">
+                            {m.vendorPartNumber}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-ink-50">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-ink-70 font-mono">{m.unit}</td>
                   <td className="px-3 py-2 text-right text-ink font-mono">

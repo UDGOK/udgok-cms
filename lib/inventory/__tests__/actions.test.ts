@@ -117,7 +117,17 @@ describe('createMaterialAction', () => {
   });
 
   it('rejects a duplicate code on the same project', async () => {
-    materialFindUnique.mockResolvedValue({ id: 'mat_existing' });
+    // The duplicate path now returns a structured `duplicate`
+    // payload (so the form can show "add to quantity" inline)
+    // rather than just an error string. The error message
+    // is still informative — it just isn't the only thing
+    // the form looks at.
+    materialFindUnique.mockResolvedValue({
+      id: 'mat_existing',
+      name: '2x4 stud, 8ft',
+      unit: 'each',
+      quantity: { toString: () => '12' },
+    });
     const res = await createMaterialAction('my-ws', undefined, makeFormData({
       projectId: 'proj_1',
       code: 'UPC-123',
@@ -127,6 +137,9 @@ describe('createMaterialAction', () => {
     if (res.ok) return;
     expect(res.error).toMatch(/already exists/i);
     expect(res.fieldErrors?.code).toBeTruthy();
+    expect(res.duplicate).toBeDefined();
+    expect(res.duplicate?.materialId).toBe('mat_existing');
+    expect(res.duplicate?.currentQuantity).toBe('12');
     expect(materialCreate).not.toHaveBeenCalled();
   });
 

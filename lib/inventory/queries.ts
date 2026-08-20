@@ -13,6 +13,13 @@ export interface MaterialRow {
   unit: string;
   unitCost: string | null;
   quantity: string; // Decimal serialized
+  // Vendor info captured at scan time. We surface it on the
+  // project's INVENTORY tab so the foreman can see "where did
+  // we get this 2x4 from" at a glance, and we let the user
+  // filter the table by vendor.
+  vendor: string | null;
+  vendorPartNumber: string | null;
+  vendorContact: string | null;
   createdAt: Date;
 }
 
@@ -36,9 +43,20 @@ export interface EquipmentRow {
  */
 export async function listProjectMaterials(
   projectId: string,
+  vendorFilter?: string | null,
 ): Promise<MaterialRow[]> {
   const rows = await prisma.material.findMany({
-    where: { projectId },
+    where: {
+      projectId,
+      // vendorFilter is the bare string from the URL's
+      // ?vendor=… param. Empty string / undefined / null means
+      // "no filter". The `mode: 'insensitive'` is intentional
+      // — vendors come from manual typing and we don't want
+      // a case mismatch to hide a row.
+      ...(vendorFilter
+        ? { vendor: { equals: vendorFilter, mode: 'insensitive' as const } }
+        : {}),
+    },
     orderBy: { createdAt: 'desc' },
   });
   return rows.map((m) => ({
@@ -49,8 +67,35 @@ export async function listProjectMaterials(
     unit: m.unit,
     unitCost: m.unitCost ? m.unitCost.toString() : null,
     quantity: m.quantity.toString(),
+    vendor: m.vendor,
+    vendorPartNumber: m.vendorPartNumber,
+    vendorContact: m.vendorContact,
     createdAt: m.createdAt,
   }));
+}
+
+/**
+ * Distinct vendor list for the project's INVENTORY tab. Used
+ * to populate the "Filter by vendor" dropdown — we want every
+ * vendor the project has on file, plus a "Show all" default.
+ *
+ * We pull from the project's Material rows (not the workspace
+ * catalog) because the user thinks in terms of "what vendors
+ * did we use on THIS project", not "every vendor we've ever
+ * logged anywhere".
+ */
+export async function listProjectVendors(
+  projectId: string,
+): Promise<string[]> {
+  const rows = await prisma.material.findMany({
+    where: { projectId, vendor: { not: null } },
+    select: { vendor: true },
+    distinct: ['vendor'],
+    orderBy: { vendor: 'asc' },
+  });
+  return rows
+    .map((r) => r.vendor)
+    .filter((v): v is string => Boolean(v));
 }
 
 export async function listProjectEquipment(

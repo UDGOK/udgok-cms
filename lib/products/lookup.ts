@@ -28,6 +28,17 @@ export interface ProductInfo {
   name: string;
   description: string | null;
   brand: string | null;
+  /**
+   * Vendor / supplier for this product. Separate from
+   * `brand` because a UPC can be branded by one company but
+   * supplied by another (private-label goods from a big-box
+   * retailer, for example). Populated from UPCitemdb's
+   * `brand` / `manufacturer` fields when those exist, with
+   * `brand` taking precedence. We persist this to the
+   * ProductCatalogItem cache so the next scan of the same
+   * code returns the vendor immediately, no API call needed.
+   */
+  vendor: string | null;
   manufacturer: string | null;
   category: string | null;
   imageUrl: string | null;
@@ -84,6 +95,7 @@ async function lookupLocal(workspaceId: string, code: string): Promise<ProductIn
     name: row.name,
     description: row.description,
     brand: row.brand,
+    vendor: row.vendor,
     manufacturer: row.manufacturer,
     category: row.category,
     imageUrl: row.imageUrl,
@@ -162,12 +174,22 @@ function parseUPCitemdbResponse(code: string, data: UPCitemdbResponse): ProductI
   if (!data.items || data.items.length === 0) return null;
   const it = data.items[0];
   if (!it.title) return null;
+  // Vendor falls back through brand → manufacturer. UPCitemdb
+  // doesn't have a dedicated `vendor` field, but the brand is
+  // usually the supplier the user is looking for (Planters
+  // sells Planters peanuts; "Pro Tool" brand comes from "Pro
+  // Tool Co."). If both are missing we leave vendor null
+  // rather than guessing.
+  const brand = it.brand || null;
+  const manufacturer = it.manufacturer || null;
+  const vendor = brand ?? manufacturer ?? null;
   return {
     code,
     name: it.title,
     description: it.description || null,
-    brand: it.brand || null,
-    manufacturer: it.manufacturer || null,
+    brand,
+    vendor,
+    manufacturer,
     category: it.category || null,
     imageUrl: Array.isArray(it.images) && it.images.length > 0 ? it.images[0] : null,
     source: 'upcitemdb',
@@ -201,11 +223,17 @@ async function lookupOpenFoodFacts(code: string): Promise<ProductInfo | null> {
   if (data.status !== 1 || !data.product) return null;
   const p = data.product;
   if (!p.product_name) return null;
+  const brand = (p.brands || null)?.split(',')[0]?.trim() ?? null;
   return {
     code,
     name: p.product_name,
     description: p.generic_name || p.ingredients_text || null,
-    brand: (p.brands || null)?.split(',')[0]?.trim() ?? null,
+    brand,
+    // OFF's `brands` field is the closest thing to a vendor
+    // they expose. We treat the first brand as both brand and
+    // vendor because the schema needs them as separate fields
+    // (a future update may pull a real `vendor` from OFF).
+    vendor: brand,
     manufacturer: null, // OFF doesn't expose manufacturer directly
     category: p.categories || null,
     imageUrl: p.image_url || null,
@@ -232,6 +260,7 @@ async function persistToCatalog(workspaceId: string, product: ProductInfo): Prom
         name: product.name,
         description: product.description,
         brand: product.brand,
+        vendor: product.vendor,
         manufacturer: product.manufacturer,
         category: product.category,
         imageUrl: product.imageUrl,
@@ -242,6 +271,13 @@ async function persistToCatalog(workspaceId: string, product: ProductInfo): Prom
         name: product.name,
         description: product.description,
         brand: product.brand,
+        // Vendor updates follow the same rules as the parse
+        // step: brand takes precedence. If the API has a
+        // better answer this time, overwrite; if not, keep
+        // what we have. We don't want to clobber a real
+        // vendor with null just because UPCitemdb omitted the
+        // brand on this refresh.
+        vendor: product.vendor ?? undefined,
         manufacturer: product.manufacturer,
         category: product.category,
         imageUrl: product.imageUrl,

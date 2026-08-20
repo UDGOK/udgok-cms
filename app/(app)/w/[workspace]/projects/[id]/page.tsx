@@ -197,7 +197,7 @@ export default async function ProjectDetailPage({
   searchParams,
 }: {
   params: { workspace: string; id: string };
-  searchParams: { tab?: string };
+  searchParams: { tab?: string; vendor?: string };
 }) {
   const { workspace } = await requireMembership(params.workspace);
   const { userId } = await auth();
@@ -317,6 +317,14 @@ export default async function ProjectDetailPage({
     aiAlertCount: insights.filter(
       (i) => i.level === 'danger' || i.level === 'warning',
     ).length,
+    // Open (currently on-site) check-in count for the
+    // Check-in tab badge. A separate query rather than a
+    // join on the project fetch because CheckInEvent is
+    // potentially a high-volume table; a count over the
+    // (projectId, checkedOutAt IS NULL) index is cheap.
+    openCheckInCount: await prisma.checkInEvent.count({
+      where: { projectId: projectData.id, checkedOutAt: null },
+    }),
   });
 
   return (
@@ -545,6 +553,7 @@ export default async function ProjectDetailPage({
         <InventoryTab
           workspaceSlug={params.workspace}
           projectId={projectData.id}
+          searchParams={searchParams}
         />
       ) : null}
 

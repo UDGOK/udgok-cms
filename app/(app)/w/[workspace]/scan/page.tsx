@@ -283,6 +283,12 @@ function ProductCard({
         prefilled={{
           name: product.name,
           description: product.description ?? '',
+          // Pre-fill vendor from the cached brand/manufacturer
+          // so the foreman doesn't have to retype "Home Depot"
+          // for the 20th 2x4 of the day. The product lookup
+          // already collapses brand/manufacturer into a single
+          // `vendor` field.
+          vendor: product.vendor ?? '',
         }}
         initialKind={initialKind}
         initialProjectId={initialProjectId}
