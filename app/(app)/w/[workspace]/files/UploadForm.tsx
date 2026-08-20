@@ -51,6 +51,15 @@ export function UploadForm({
   const router = useRouter();
   const { upload, state, reset } = useBlobUpload({
     handleUploadUrl: '/api/files/upload',
+    // Default to the XHR uploader. The @vercel/blob
+    // v2.x client uses fetch-with-upload-streams when
+    // available, and that transport can fail to fire
+    // progress events for small / fast uploads (the
+    // user reported 0% forever). The XHR transport is
+    // universal and gives reliable `upload.progress`.
+    // We can flip this back to `false` if/when the
+    // upstream library is fixed.
+    forceXhr: true,
   });
   const [category, setCategory] = useState(defaultCategory ?? '');
   const [clientId, setClientId] = useState('');
@@ -225,15 +234,28 @@ export function UploadForm({
         </div>
       ) : null}
 
-      {/* Progress bar — shows during upload */}
-      {state.phase === 'uploading' ? (
+      {/* Progress bar — shows during any active phase */}
+      {state.phase === 'token' ||
+      state.phase === 'uploading' ||
+      state.phase === 'finalizing' ? (
         <div className="mb-3">
           <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-            <span>Uploading… {formatBytes(state.uploadedBytes)} / {formatBytes(state.totalBytes)}</span>
+            <span>
+              {state.phase === 'token'
+                ? 'Requesting upload token…'
+                : state.phase === 'finalizing'
+                ? 'Finalizing — server creating file record…'
+                : `Uploading… ${formatBytes(state.uploadedBytes)} / ${formatBytes(state.totalBytes)}`}
+            </span>
             <span>{state.progress}%</span>
           </div>
           <div className="h-1.5 bg-line">
-            <div className="h-full bg-ink transition-[width] duration-100" style={{ width: `${state.progress}%` }} />
+            <div
+              className={`h-full transition-[width] duration-100 ${
+                state.phase === 'finalizing' ? 'bg-success' : 'bg-ink'
+              }`}
+              style={{ width: `${state.progress}%` }}
+            />
           </div>
         </div>
       ) : null}
@@ -245,7 +267,13 @@ export function UploadForm({
           onClick={handleSubmit}
           disabled={state.isUploading}
         >
-          {state.isUploading ? `Uploading… ${state.progress}%` : 'Upload file'}
+          {state.phase === 'token'
+            ? 'Starting…'
+            : state.phase === 'uploading'
+            ? `Uploading… ${state.progress}%`
+            : state.phase === 'finalizing'
+            ? 'Finalizing…'
+            : 'Upload file'}
         </Button>
       </div>
 

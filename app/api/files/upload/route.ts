@@ -85,13 +85,14 @@ export async function POST(req: NextRequest) {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        console.log('[files/upload] onUploadCompleted FIRED for blob', blob.pathname, 'hasToken', !!tokenPayload);
+        console.log('[files/upload] onUploadCompleted FIRED for blob', blob.pathname, 'hasToken', !!tokenPayload, 'url', blob.url);
         if (!tokenPayload) {
           console.error('[handleUpload] onUploadCompleted called without tokenPayload');
           return;
         }
         try {
           const meta = JSON.parse(tokenPayload) as WorkspaceFileTokenPayload;
+          console.log('[files/upload] meta decoded', { workspaceId: meta.workspaceId, uploaderId: meta.uploaderId, category: meta.category, clientId: meta.clientId, projectId: meta.projectId });
           const filename = blob.pathname.split('/').pop() ?? 'file';
           let size = 0;
           try {
@@ -171,8 +172,16 @@ export async function POST(req: NextRequest) {
         } catch (err) {
           // Without this, a Prisma error here would silently lose
           // the row while the file is happily in Vercel Blob. Log
-          // it so Vercel logs surface the problem.
-          console.error('[handleUpload] onUploadCompleted failed:', err);
+          // it so Vercel logs surface the problem. The blob
+          // object has the URL — including it in the error so
+          // an operator can find the orphan blob in the Vercel
+          // dashboard and delete it after a failed create.
+          console.error(
+            '[handleUpload] onUploadCompleted failed:',
+            err instanceof Error ? `${err.message}\n${err.stack}` : err,
+            'blob.url:', blob.url,
+            'blob.pathname:', blob.pathname,
+          );
         }
       },
     });

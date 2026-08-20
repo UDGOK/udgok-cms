@@ -81,7 +81,10 @@ describe('useBlobUpload — progress events (real library shape)', () => {
     act(() => {
       result.current.upload(file, { workspaceId: 'w1' });
     });
-    expect(result.current.state.phase).toBe('uploading');
+    // Phase starts as 'token' (requesting the upload
+    // token from the route), then becomes 'uploading'
+    // on the first progress event from @vercel/blob.
+    expect(['token', 'uploading']).toContain(result.current.state.phase);
     expect(result.current.state.progress).toBe(0);
 
     // 25% loaded (250 / 1000) — the library passes a bare
@@ -102,6 +105,14 @@ describe('useBlobUpload — progress events (real library shape)', () => {
     await act(async () => {
       pending.resolve();
       await pending.promise;
+    });
+    // The PUT resolved, so we land in 'finalizing' for a
+    // brief moment while we wait for the server's
+    // onUploadCompleted callback. Wait for the final 'done'
+    // transition (the hook waits 400ms to give the server
+    // callback time to land before flipping state).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 500));
     });
     expect(result.current.state.phase).toBe('done');
     expect(result.current.state.progress).toBe(100);

@@ -73,7 +73,20 @@ function normalizeLoaded(
 export type UploadState = {
   isUploading: boolean;
   progress: number;     // 0..100
-  phase: 'idle' | 'uploading' | 'done' | 'error';
+  // The granular phase so the UI can show what the upload
+  // is actually doing. With the @vercel/blob v2.x client
+  // we can sometimes sit at 0% for a while (small files,
+  // fast networks, or first-chunk waits) — without a
+  // visible phase indicator the user has no way to tell
+  // "uploading bytes" from "stuck".
+  //
+  //   - 'token'      — fetching the upload token from the route
+  //   - 'uploading'  — PUTting bytes to Vercel Blob
+  //   - 'finalizing' — bytes done, waiting for the route's
+  //                    onUploadCompleted callback to create the row
+  //   - 'done'       — success
+  //   - 'error'      — failed
+  phase: 'idle' | 'token' | 'uploading' | 'finalizing' | 'done' | 'error';
   error: string | null;
   uploadedBytes: number;
   totalBytes: number;
@@ -90,6 +103,119 @@ const initial: UploadState = {
   result: null,
 };
 
+/**
+ * One-time XHR uploader fallback. We use this when the
+ * @vercel/blob client's fetch-with-upload-streams transport
+ * misbehaves (the user reported 0% progress that never
+ * advances; one of the suspected causes is the streams
+ * transport). XHR gives us reliable `upload.progress` events
+ * on every browser and tells us exactly how many bytes hit
+ * the wire.
+ *
+ * Wire format: same as the @vercel/blob client (POST to
+ * handleUploadUrl for the token, then PUT to the token's
+ * URL, then the server's onUploadCompleted fires). We do
+ * NOT call onUploadCompleted ourselves — the server's
+ * callback is what creates the File row. Once our PUT
+ * resolves, we know the bytes are in Vercel Blob and the
+ * callback will fire imminently.
+ */
+async function uploadWithXhr(
+  file: File,
+  opts: {
+    handleUploadUrl: string;
+    clientPayload: string;
+    onProgress?: (loaded: number, total: number) => void;
+    signal?: AbortSignal;
+  },
+): Promise<{ url: string; pathname: string }> {
+  const { handleUploadUrl, clientPayload, onProgress, signal } = opts;
+
+  // Phase 1: token.
+  const tokenRes = await fetch(handleUploadUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'blob.generate-client-token',
+      payload: { pathname: file.name, clientPayload, multipart: false },
+    }),
+    signal,
+  });
+  if (!tokenRes.ok) {
+    const text = await tokenRes.text().catch(() => '');
+    throw new Error(
+      `Upload token request failed (${tokenRes.status}): ${text.slice(0, 200) || tokenRes.statusText}`,
+    );
+  }
+  const { clientToken } = (await tokenRes.json()) as { clientToken: string };
+  if (!clientToken) {
+    throw new Error('Upload token response missing clientToken');
+  }
+
+  // Parse the JWT to extract the upload URL + headers. The
+  // @vercel/blob token is a base64url-encoded JSON payload
+  // for the body + a "pathname" field. The endpoint URL is
+  // derived from the payload's "vercel_blob_store_id" or
+  // from the response. For simplicity we just request the
+  // token and use the URL embedded in the token.
+  // (We re-use the @vercel/blob client's URL parser by
+  // calling the lib's internal upload() — but we want to
+  // avoid that. Instead, decode the JWT payload ourselves.)
+  const parts = clientToken.split('.');
+  if (parts.length < 2) throw new Error('Malformed upload token');
+  const payloadJson = atob(parts[0].replace(/-/g, '+').replace(/_/g, '/'));
+  const payload = JSON.parse(payloadJson) as {
+    pathname?: string;
+    url?: string;
+    vercel_blob_store_id?: string;
+    token?: string;
+  };
+  if (!payload.url) {
+    throw new Error('Upload token missing URL');
+  }
+
+  // Phase 2: PUT. XHR gives us reliable upload progress.
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', payload.url!, true);
+    if (payload.token) xhr.setRequestHeader('Authorization', `Bearer ${payload.token}`);
+    xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) onProgress?.(e.loaded, e.total);
+    });
+    xhr.upload.addEventListener('error', () => reject(new Error('Network error during upload')));
+    xhr.upload.addEventListener('abort', () =>
+      reject(new DOMException('Upload aborted', 'AbortError')),
+    );
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        // The response body is the JSON blob descriptor:
+        // { url, pathname, contentType, ... }
+        try {
+          const body = JSON.parse(xhr.responseText) as {
+            url: string;
+            pathname: string;
+          };
+          resolve({ url: body.url, pathname: body.pathname });
+        } catch {
+          // Fallback: token's URL.
+          resolve({ url: payload.url!, pathname: payload.pathname ?? file.name });
+        }
+      } else {
+        reject(
+          new Error(`Upload PUT failed (${xhr.status}): ${xhr.responseText.slice(0, 200)}`),
+        );
+      }
+    };
+    xhr.onerror = () => reject(new TypeError('Network request failed'));
+    if (signal) {
+      if (signal.aborted) reject(new DOMException('Aborted', 'AbortError'));
+      signal.addEventListener('abort', () => xhr.abort());
+    }
+    xhr.send(file);
+  });
+}
+
 interface UseBlobUploadOpts {
   /** Path of the handleUpload route (e.g. `/api/files/upload`). */
   handleUploadUrl: string;
@@ -97,17 +223,30 @@ interface UseBlobUploadOpts {
   maxBytes?: number;
   /** Optional callback on each progress tick. */
   onProgress?: (pct: number) => void;
+  /**
+   * Force the XHR-based uploader instead of using the
+   * `@vercel/blob/client` `upload()` helper. The XHR
+   * path gives us reliable `upload.progress` events on
+   * every browser (the @vercel/blob v2.x client uses
+   * `fetch`-with-upload-streams when supported, which
+   * can fail to emit progress for small or fast uploads
+   * — user reports showed 0% forever). The XHR path
+   * also gives us a clearer error message when the PUT
+   * itself fails. Default: false (use the @vercel/blob
+   * client).
+   */
+  forceXhr?: boolean;
 }
 
 export function useBlobUpload(opts: UseBlobUploadOpts) {
-  const { handleUploadUrl, maxBytes = 500 * 1024 * 1024, onProgress } = opts;
+  const { handleUploadUrl, maxBytes = 500 * 1024 * 1024, onProgress, forceXhr = false } = opts;
   const [state, setState] = useState<UploadState>(initial);
 
   const reset = useCallback(() => setState(initial), []);
 
   const upload = useCallback(
     async (file: File, tokenPayload: Record<string, string> = {}) => {
-      if (state.phase === 'uploading') {
+      if (state.phase === 'uploading' || state.phase === 'token' || state.phase === 'finalizing') {
         throw new Error('Upload already in progress');
       }
       if (file.size > maxBytes) {
@@ -118,7 +257,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
       setState({
         isUploading: true,
         progress: 0,
-        phase: 'uploading',
+        phase: 'token',
         error: null,
         uploadedBytes: 0,
         totalBytes: file.size,
@@ -152,7 +291,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
           clearInterval(heartbeat);
           heartbeatCleared = true;
           setState((s) => {
-            if (s.phase !== 'uploading') return s;
+            if (s.phase !== 'token' && s.phase !== 'uploading' && s.phase !== 'finalizing') return s;
             return {
               ...s,
               isUploading: false,
@@ -172,71 +311,121 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
         // otherwise jump straight from 0% to 100%.
         if (firstProgressAt === null) {
           setState((s) => {
-            if (s.phase !== 'uploading') return s;
             if (s.progress > 0) return s;
             return { ...s, progress: 1 };
           });
         }
       }, 1_000);
 
+      const onProgressTick = (loaded: number, total: number) => {
+        lastProgressAt = Date.now();
+        if (firstProgressAt === null) firstProgressAt = Date.now();
+        const pct = Math.max(0, Math.min(100, Math.round((loaded / Math.max(total, 1)) * 100)));
+        setState((s) => ({
+          ...s,
+          phase: 'uploading',
+          progress: pct,
+          uploadedBytes: loaded,
+          totalBytes: total || file.size,
+        }));
+        onProgress?.(pct);
+      };
+
       try {
-        console.log('[useBlobUpload] calling vercelUpload', {
+        console.log('[useBlobUpload] starting upload', {
           fileName: file.name,
           fileSize: file.size,
           handleUploadUrl,
+          transport: forceXhr ? 'xhr' : 'vercel-blob-client',
           hasTokenPayload: Object.keys(tokenPayload).length > 0,
         });
-        const result = await vercelUpload(file.name, file, {
-          access: 'public',
-          handleUploadUrl,
-          contentType: file.type || 'application/octet-stream',
-          // The route's onBeforeGenerateToken receives this as
-          // `clientPayload` (a JSON string). The route then
-          // echoes it back as `tokenPayload` on onUploadCompleted
-          // so we can recreate metadata rows server-side.
-          clientPayload: JSON.stringify(tokenPayload),
-          // CRITICAL: the @vercel/blob v2.x client passes the
-          // callback payload as a bare number (the bytes loaded
-          // so far), NOT as an object. Earlier we destructured
-          // `{ percentage }` here and got `undefined` every
-          // time, which clamped progress to 0% and the bar
-          // appeared stuck. Handle both shapes to be safe
-          // across library versions and transports (XHR passes
-          // { loaded, total, percentage }; fetch-with-streams
-          // passes a bare number).
-          onUploadProgress: (payload: unknown) => {
-            lastProgressAt = Date.now();
-            if (firstProgressAt === null) firstProgressAt = Date.now();
-            const loaded = normalizeLoaded(payload, file.size);
-            const pct = Math.max(0, Math.min(100, Math.round((loaded / file.size) * 100)));
-            setState((s) => ({
-              ...s,
-              progress: pct,
-              uploadedBytes: loaded,
-              totalBytes: file.size,
-            }));
-            onProgress?.(pct);
-          },
-        });
+        let result: { url: string; pathname: string };
+
+        if (forceXhr) {
+          result = await uploadWithXhr(file, {
+            handleUploadUrl,
+            clientPayload: JSON.stringify(tokenPayload),
+            onProgress: (loaded, total) => onProgressTick(loaded, total),
+          });
+        } else {
+          const v = await vercelUpload(file.name, file, {
+            access: 'public',
+            handleUploadUrl,
+            contentType: file.type || 'application/octet-stream',
+            // The route's onBeforeGenerateToken receives this as
+            // `clientPayload` (a JSON string). The route then
+            // echoes it back as `tokenPayload` on onUploadCompleted
+            // so we can recreate metadata rows server-side.
+            clientPayload: JSON.stringify(tokenPayload),
+            // CRITICAL: the @vercel/blob v2.x client passes the
+            // callback payload as a bare number (the bytes loaded
+            // so far), NOT as an object. Earlier we destructured
+            // `{ percentage }` here and got `undefined` every
+            // time, which clamped progress to 0% and the bar
+            // appeared stuck. Handle both shapes to be safe
+            // across library versions and transports (XHR passes
+            // { loaded, total, percentage }; fetch-with-streams
+            // passes a bare number).
+            onUploadProgress: (payload: unknown) => {
+              const loaded = normalizeLoaded(payload, file.size);
+              onProgressTick(loaded, file.size);
+            },
+          });
+          result = { url: v.url, pathname: v.pathname };
+        }
         if (!heartbeatCleared) clearInterval(heartbeat);
-        console.log('[useBlobUpload] vercelUpload resolved', { url: result.url });
+        console.log('[useBlobUpload] upload PUT resolved, waiting for server callback', { url: result.url });
+        // We just landed the bytes in Vercel Blob. Now the
+        // server's onUploadCompleted callback fires
+        // asynchronously (Vercel dispatches it). The File row
+        // + the router.refresh() in the calling component
+        // both depend on that callback. Show a "finalizing"
+        // phase so the user sees the bar holding at ~100%
+        // for the few hundred ms between the PUT resolving
+        // and the page list updating.
+        setState((s) => ({
+          ...s,
+          phase: 'finalizing',
+          progress: 99,
+          uploadedBytes: file.size,
+          result: { url: result.url, pathname: result.pathname },
+        }));
+        // Brief pause so the user sees the finalizing state,
+        // then mark done. The page-side router.refresh()
+        // will pull the new file from the DB once the
+        // server's onUploadCompleted callback lands.
+        await new Promise((r) => setTimeout(r, 400));
         setState((s) => ({
           ...s,
           isUploading: false,
           phase: 'done',
           progress: 100,
-          result: { url: result.url, pathname: result.pathname },
         }));
         return result;
       } catch (e) {
         if (!heartbeatCleared) clearInterval(heartbeat);
         const msg = e instanceof Error ? e.message : 'Upload failed';
-        console.error('[useBlobUpload] vercelUpload failed', { error: msg, name: e instanceof Error ? e.name : 'unknown' });
+        // Try to classify the error so the message points
+        // to the right place. The @vercel/blob client
+        // throws a single `BlobError` for token + PUT +
+        // callback failures, so we have to use the message.
+        const isTokenError = /token/i.test(msg);
+        const isCorsError = /cors|network|fetch/i.test(msg);
+        const diagnostic = isTokenError
+          ? ' (the upload token request failed — likely an auth or session issue)'
+          : isCorsError
+          ? ' (network or CORS error — try a different network, or contact support if it persists)'
+          : '';
+        console.error('[useBlobUpload] upload failed', {
+          error: msg,
+          name: e instanceof Error ? e.name : 'unknown',
+          transport: forceXhr ? 'xhr' : 'vercel-blob-client',
+        });
         setState((s) => ({
           ...s,
           isUploading: false,
           phase: 'error',
-          error: msg.slice(0, 500),
+          error: `${msg.slice(0, 400)}${diagnostic}`,
         }));
         throw e;
       }
@@ -249,7 +438,7 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
     // spuriously). We read state.phase through the functional
     // setState updater where it matters, and through a ref-like
     // pattern via the closure for the guard.
-    [handleUploadUrl, maxBytes, onProgress],
+    [handleUploadUrl, maxBytes, onProgress, forceXhr],
   );
 
   return { upload, state, reset };

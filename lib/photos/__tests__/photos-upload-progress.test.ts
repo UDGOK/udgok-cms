@@ -242,7 +242,10 @@ describe('useBlobUpload — progress events (the heart of the fix)', () => {
     act(() => {
       result.current.upload(file, { projectId: 'abc', uploaderId: 'u1' });
     });
-    expect(result.current.state.phase).toBe('uploading');
+    // Phase starts as 'token' (requesting the upload
+    // token from the route), then becomes 'uploading'
+    // on the first progress event from @vercel/blob.
+    expect(['token', 'uploading']).toContain(result.current.state.phase);
     expect(result.current.state.progress).toBe(0);
 
     // The @vercel/blob v2.x client calls onUploadProgress
@@ -263,6 +266,11 @@ describe('useBlobUpload — progress events (the heart of the fix)', () => {
     await act(async () => {
       pending.resolve('https://blob.test/photo.jpg', 'photo.jpg');
       await pending.promise;
+    });
+    // The PUT resolved — wait for the 400ms 'finalizing'
+    // window before asserting 'done'.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 500));
     });
     expect(result.current.state.phase).toBe('done');
     expect(result.current.state.progress).toBe(100);
@@ -384,7 +392,12 @@ describe('useBlobUpload — error state', () => {
     });
 
     expect(result.current.state.phase).toBe('error');
-    expect(result.current.state.error).toBe('Network exploded');
+    // The hook now appends a diagnostic suffix for known
+    // error categories. "Network exploded" matches the
+    // /network/ pattern, so we get the CORS/network hint
+    // appended. That's the right behavior — it tells the
+    // user what kind of failure this is.
+    expect(result.current.state.error).toContain('Network exploded');
     // Progress should NOT have flipped to 100 — the user must
     // see the error card, not a success card.
     expect(result.current.state.progress).not.toBe(100);
@@ -408,6 +421,9 @@ describe('useBlobUpload — error state', () => {
     });
 
     expect(result.current.state.error).toBeDefined();
+    // The hook now truncates the message to 400 chars
+    // (was 500) so the diagnostic suffix can fit without
+    // exceeding the previous 500-char limit.
     expect(result.current.state.error!.length).toBeLessThanOrEqual(500);
   });
 
