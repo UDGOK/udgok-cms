@@ -75,6 +75,19 @@ export default defineConfig({
     // directive at the top. jsdom is already a transitive
     // dep via @testing-library/react.
     setupFiles: ['./vitest.setup.ts'],
+    env: {
+      // Tests run without a real database / Clerk / Resend,
+      // but a few libs (env.ts, lib/blob, lib/email) read env
+      // at import time. Pre-populate enough vars to satisfy
+      // `required()` in lib/env.ts so module imports don't
+      // throw before the test even starts. Tests that need
+      // a specific value mock the @/lib/env module directly.
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      CLERK_PUBLISHABLE_KEY: 'pk_test_placeholder',
+      CLERK_SECRET_KEY: 'sk_test_placeholder',
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_placeholder',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    },
   },
   define: {
     // React's index.js switches between dev/prod builds

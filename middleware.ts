@@ -28,6 +28,14 @@ const isPublicRoute = createRouteMatcher([
   '/features',
   // Public pay app share links (token-based, no auth)
   '/pay-apps/(.*)',
+  // Public site check-in / check-out (token-based, no auth)
+  // The token IS the credential: anyone with the sticker
+  // can scan it. The route itself decides whether to ask
+  // for a sub foreman or to attribute the scan to the
+  // signed-in user.
+  '/c/(.*)',
+  // Public check-in API (anonymous sub foreman path)
+  '/api/checkins/(.*)',
   // API routes
   '/api/pay-apps/(.*)/acknowledge',
   '/api/presence/(.*)',

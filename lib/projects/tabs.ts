@@ -40,6 +40,8 @@ export interface ProjectTabsContext {
   gpsPhotoCount?: number;
   /** AI insight count at warning/danger level — used for the AI board badge. */
   aiAlertCount?: number;
+  /** Open (currently on-site) check-in count — used for the Check-in tab badge. */
+  openCheckInCount?: number;
 }
 
 /**
@@ -112,6 +114,12 @@ export async function getProjectTabs(ctx: ProjectTabsContext): Promise<ProjectTa
     },
     { key: 'inventory', label: 'Inventory', href: `${base}?tab=inventory` },
     {
+      key: 'checkins',
+      label: 'Check-in',
+      href: `${base}/checkins`,
+      badge: ctx.openCheckInCount && ctx.openCheckInCount > 0 ? ctx.openCheckInCount : undefined,
+    },
+    {
       key: 'map',
       label: 'Map',
       href: `${base}?tab=map`,
@@ -144,7 +152,7 @@ export async function getProjectTabsFor(
   workspaceSlug: string,
   projectId: string,
 ): Promise<ProjectTab[]> {
-  const [taskCount, payAppCount, subAssignmentCount, teamMemberCount, bimModelCount, gpsPhotoCount] =
+  const [taskCount, payAppCount, subAssignmentCount, teamMemberCount, bimModelCount, gpsPhotoCount, openCheckInCount] =
     await Promise.all([
       prisma.task.count({ where: { projectId } }),
       prisma.payApp.count({ where: { projectId } }),
@@ -152,6 +160,7 @@ export async function getProjectTabsFor(
       prisma.projectMember.count({ where: { projectId } }),
       prisma.bimModel.count({ where: { projectId } }).catch(() => 0),
       prisma.projectPhoto.count({ where: { projectId, latitude: { not: null } } }),
+      prisma.checkInEvent.count({ where: { projectId, checkedOutAt: null } }),
     ]);
 
   return getProjectTabs({
@@ -163,6 +172,7 @@ export async function getProjectTabsFor(
     teamMemberCount,
     bimModelCount,
     gpsPhotoCount,
+    openCheckInCount,
   });
 }
 

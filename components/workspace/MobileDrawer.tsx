@@ -130,6 +130,7 @@ export function MobileDrawer({ open, onClose, allWorkspaces, isMasterAdmin }: Dr
     { label: 'Deals', href: `/w/${slug}/deals`, icon: ICON_DEALS },
     { label: 'Team', href: `/w/${slug}/team`, icon: ICON_TEAM },
     { label: 'Subcontractors', href: `/w/${slug}/subcontractors`, icon: ICON_SUBS },
+    { label: 'Check-in', href: `/w/${slug}/checkin`, icon: ICON_SCAN },
     { label: 'Settings', href: `/w/${slug}/settings`, icon: ICON_SETTINGS },
   ];
 

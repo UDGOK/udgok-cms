@@ -24,6 +24,7 @@ vi.mock('@/lib/db/client', () => ({
     projectMember: { count: vi.fn() },
     bimModel: { count: vi.fn() },
     projectPhoto: { count: vi.fn() },
+    checkInEvent: { count: vi.fn() },
   },
 }));
 
@@ -51,6 +52,7 @@ const PRISMA_COUNTS = prisma as unknown as {
   projectMember: { count: ReturnType<typeof vi.fn> };
   bimModel: { count: ReturnType<typeof vi.fn> };
   projectPhoto: { count: ReturnType<typeof vi.fn> };
+  checkInEvent: { count: ReturnType<typeof vi.fn> };
 };
 
 beforeEach(() => {
@@ -63,6 +65,7 @@ beforeEach(() => {
   PRISMA_COUNTS.projectMember.count.mockResolvedValue(0);
   PRISMA_COUNTS.bimModel.count.mockResolvedValue(0);
   PRISMA_COUNTS.projectPhoto.count.mockResolvedValue(0);
+  PRISMA_COUNTS.checkInEvent.count.mockResolvedValue(0);
   (listProjectPermits as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   (summarizePermits as ReturnType<typeof vi.fn>).mockReturnValue({
     overdueInspections: 0,
@@ -93,6 +96,7 @@ describe('getProjectTabs — order + labels are stable', () => {
       'permits',
       'takeoff',
       'inventory',
+      'checkins',
       'map',
       'pay-apps',
       'subs',
@@ -262,6 +266,9 @@ describe('getProjectTabsFor — fetches counts from DB', () => {
     });
     expect(PRISMA_COUNTS.projectPhoto.count).toHaveBeenCalledWith({
       where: { projectId: 'p_abc', latitude: { not: null } },
+    });
+    expect(PRISMA_COUNTS.checkInEvent.count).toHaveBeenCalledWith({
+      where: { projectId: 'p_abc', checkedOutAt: null },
     });
 
     // The badges are computed from those counts.
