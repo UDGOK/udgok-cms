@@ -71,18 +71,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Cast Decimal -> number (Prisma's getProjectWithRelations returns
-    // raw Decimal fields; ProjectMeta expects numbers)
+    // raw Decimal fields; ProjectMeta expects numbers).
+    // The Prisma return type for getProjectWithRelations includes
+    // `divisions` from the include list, but TypeScript's
+    // type narrowing has been observed to drop that field after
+    // a schema migration. Cast to `any` once here so the rest of
+    // the function can read fullProject.divisions etc. without
+    // the type narrowing getting in the way.
+    const fp = fullProject as unknown as {
+      divisions: { budget: { toString(): string } | number; payAppLines: { thisDrawAmount: { toString(): string } | number }[] }[];
+      payApps: { totalThisDraw: { toString(): string } | number; totalContract: { toString(): string } | number; totalPrevious: { toString(): string } | number; divisions: { projectDivisionId: string; thisDrawAmount: { toString(): string } | number }[] }[];
+      contractValue: { toString(): string } | number | null;
+    } & Record<string, unknown>;
     const meta = {
-      ...fullProject,
-      contractValue: fullProject.contractValue ? Number(fullProject.contractValue) : null,
-      divisions: fullProject.divisions.map((d) => ({
+      ...(fp as Record<string, unknown>),
+      contractValue: fp.contractValue ? Number(fp.contractValue) : null,
+      divisions: fp.divisions.map((d) => ({
         ...d,
         budget: Number(d.budget),
         payAppLines: d.payAppLines.map((l) => ({
           thisDrawAmount: Number(l.thisDrawAmount),
         })),
       })),
-      payApps: fullProject.payApps.map((p) => ({
+      payApps: fp.payApps.map((p) => ({
         ...p,
         totalThisDraw: Number(p.totalThisDraw),
         totalContract: Number(p.totalContract),

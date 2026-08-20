@@ -51,15 +51,15 @@ export function UploadForm({
   const router = useRouter();
   const { upload, state, reset } = useBlobUpload({
     handleUploadUrl: '/api/files/upload',
-    // Default to the XHR uploader. The @vercel/blob
-    // v2.x client uses fetch-with-upload-streams when
-    // available, and that transport can fail to fire
-    // progress events for small / fast uploads (the
-    // user reported 0% forever). The XHR transport is
-    // universal and gives reliable `upload.progress`.
-    // We can flip this back to `false` if/when the
-    // upstream library is fixed.
-    forceXhr: true,
+    // We tried `forceXhr: true` as a fallback for the
+    // "0% progress" bug, but the XHR path is fragile
+    // — @vercel/blob v2.x actually PUTs to a Vercel
+    // API endpoint with auth headers, not directly to
+    // the blob storage URL. The library's built-in
+    // upload() handles all of that correctly. Our
+    // heartbeat (6s timeout) + the 1-second bar tick
+    // give the user enough feedback to know something
+    // is happening.
   });
   const [category, setCategory] = useState(defaultCategory ?? '');
   const [clientId, setClientId] = useState('');

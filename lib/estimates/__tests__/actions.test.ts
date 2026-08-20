@@ -350,6 +350,12 @@ describe('convertEstimateToProjectAction', () => {
       project: {
         create: vi.fn().mockResolvedValue({ id: 'proj_new' }),
       },
+      projectDivision: {
+        create: vi.fn().mockResolvedValue({ id: 'div_1' }),
+      },
+      task: {
+        create: vi.fn().mockResolvedValue({ id: 'task_1' }),
+      },
       estimate: {
         update: vi.fn().mockResolvedValue({ id: 'est_1' }),
       },
@@ -368,6 +374,9 @@ describe('convertEstimateToProjectAction', () => {
       projectId: null,
       total: 5000,
       number: 'EST-2026-0001',
+      pendingProjectName: null,
+      pendingProjectCode: null,
+      lineItems: [], // no line items → no division/task seeding
     });
 
     const res = await convertEstimateToProjectAction(
@@ -382,10 +391,154 @@ describe('convertEstimateToProjectAction', () => {
     expect(projectCreateCall.data.name).toBe('Tile job');
     expect(projectCreateCall.data.contractValue).toBe(5000);
     expect(projectCreateCall.data.status).toBe('ACTIVE');
+    // No line items → no division or task creation.
+    expect(txMock.projectDivision.create).not.toHaveBeenCalled();
+    expect(txMock.task.create).not.toHaveBeenCalled();
     // The estimate was updated to CONVERTED.
     const estimateUpdateCall = txMock.estimate.update.mock.calls[0][0];
     expect(estimateUpdateCall.data.status).toBe('CONVERTED');
     expect(estimateUpdateCall.data.convertedProjectId).toBe('proj_new');
+  });
+
+  it('seeds ProjectDivision rows from line items, grouped by divisionCode', async () => {
+    // Line items with division codes → one division
+    // per code, with the budget rolled up across line
+    // items that share the same code. Line items
+    // without a code land under "GEN" so nothing is
+    // dropped.
+    const { prisma } = await import('@/lib/db/client');
+    const txMock = {
+      project: {
+        create: vi.fn().mockResolvedValue({ id: 'proj_seed' }),
+      },
+      projectDivision: {
+        create: vi.fn().mockResolvedValue({ id: 'div_1' }),
+      },
+      task: {
+        create: vi.fn().mockResolvedValue({ id: 'task_1' }),
+      },
+      estimate: {
+        update: vi.fn().mockResolvedValue({ id: 'est_seed' }),
+      },
+    };
+    (prisma as unknown as { $transaction: (fn: (tx: typeof txMock) => Promise<unknown>) => Promise<unknown> }).$transaction = (fn) =>
+      fn(txMock);
+
+    estimateFindFirstMock.mockResolvedValue({
+      id: 'est_seed',
+      status: 'APPROVED',
+      convertedProjectId: null,
+      title: 'Bathroom build-out',
+      description: null,
+      clientId: 'c_1',
+      projectId: null,
+      total: 4578.97,
+      number: 'EST-2026-0002',
+      pendingProjectName: null,
+      pendingProjectCode: null,
+      lineItems: [
+        {
+          id: 'li_1',
+          position: 1,
+          divisionCode: '09 30 00',  // tile
+          description: 'Tile installation',
+          quantity: 120,
+          unit: 'SF',
+          unitPrice: 25.50,
+          lineTotal: 3060,
+        },
+        {
+          id: 'li_2',
+          position: 2,
+          divisionCode: '09 30 00',  // tile, same code
+          description: 'Grout + sealant',
+          quantity: 120,
+          unit: 'SF',
+          unitPrice: 4.75,
+          lineTotal: 570,
+        },
+        {
+          id: 'li_3',
+          position: 3,
+          divisionCode: null,  // no code → "GEN"
+          description: 'Permit fee',
+          quantity: 1,
+          unit: 'LS',
+          unitPrice: 150,
+          lineTotal: 150,
+        },
+      ],
+    });
+
+    const res = await convertEstimateToProjectAction(
+      'udgok',
+      undefined,
+      fd({ id: 'est_seed' }),
+    );
+    expect(res.ok).toBe(true);
+    expect(res.projectId).toBe('proj_seed');
+    expect(res.seededLineItemCount).toBe(3);
+
+    // Two divisions created: 09 30 00 (rolled-up 3630)
+    // and GEN (150). Three tasks (one per line item).
+    expect(txMock.projectDivision.create).toHaveBeenCalledTimes(2);
+    const divCreates = txMock.projectDivision.create.mock.calls.map((c) => c[0].data);
+    const tileDiv = divCreates.find((d: { code: string }) => d.code === '09 30 00');
+    const genDiv = divCreates.find((d: { code: string }) => d.code === 'GEN');
+    expect(tileDiv).toBeDefined();
+    expect(tileDiv.budget).toBe(3630);  // 3060 + 570
+    expect(tileDiv.trade).toBe('Tile installation');
+    expect(genDiv).toBeDefined();
+    expect(genDiv.budget).toBe(150);
+    expect(genDiv.trade).toBe('Permit fee');
+
+    // One task per line item.
+    expect(txMock.task.create).toHaveBeenCalledTimes(3);
+    const taskTitles = txMock.task.create.mock.calls.map((c) => c[0].data.title);
+    expect(taskTitles).toContain('Tile installation');
+    expect(taskTitles).toContain('Grout + sealant');
+    expect(taskTitles).toContain('Permit fee');
+  });
+
+  it('reuses the pendingProjectName when present', async () => {
+    // Admin picked "Create new project" and typed a
+    // custom name on the estimate form. The converted
+    // project uses that name, not the estimate title.
+    const { prisma } = await import('@/lib/db/client');
+    const txMock = {
+      project: {
+        create: vi.fn().mockResolvedValue({ id: 'proj_named' }),
+      },
+      projectDivision: { create: vi.fn() },
+      task: { create: vi.fn() },
+      estimate: { update: vi.fn() },
+    };
+    (prisma as unknown as { $transaction: (fn: (tx: typeof txMock) => Promise<unknown>) => Promise<unknown> }).$transaction = (fn) =>
+      fn(txMock);
+
+    estimateFindFirstMock.mockResolvedValue({
+      id: 'est_named',
+      status: 'APPROVED',
+      convertedProjectId: null,
+      title: 'Build-out scope',  // estimate title — should NOT be used
+      description: null,
+      clientId: 'c_1',
+      projectId: null,
+      total: 1000,
+      number: 'EST-2026-0003',
+      pendingProjectName: 'Coldstone Creamery / Wetzel\'s — Build-Out',
+      pendingProjectCode: 'CSC-2026-01',
+      lineItems: [],
+    });
+
+    await convertEstimateToProjectAction(
+      'udgok',
+      undefined,
+      fd({ id: 'est_named' }),
+    );
+    const projectCreateCall = txMock.project.create.mock.calls[0][0];
+    expect(projectCreateCall.data.name).toBe("Coldstone Creamery / Wetzel's — Build-Out");
+    expect(projectCreateCall.data.code).toBe('CSC-2026-01');
   });
 
   it('refuses to convert a non-APPROVED estimate', async () => {
@@ -418,6 +571,8 @@ describe('convertEstimateToProjectAction', () => {
       project: {
         create: vi.fn().mockResolvedValue({ id: 'proj_new' }),
       },
+      projectDivision: { create: vi.fn() },
+      task: { create: vi.fn() },
       estimate: {
         update: vi.fn().mockResolvedValue({ id: 'est_1' }),
       },
@@ -438,6 +593,7 @@ describe('convertEstimateToProjectAction', () => {
       // The new fields: admin named the future project.
       pendingProjectName: 'Coldstone Creamery / Wetzel\'s Pretzels — Build-Out',
       pendingProjectCode: 'CSC-2026-01',
+      lineItems: [],
     });
 
     const res = await convertEstimateToProjectAction(
@@ -461,6 +617,8 @@ describe('convertEstimateToProjectAction', () => {
       project: {
         create: vi.fn().mockResolvedValue({ id: 'proj_legacy' }),
       },
+      projectDivision: { create: vi.fn() },
+      task: { create: vi.fn() },
       estimate: {
         update: vi.fn().mockResolvedValue({ id: 'est_1' }),
       },
@@ -480,6 +638,7 @@ describe('convertEstimateToProjectAction', () => {
       number: 'EST-2026-0002',
       pendingProjectName: null,
       pendingProjectCode: null,
+      lineItems: [],
     });
 
     const res = await convertEstimateToProjectAction(

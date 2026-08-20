@@ -17,6 +17,7 @@ import { NewDivisionForm } from './NewDivisionForm';
 import { DivisionRow } from './DivisionRow';
 import { GeneratePayAppButton } from './GeneratePayAppButton';
 import { AssignSubForm } from './AssignSubForm';
+import { SeedFromEstimateButton } from './SeedFromEstimateButton';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import { MessageThread } from '@/components/messages/MessageThread';
 import { listMessagesForEntity } from '@/lib/messages/queries';
@@ -125,6 +126,15 @@ interface ProjectData {
   geocodedAddress: string | null;
   client: { id: string; name: string } | null;
   deal: { id: string; title: string; stage: string } | null;
+  // The source estimate that was converted into this
+  // project. Used to surface the "Seed from estimate"
+  // banner on projects that were created before the
+  // convert action learned to seed divisions + tasks.
+  sourceEstimate: {
+    id: string;
+    number: string;
+    lineItems: { id: string }[];
+  } | null;
   members: { user: ProjectUser; userId: string; role: string | null }[];
   divisions: ProjectDivision[];
   payApps: ProjectPayApp[];
@@ -779,6 +789,23 @@ function OverviewTab({
         <WeatherWidget project={project} />
         <JurisdictionCard project={project} />
       </div>
+
+      {/* Seed-from-estimate banner — only for projects
+          that were converted from an estimate before
+          the convert action learned to seed
+          ProjectDivision + Task rows from the line
+          items. The user can click the button to
+          retroactively populate the schedule of
+          values and tasks. */}
+      {project.sourceEstimate && project.sourceEstimate.lineItems.length > 0 && project.divisions.length === 0 ? (
+        <div className="mb-6">
+          <SeedFromEstimateButton
+            workspaceSlug={workspace}
+            projectId={projectId}
+            hasSourceEstimate
+          />
+        </div>
+      ) : null}
 
       {/* Recent photos — strip with click-to-enlarge */}
       <div className="mb-6">

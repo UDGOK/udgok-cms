@@ -105,7 +105,7 @@ export async function GET(
   ]);
 
   // Shape into the ProjectData the PDF component expects.
-  const data = toProjectData(full, {
+  const data = toProjectData(full as unknown as Parameters<typeof toProjectData>[0], {
     permits,
     notes: notes.map((n) => ({
       id: n.id,

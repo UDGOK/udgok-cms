@@ -24,31 +24,45 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members  Membership[]
-  clients  Client[]
-  deals    Deal[]
-  projects Project[]
-  estimates Estimate[]
-  tasks    Task[]
-  files    File[]
-  teams    Team[]
-  subs     Subcontractor[]
-  activity ActivityLog[]
-  messages Message[]
-  projectPhotos ProjectPhoto[]
-  permits       Permit[]
-  photoFolders  ProjectPhotoFolder[]
-  inspections   Inspection[]
-  bimModels     BimModel[]
-  bimTakeoffs   BimTakeoff[]
-  scanEvents    ScanEvent[]
-  materials     Material[]
-  equipment     Equipment[]
-  productCatalog ProductCatalogItem[]
-  siteCheckInCodes   SiteCheckInCode[]
-  checkInEvents      CheckInEvent[]
-  weeklyTimesheets   WeeklyTimesheet[]
-  notifications      Notification[]  @relation("notificationWorkspace")
+  members           Membership[]
+  clients           Client[]
+  deals             Deal[]
+  projects          Project[]
+  estimates         Estimate[]
+  tasks             Task[]
+  files             File[]
+  teams             Team[]
+  subs              Subcontractor[]
+  activity          ActivityLog[]
+  messages          Message[]
+  projectPhotos     ProjectPhoto[]
+  permits           Permit[]
+  photoFolders      ProjectPhotoFolder[]
+  inspections       Inspection[]
+  bimModels         BimModel[]
+  bimTakeoffs       BimTakeoff[]
+  scanEvents        ScanEvent[]
+  materials         Material[]
+  equipment         Equipment[]
+  productCatalog    ProductCatalogItem[]
+  siteCheckInCodes  SiteCheckInCode[]
+  checkInEvents     CheckInEvent[]
+  weeklyTimesheets  WeeklyTimesheet[]
+  notifications     Notification[]       @relation("notificationWorkspace")
+  vendors           Vendor[]
+  vendorContacts    VendorContact[]
+  items             Item[]
+  vendorItems       VendorItem[]
+  materialLists     MaterialList[]
+  materialListLines MaterialListLine[]
+  rfqs              Rfq[]
+  rfqEvents         RfqEvent[]
+  vendorQuotes      VendorQuote[]
+  vendorQuoteLines  VendorQuoteLine[]
+  purchaseOrders    PurchaseOrder[]
+  polines           POLine[]
+  priceObservations PriceObservation[]
+  docCounters       DocCounter[]
 
   @@index([slug])
 }
@@ -67,29 +81,29 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships    Membership[]
-  notes          Note[]
-  uploads        File[]          @relation("uploader")
-  assignedTasks  Task[]          @relation("assignee")
-  createdTasks   Task[]          @relation("creator")
-  messages       Message[]
-  projectPhotos  ProjectPhoto[]
-  projectMembers ProjectMember[]
-  teamMembers    TeamMember[]
-  activity       ActivityLog[]
-  bimModels      BimModel[]      @relation("bimUploader")
-  scanEvents     ScanEvent[]
-  materials      Material[]      @relation("materialUploader")
-  equipment      Equipment[]     @relation("equipmentUploader")
-  siteCheckInCodes SiteCheckInCode[] @relation("siteCheckInCodeCreator")
-  checkInEvents    CheckInEvent[]    @relation("checkInUser")
-  checkInEdits     CheckInEvent[]    @relation("checkInEditor")
+  memberships               Membership[]
+  notes                     Note[]
+  uploads                   File[]            @relation("uploader")
+  assignedTasks             Task[]            @relation("assignee")
+  createdTasks              Task[]            @relation("creator")
+  messages                  Message[]
+  projectPhotos             ProjectPhoto[]
+  projectMembers            ProjectMember[]
+  teamMembers               TeamMember[]
+  activity                  ActivityLog[]
+  bimModels                 BimModel[]        @relation("bimUploader")
+  scanEvents                ScanEvent[]
+  materials                 Material[]        @relation("materialUploader")
+  equipment                 Equipment[]       @relation("equipmentUploader")
+  siteCheckInCodes          SiteCheckInCode[] @relation("siteCheckInCodeCreator")
+  checkInEvents             CheckInEvent[]    @relation("checkInUser")
+  checkInEdits              CheckInEvent[]    @relation("checkInEditor")
   weeklyTimesheetsSubmitted WeeklyTimesheet[] @relation("timesheetSubmitter")
   weeklyTimesheetsApproved  WeeklyTimesheet[] @relation("timesheetApprover")
   weeklyTimesheetsRejected  WeeklyTimesheet[] @relation("timesheetRejecter")
-  notificationsReceived Notification[] @relation("notificationRecipient")
-  notificationsCreated  Notification[] @relation("notificationCreator")
-  estimatesCreated Estimate[] @relation("estimateCreator")
+  notificationsReceived     Notification[]    @relation("notificationRecipient")
+  notificationsCreated      Notification[]    @relation("notificationCreator")
+  estimatesCreated          Estimate[]        @relation("estimateCreator")
 
   @@index([email])
 }
@@ -104,8 +118,8 @@ model Membership {
   // Presence tracking — updated by the /api/presence/heartbeat route.
   // A member is "online" if lastSeenAt is within the past 5 minutes
   // and "idle" if within 60 minutes. Anything older is offline.
-  lastSeenAt  DateTime?
-  isOnline    Boolean   @default(false)
+  lastSeenAt DateTime?
+  isOnline   Boolean   @default(false)
 
   // IMPORTANT: `user` is `NoAction` (not Cascade) so that when a Workspace
   // is deleted, the cascade can run without trying to delete the User.
@@ -227,19 +241,19 @@ model Deal {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client    Client    @relation(fields: [clientId], references: [id])
-  property  Property? @relation(fields: [propertyId], references: [id])
+  workspace        Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client           Client     @relation(fields: [clientId], references: [id])
+  property         Property?  @relation(fields: [propertyId], references: [id])
   // The project this deal was converted into. null until
   // "Convert to project" is clicked on the deal detail page.
-  convertedProject Project? @relation("DealConversion")
+  convertedProject Project?   @relation("DealConversion")
   // Estimates sent to the client during the deal
   // pipeline (when stage=ESTIMATE_SENT). One deal
   // can have many estimates (rev 1, rev 2, etc).
-  estimates  Estimate[] @relation("estimateDeal")
-  notes     Note[]
-  files     File[]
-  tasks     Task[]
+  estimates        Estimate[] @relation("estimateDeal")
+  notes            Note[]
+  files            File[]
+  tasks            Task[]
 
   @@index([workspaceId, stage])
   @@index([workspaceId, clientId])
@@ -296,13 +310,13 @@ enum DealStage {
 // the user wants.
 
 model Estimate {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  clientId      String
+  id                 String  @id @default(cuid())
+  workspaceId        String
+  clientId           String
   // Optional — null when the estimate is standalone
   // (no existing project context). When set, the
   // estimate is a scope change for that project.
-  projectId     String?
+  projectId          String?
   // When the admin selects "Create new project" on
   // the estimate form (instead of "Link to existing"
   // or "None"), we capture the desired name + code
@@ -316,69 +330,69 @@ model Estimate {
   // from a Deal. When set, the Deal's stage moves to
   // ESTIMATE_SENT on send, NEGOTIATING if the client
   // views, WON on approval.
-  dealId        String?
+  dealId             String?
   // The token for the public approval URL.
   // Generated server-side; never sent to the client
   // until "Send" is clicked.
-  shareToken    String?  @unique
+  shareToken         String? @unique
 
-  title         String
-  description   String?
+  title       String
+  description String?
   // The proposal number shown on the PDF / public
   // view, e.g. EST-2026-0142. Auto-generated on create.
-  number        String   @unique
+  number      String    @unique
   // ISO date string. The estimate is considered
   // expired after this date (the UI shows "Expired"
   // in red; we don't auto-transition status to keep
   // the state machine simple).
-  validUntil    DateTime?
+  validUntil  DateTime?
 
   // Money — stored as Decimal for precision. The
   // total is computed as subtotal + taxAmount. We
   // persist the taxAmount + taxRate so the PDF can
   // show the breakdown.
-  subtotal      Decimal  @db.Decimal(12, 2)
-  taxRate       Decimal? @db.Decimal(5, 4) // 0.0825 = 8.25%
-  taxAmount     Decimal? @db.Decimal(12, 2)
-  total         Decimal  @db.Decimal(12, 2)
+  subtotal  Decimal  @db.Decimal(12, 2)
+  taxRate   Decimal? @db.Decimal(5, 4) // 0.0825 = 8.25%
+  taxAmount Decimal? @db.Decimal(12, 2)
+  total     Decimal  @db.Decimal(12, 2)
 
-  status        EstimateStatus @default(DRAFT)
+  status EstimateStatus @default(DRAFT)
 
   // Audit timestamps.
-  createdById   String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   // When "Send" was clicked. Distinct from createdAt
   // because the admin might draft a quote days before
   // sending it.
-  sentAt        DateTime?
-  firstViewedAt DateTime?
+  sentAt             DateTime?
+  firstViewedAt      DateTime?
   // Approval audit (public page, no auth — the
   // viewerEmail is typed by the client so we have a
   // paper trail of who clicked approve).
-  approvedAt    DateTime?
-  approvedByEmail String?
-  approvedByName  String?
+  approvedAt         DateTime?
+  approvedByEmail    String?
+  approvedByName     String?
   // Rejection audit.
-  rejectedAt    DateTime?
-  rejectedByEmail String?
-  rejectedByName  String?
-  rejectNote    String?
+  rejectedAt         DateTime?
+  rejectedByEmail    String?
+  rejectedByName     String?
+  rejectNote         String?
   // Set when the admin runs "Convert to project".
-  convertedProjectId String? @unique
-  convertedAt   DateTime?
+  convertedProjectId String?   @unique
+  convertedAt        DateTime?
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  project     Project?  @relation("estimateProject", fields: [projectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  deal        Deal?     @relation("estimateDeal", fields: [dealId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client        Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project       Project?           @relation("estimateProject", fields: [projectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deal          Deal?              @relation("estimateDeal", fields: [dealId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // The project that was created from this estimate
   // (when convertedProjectId is set). The Project
   // side has the matching "estimateConversion"
   // back-relation.
-  sourceProject Project? @relation("estimateConversion", fields: [convertedProjectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdBy   User      @relation("estimateCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: Cascade)
-  lineItems   EstimateLineItem[]
+  sourceProject Project?           @relation("estimateConversion", fields: [convertedProjectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdBy     User               @relation("estimateCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  lineItems     EstimateLineItem[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
@@ -420,25 +434,25 @@ enum EstimateStatus {
 // every render and so the convert-to-project
 // action has the per-line numbers available.
 model EstimateLineItem {
-  id          String   @id @default(cuid())
-  estimateId  String
+  id           String  @id @default(cuid())
+  estimateId   String
   // Order on the estimate (1, 2, 3, ...). Drives
   // the render order; users can re-order later.
-  position    Int
+  position     Int
   // Optional CSI division code (e.g. "09 30 00"
   // for tile). The convert-to-project action uses
   // this to seed the project's default divisions.
   divisionCode String?
-  description String
-  quantity    Decimal  @db.Decimal(10, 2)
+  description  String
+  quantity     Decimal @db.Decimal(10, 2)
   // Unit shorthand (EA, SF, LF, HR, LS, etc.). Free
   // text so the user can record any unit they bought
   // (board-feet, cubic-yard, pallet, etc.).
-  unit        String   @default("EA")
-  unitPrice   Decimal  @db.Decimal(12, 2)
+  unit         String  @default("EA")
+  unitPrice    Decimal @db.Decimal(12, 2)
   // quantity * unitPrice, persisted for fast PDF
   // generation + convert-to-project.
-  lineTotal   Decimal  @db.Decimal(12, 2)
+  lineTotal    Decimal @db.Decimal(12, 2)
 
   estimate Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
 
@@ -469,53 +483,53 @@ model Note {
 // =========================================
 
 model Project {
-  id            String        @id @default(cuid())
-  workspaceId   String
-  clientId      String?
+  id              String        @id @default(cuid())
+  workspaceId     String
+  clientId        String?
   // Set when this project was created from a Won deal. One
   // deal → at most one project (enforced by the @unique below).
   // OnDelete: SetNull so deleting a deal doesn't cascade-delete
   // the project — the project stands on its own.
-  dealId        String?       @unique
-  name          String
-  code          String?
-  description   String?
-  status        ProjectStatus @default(ACTIVE)
-  startDate     DateTime?
-  endDate       DateTime?
-  contractValue Decimal?      @db.Decimal(12, 2)
-  address       String?
-  city          String?
-  state         String?
-  zip           String?
+  dealId          String?       @unique
+  name            String
+  code            String?
+  description     String?
+  status          ProjectStatus @default(ACTIVE)
+  startDate       DateTime?
+  endDate         DateTime?
+  contractValue   Decimal?      @db.Decimal(12, 2)
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
   // Geocoded coordinates. Auto-populated by the geocoder when address
   // changes, but can be manually overridden (set geocodeSource='manual').
   // Used by the Site Map / Project MAP features.
-  latitude      Float?
-  longitude     Float?
-  geocodedAt    DateTime?
-  geocodeSource String?      // 'nominatim' | 'manual' | 'mapbox' | 'cached'
-  geocodedAddress String?    // the address that was actually geocoded (for cache invalidation)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  latitude        Float?
+  longitude       Float?
+  geocodedAt      DateTime?
+  geocodeSource   String? // 'nominatim' | 'manual' | 'mapbox' | 'cached'
+  geocodedAddress String? // the address that was actually geocoded (for cache invalidation)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client    Client?           @relation(fields: [clientId], references: [id])
-  deal      Deal?             @relation("DealConversion", fields: [dealId], references: [id], onDelete: SetNull)
-  members   ProjectMember[]
-  tasks     Task[]
-  files     File[]
-  notes     Note[]
-  divisions ProjectDivision[]
-  payApps   PayApp[]
-  subAssignments ProjectSubcontractorAssignment[]
-  photos    ProjectPhoto[]
-  photoFolders ProjectPhotoFolder[]
-  permits   Permit[]
-  bimModels     BimModel[]
-  bimTakeoffs   BimTakeoff[]
-  materials     Material[]
-  equipment     Equipment[]
+  workspace        Workspace                        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client           Client?                          @relation(fields: [clientId], references: [id])
+  deal             Deal?                            @relation("DealConversion", fields: [dealId], references: [id], onDelete: SetNull)
+  members          ProjectMember[]
+  tasks            Task[]
+  files            File[]
+  notes            Note[]
+  divisions        ProjectDivision[]
+  payApps          PayApp[]
+  subAssignments   ProjectSubcontractorAssignment[]
+  photos           ProjectPhoto[]
+  photoFolders     ProjectPhotoFolder[]
+  permits          Permit[]
+  bimModels        BimModel[]
+  bimTakeoffs      BimTakeoff[]
+  materials        Material[]
+  equipment        Equipment[]
   siteCheckInCodes SiteCheckInCode[]
   checkInEvents    CheckInEvent[]
   // Estimates created for this project (scope changes
@@ -523,13 +537,13 @@ model Project {
   // created from a Won deal (the deal is the source
   // of the original scope) and no follow-on
   // estimates have been drafted.
-  estimates Estimate[] @relation("estimateProject")
+  estimates        Estimate[]                       @relation("estimateProject")
   // The estimate that was approved and converted
   // into this project. Inverse of
   // Estimate.convertedProjectId. At most one
   // estimate can convert into a project — enforced
   // by @unique on convertedProjectId.
-  sourceEstimate Estimate? @relation("estimateConversion")
+  sourceEstimate   Estimate?                        @relation("estimateConversion")
 
   @@index([workspaceId, status])
   @@index([workspaceId, clientId])
@@ -547,28 +561,26 @@ model Project {
  * tracked separately for two different projects (e.g., 50
  * sheets of drywall on Job A, 30 sheets on Job B). This is
  * what the scan page links to when a code is recognized.
- *
  * `unit` is a free-text string (each, board-feet, linear-feet,
  * square-feet, cubic-yard, pound, gallon, etc.) — we don't
  * constrain it because construction has a million units and
  * the user knows what they bought.
- *
  * `quantity` is the current on-hand count. Decremented as the
  * material is consumed on site; incremented as deliveries
  * arrive. We don't track every movement here (that's a future
  * feature) — just the current balance.
  */
 model Material {
-  id          String   @id @default(cuid())
-  workspaceId String
-  projectId   String
-  uploaderId  String
-  code        String   // barcode / UPC / SKU / QR value
-  name        String
-  description String?
-  unit        String   @default("each")
-  unitCost    Decimal? @db.Decimal(12, 2)
-  quantity    Decimal  @default(0) @db.Decimal(12, 2)
+  id               String   @id @default(cuid())
+  workspaceId      String
+  projectId        String
+  uploaderId       String
+  code             String // barcode / UPC / SKU / QR value
+  name             String
+  description      String?
+  unit             String   @default("each")
+  unitCost         Decimal? @db.Decimal(12, 2)
+  quantity         Decimal  @default(0) @db.Decimal(12, 2)
   // Vendor info — captured at scan time so a foreman
   // re-scanning a delivery knows the supplier without
   // re-typing it. Per-project (the same drywall might come
@@ -581,15 +593,15 @@ model Material {
   // - vendorPartNumber: the vendor's own SKU (different from
   //   the universal UPC/EAN we already store in `code`)
   // - vendorContact: free-text phone/email/contact name
-  vendor          String?
+  vendor           String?
   vendorPartNumber String?
-  vendorContact   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  vendorContact    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader  User     @relation("materialUploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader  User      @relation("materialUploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
 
   @@unique([workspaceId, projectId, code], name: "material_code_per_project")
   @@index([workspaceId, projectId])
@@ -609,23 +621,23 @@ model Material {
  * some have neither.
  */
 model Equipment {
-  id          String         @id @default(cuid())
-  workspaceId String
-  projectId   String
-  uploaderId  String
-  code        String
-  name        String
-  description String?
+  id           String             @id @default(cuid())
+  workspaceId  String
+  projectId    String
+  uploaderId   String
+  code         String
+  name         String
+  description  String?
   serialNumber String?
-  condition   EquipmentCondition @default(GOOD)
-  unitCost    Decimal?       @db.Decimal(12, 2)
-  quantity    Int            @default(1)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  condition    EquipmentCondition @default(GOOD)
+  unitCost     Decimal?           @db.Decimal(12, 2)
+  quantity     Int                @default(1)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader  User     @relation("equipmentUploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader  User      @relation("equipmentUploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
 
   @@unique([workspaceId, projectId, code], name: "equipment_code_per_project")
   @@index([workspaceId, projectId])
@@ -649,18 +661,15 @@ enum EquipmentCondition {
  * we use online APIs (UPCitemdb, Open Food Facts) on cache miss
  * and persist the result here. Future scans of the same
  * barcode hit the local DB, no API call needed.
- *
  * Scope is workspace-wide: every project in a workspace
  * shares the same catalog. A drywall SKU used on three jobs
  * is one row here, three rows in `Material` (one per job).
- *
  * `source` records where the data came from:
- *   - 'upcitemdb' — UPCitemdb trial API (general-purpose, works
- *     for most consumer products including construction supplies)
- *   - 'openfoodfacts' — Open Food Facts (food products only,
- *     richer nutrition data)
- *   - 'manual' — user typed in the details by hand
- *
+ * - 'upcitemdb' — UPCitemdb trial API (general-purpose, works
+ * for most consumer products including construction supplies)
+ * - 'openfoodfacts' — Open Food Facts (food products only,
+ * richer nutrition data)
+ * - 'manual' — user typed in the details by hand
  * `lastFetchedAt` is bumped every time we re-validate against
  * the online source. If the source data changes, we update
  * the row rather than create a duplicate. (A barcode is
@@ -668,12 +677,12 @@ enum EquipmentCondition {
  * (workspaceId, code) makes sense.)
  */
 model ProductCatalogItem {
-  id              String   @id @default(cuid())
-  workspaceId     String
-  code            String   // barcode (UPC, EAN, QR-encoded SKU, etc.)
-  name            String
-  description     String?
-  brand           String?
+  id             String   @id @default(cuid())
+  workspaceId    String
+  code           String // barcode (UPC, EAN, QR-encoded SKU, etc.)
+  name           String
+  description    String?
+  brand          String?
   // Vendor / supplier for this product. Populated from
   // UPCitemdb's `brand` field (and Open Food Facts' `brands`
   // field) on the first successful online lookup. We keep it
@@ -683,15 +692,15 @@ model ProductCatalogItem {
   // user sees on the INVENTORY tab; this column is the
   // workspace-wide cache used to pre-fill the form on a
   // re-scan.
-  vendor          String?
-  manufacturer    String?
-  category        String?
-  imageUrl        String?
-  source          String   // 'upcitemdb' | 'openfoodfacts' | 'manual'
-  sourceMetadata  Json?    // the full API response for debugging / future use
-  lastFetchedAt   DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  vendor         String?
+  manufacturer   String?
+  category       String?
+  imageUrl       String?
+  source         String // 'upcitemdb' | 'openfoodfacts' | 'manual'
+  sourceMetadata Json? // the full API response for debugging / future use
+  lastFetchedAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -713,7 +722,7 @@ model ProjectPhotoFolder {
   id          String   @id @default(cuid())
   workspaceId String
   projectId   String
-  name        String   // e.g. "Punch List", "Before", "Foundation", "MEP"
+  name        String // e.g. "Punch List", "Before", "Foundation", "MEP"
   description String?
   color       String   @default("orange") // css color name: orange, ink, success, etc.
   sortOrder   Int      @default(0)
@@ -724,28 +733,28 @@ model ProjectPhotoFolder {
   project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   photos    ProjectPhoto[]
 
-  @@index([projectId, sortOrder])
   @@unique([projectId, name])
+  @@index([projectId, sortOrder])
 }
 
 model ProjectPhoto {
-  id          String        @id @default(cuid())
+  id          String     @id @default(cuid())
   workspaceId String
   projectId   String
   uploaderId  String
   folderId    String?
-  url         String        // Vercel Blob URL
+  url         String // Vercel Blob URL
   filename    String
   mimeType    String
   size        Int
-  room        String?       // e.g. "Kitchen", "Master Bath"
-  area        String?       // e.g. "North wing", "Floor 2"
-  phase       PhotoPhase    @default(ROUGH_IN)
+  room        String? // e.g. "Kitchen", "Master Bath"
+  area        String? // e.g. "North wing", "Floor 2"
+  phase       PhotoPhase @default(ROUGH_IN)
   caption     String?
   latitude    Float?
   longitude   Float?
   takenAt     DateTime?
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime   @default(now())
 
   workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -824,20 +833,20 @@ enum InspectionResult {
 }
 
 model Permit {
-  id            String       @id @default(cuid())
-  workspaceId   String
-  projectId     String
-  permitNumber  String?      // e.g. "BLD-2026-04812"
-  type          String       // e.g. "Building", "Electrical", "Plumbing", "Mechanical", "Demolition"
-  status        PermitStatus @default(NOT_APPLIED)
-  jurisdiction  String?      // e.g. "City of Tulsa", "City of Austin"
-  appliedDate   DateTime?
-  issuedDate    DateTime?
+  id             String       @id @default(cuid())
+  workspaceId    String
+  projectId      String
+  permitNumber   String? // e.g. "BLD-2026-04812"
+  type           String // e.g. "Building", "Electrical", "Plumbing", "Mechanical", "Demolition"
+  status         PermitStatus @default(NOT_APPLIED)
+  jurisdiction   String? // e.g. "City of Tulsa", "City of Austin"
+  appliedDate    DateTime?
+  issuedDate     DateTime?
   expirationDate DateTime?
-  fee           Decimal?     @db.Decimal(10, 2)
-  notes         String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  fee            Decimal?     @db.Decimal(10, 2)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -849,18 +858,18 @@ model Permit {
 }
 
 model Inspection {
-  id             String           @id @default(cuid())
-  workspaceId    String
-  permitId       String
-  type           InspectionType
-  scheduledDate  DateTime?
-  result         InspectionResult @default(PENDING)
-  inspectorName  String?
-  scheduledBy    String?          // e.g. "Foreman Bob", "PM Sarah"
-  notes          String?
-  completedDate  DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  workspaceId   String
+  permitId      String
+  type          InspectionType
+  scheduledDate DateTime?
+  result        InspectionResult @default(PENDING)
+  inspectorName String?
+  scheduledBy   String? // e.g. "Foreman Bob", "PM Sarah"
+  notes         String?
+  completedDate DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   permit    Permit    @relation(fields: [permitId], references: [id], onDelete: Cascade)
@@ -943,19 +952,19 @@ enum TaskPriority {
 // =========================================
 
 model File {
-  id          String   @id @default(cuid())
-  workspaceId String
-  uploaderId  String
-  url         String
-  filename    String
-  mimeType    String
-  size        Int
-  kind        FileKind @default(DOCUMENT)
-  category    String?
-  clientId    String?
-  dealId      String?
-  projectId   String?
-  taskId      String?
+  id              String    @id @default(cuid())
+  workspaceId     String
+  uploaderId      String
+  url             String
+  filename        String
+  mimeType        String
+  size            Int
+  kind            FileKind  @default(DOCUMENT)
+  category        String?
+  clientId        String?
+  dealId          String?
+  projectId       String?
+  taskId          String?
   // For ID-card / W-9 / insurance scans tied to a subcontractor's
   // onboarding. Set when the file is uploaded from the sub's
   // onboarding scanner (phone camera → Vercel Blob → this row).
@@ -963,10 +972,10 @@ model File {
   // GPS coordinates captured at upload time. Used for "GPS-tagged site
   // photos" feature — lets you see exactly where on the job site a
   // photo was taken.
-  latitude   Float?
-  longitude  Float?
-  takenAt    DateTime?
-  createdAt   DateTime @default(now())
+  latitude        Float?
+  longitude       Float?
+  takenAt         DateTime?
+  createdAt       DateTime  @default(now())
 
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   uploader      User           @relation("uploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
@@ -992,25 +1001,23 @@ model File {
  * One row per scan. We persist every scanned code so the user
  * can see what they (or a teammate) scanned and when, and so we
  * have an audit trail for equipment checkouts / material receipts.
- *
  * `matched` and `matchedId` are set when the scanned code resolved
  * to a known entity (sub, project, client, file). They're null
  * when nothing matched — that's the "not found" case. The user
  * can still see they scanned a code, just nothing was linked.
- *
  * `source` records where the value came from: 'camera' (the
  * barcode scanner decoded it) or 'manual' (the text-input
  * fallback on the scan page). Useful for debugging.
  */
 model ScanEvent {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   workspaceId String
   userId      String
-  code        String    // the raw decoded text or the manually-typed value
-  source      String    // 'camera' | 'manual'
-  matched     String?   // 'sub' | 'project' | 'client' | 'file' | null
-  matchedId   String?   // id of the matched entity
-  createdAt   DateTime  @default(now())
+  code        String // the raw decoded text or the manually-typed value
+  source      String // 'camera' | 'manual'
+  matched     String? // 'sub' | 'project' | 'client' | 'file' | null
+  matchedId   String? // id of the matched entity
+  createdAt   DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: Cascade)
@@ -1043,7 +1050,7 @@ model ProjectDivision {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   payAppLines PayAppDivision[]
   subLinks    ProjectDivisionAssignment[]
 
@@ -1051,29 +1058,29 @@ model ProjectDivision {
 }
 
 model PayApp {
-  id             String       @id @default(cuid())
-  projectId      String
-  drawNumber     Int
-  periodStart    DateTime
-  periodEnd      DateTime
-  status         PayAppStatus @default(DRAFT)
-  totalContract  Decimal      @db.Decimal(12, 2)
-  totalPrevious  Decimal      @db.Decimal(12, 2)
-  totalThisDraw  Decimal      @db.Decimal(12, 2)
-  totalBalance   Decimal      @db.Decimal(12, 2)
-  notes          String?
-  pdfUrl         String?
-  shareToken     String       @unique
-  sentAt         DateTime?
-  sentToEmail    String?
-  acknowledgedAt    DateTime?
+  id                  String       @id @default(cuid())
+  projectId           String
+  drawNumber          Int
+  periodStart         DateTime
+  periodEnd           DateTime
+  status              PayAppStatus @default(DRAFT)
+  totalContract       Decimal      @db.Decimal(12, 2)
+  totalPrevious       Decimal      @db.Decimal(12, 2)
+  totalThisDraw       Decimal      @db.Decimal(12, 2)
+  totalBalance        Decimal      @db.Decimal(12, 2)
+  notes               String?
+  pdfUrl              String?
+  shareToken          String       @unique
+  sentAt              DateTime?
+  sentToEmail         String?
+  acknowledgedAt      DateTime?
   acknowledgedByEmail String?
   acknowledgedByName  String?
-  firstViewedAt  DateTime?
-  viewCount      Int          @default(0)
-  createdById    String
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  firstViewedAt       DateTime?
+  viewCount           Int          @default(0)
+  createdById         String
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   divisions  PayAppDivision[]
@@ -1145,14 +1152,14 @@ model Team {
 }
 
 model TeamMember {
-  id     String   @id @default(cuid())
-  teamId String
-  userId String
-  role   TeamRole @default(MEMBER)
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     TeamRole @default(MEMBER)
   joinedAt DateTime @default(now())
 
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId])
   @@index([userId])
@@ -1173,7 +1180,7 @@ model Subcontractor {
   id              String    @id @default(cuid())
   workspaceId     String
   name            String
-  primaryTrade    String?   // primary CSI division (e.g. "06", "22", "23")
+  primaryTrade    String? // primary CSI division (e.g. "06", "22", "23")
   contactName     String?
   contactEmail    String?
   contactPhone    String?
@@ -1182,35 +1189,35 @@ model Subcontractor {
   insuranceExpiry DateTime?
   w9OnFile        Boolean   @default(false)
   w9ScannedAt     DateTime? // when the W-9 photo was last uploaded
-  idScanned       Boolean   @default(false)  // true after the sub's ID card has been scanned
+  idScanned       Boolean   @default(false) // true after the sub's ID card has been scanned
   idScannedAt     DateTime? // when the ID card photo was last uploaded
   hourlyRate      Decimal?  @db.Decimal(10, 2)
   notes           String?
-  rating          Int?      // 1–5 self-rated quality
+  rating          Int? // 1–5 self-rated quality
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  assignments ProjectSubcontractorAssignment[]
-  documents   File[]                      @relation("subcontractorDocuments")
-  checkInEvents CheckInEvent[]            @relation("checkInSubcontractor")
+  workspace     Workspace                        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments   ProjectSubcontractorAssignment[]
+  documents     File[]                           @relation("subcontractorDocuments")
+  checkInEvents CheckInEvent[]                   @relation("checkInSubcontractor")
 
   @@index([workspaceId, name])
   @@index([workspaceId, primaryTrade])
 }
 
 model ProjectSubcontractorAssignment {
-  id              String                 @id @default(cuid())
+  id              String              @id @default(cuid())
   projectId       String
   subcontractorId String
-  contractAmount  Decimal                @default(0) @db.Decimal(12, 2)
-  status          SubcontractorStatus    @default(PROPOSED)
+  contractAmount  Decimal             @default(0) @db.Decimal(12, 2)
+  status          SubcontractorStatus @default(PROPOSED)
   notes           String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
-  project       Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  subcontractor Subcontractor                 @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  project       Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor               @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
   divisionLinks ProjectDivisionAssignment[]
 
   @@index([projectId])
@@ -1250,13 +1257,13 @@ model ProjectDivisionAssignment {
 model ActivityLog {
   id          String   @id @default(cuid())
   workspaceId String
-  actorId     String?  // null for system events (auto-views, etc.)
-  action      String   // 'created' | 'updated' | 'deleted' | 'sent' | 'viewed' | 'acknowledged' | 'paid' | 'disputed' | 'assigned' | 'unassigned' | 'invited' | 'joined'
-  entityType  String   // 'client' | 'project' | 'pay_app' | 'subcontractor' | 'task' | 'team' | 'workspace' | 'member' | 'note' | 'file' | 'division'
+  actorId     String? // null for system events (auto-views, etc.)
+  action      String // 'created' | 'updated' | 'deleted' | 'sent' | 'viewed' | 'acknowledged' | 'paid' | 'disputed' | 'assigned' | 'unassigned' | 'invited' | 'joined'
+  entityType  String // 'client' | 'project' | 'pay_app' | 'subcontractor' | 'task' | 'team' | 'workspace' | 'member' | 'note' | 'file' | 'division'
   entityId    String
-  entityName  String?  // Human-readable name for display (denormalized for fast read)
-  details     String?  // One-line summary e.g. "Bob added $5,000 to Site prep"
-  metadata    Json?    // Optional structured data (changed fields, etc.)
+  entityName  String? // Human-readable name for display (denormalized for fast read)
+  details     String? // One-line summary e.g. "Bob added $5,000 to Site prep"
+  metadata    Json? // Optional structured data (changed fields, etc.)
   createdAt   DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1280,7 +1287,7 @@ model Message {
   body        String
   entityType  MessageEntityType
   entityId    String
-  threadId    String?           // null = top-level; otherwise = root message id
+  threadId    String? // null = top-level; otherwise = root message id
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   editedAt    DateTime?
@@ -1306,15 +1313,15 @@ model BimModel {
   projectId   String
   workspaceId String
   uploaderId  String
-  url         String   // Vercel Blob URL of the .ifc file
+  url         String // Vercel Blob URL of the .ifc file
   filename    String
   size        Int
   createdAt   DateTime @default(now())
 
-  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  uploader User         @relation("bimUploader", fields: [uploaderId], references: [id], onDelete: NoAction)
-  takeoffs BimTakeoff[]
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploader  User         @relation("bimUploader", fields: [uploaderId], references: [id], onDelete: NoAction)
+  takeoffs  BimTakeoff[]
 
   @@index([projectId])
   @@index([workspaceId])
@@ -1325,17 +1332,17 @@ model BimModel {
 // (see TakeoffResult). Storing it as Json lets the service evolve
 // without a Prisma migration.
 model BimTakeoff {
-  id         String        @id @default(cuid())
-  bimModelId String
-  projectId  String
+  id          String        @id @default(cuid())
+  bimModelId  String
+  projectId   String
   workspaceId String
-  status     TakeoffStatus @default(PENDING)
+  status      TakeoffStatus @default(PENDING)
   // Full JSON payload from the service. Keep as Json so the service
   // can evolve the TakeoffResult shape without a migration.
-  result     Json?
-  error      String?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  result      Json?
+  error       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   bimModel  BimModel  @relation(fields: [bimModelId], references: [id], onDelete: Cascade)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1391,9 +1398,9 @@ model SiteCheckInCode {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy User      @relation("siteCheckInCodeCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy     User           @relation("siteCheckInCodeCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: Cascade)
   checkInEvents CheckInEvent[]
 
   @@index([workspaceId, projectId])
@@ -1458,20 +1465,20 @@ model CheckInEvent {
   //      but the real working time was 7 hours. The
   //      admin sets editedHours=7 with a note
   //      "forgot to clock out for lunch".
-  editedHours       Decimal?  @db.Decimal(8, 2)
+  editedHours Decimal?  @db.Decimal(8, 2)
   // The admin who made the override + when.
-  editedById        String?
-  editedAt          DateTime?
+  editedById  String?
+  editedAt    DateTime?
   // Required when editedHours is set. Audit context
   // for why the override was made.
-  editNote          String?
+  editNote    String?
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  siteCheckInCode  SiteCheckInCode  @relation(fields: [siteCheckInCodeId], references: [id], onDelete: Cascade)
-  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user             User?            @relation("checkInUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  subcontractor    Subcontractor?   @relation("checkInSubcontractor", fields: [subcontractorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  editedBy         User?            @relation("checkInEditor", fields: [editedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  siteCheckInCode SiteCheckInCode @relation(fields: [siteCheckInCodeId], references: [id], onDelete: Cascade)
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user            User?           @relation("checkInUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  subcontractor   Subcontractor?  @relation("checkInSubcontractor", fields: [subcontractorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  editedBy        User?           @relation("checkInEditor", fields: [editedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([workspaceId, projectId, checkedInAt])
   @@index([workspaceId, checkedInAt])
@@ -1524,25 +1531,25 @@ model WeeklyTimesheet {
   // unique constraint is meaningful.
   weekStart   DateTime
 
-  status      WeeklyTimesheetStatus @default(DRAFT)
+  status WeeklyTimesheetStatus @default(DRAFT)
 
   // Submission audit
-  submittedById String?
-  submittedAt   DateTime?
+  submittedById        String?
+  submittedAt          DateTime?
   // Approval audit
-  approvedById  String?
-  approvedAt    DateTime?
+  approvedById         String?
+  approvedAt           DateTime?
   // Rejection (note is required for rejection)
-  rejectedById  String?
-  rejectedAt    DateTime?
-  rejectNote    String?
+  rejectedById         String?
+  rejectedAt           DateTime?
+  rejectNote           String?
   // The total hours at the moment of approval —
   // captures the snapshot so a later edit (after
   // unlock) can show "approved at 47.5h, now 51h".
-  totalHoursAtApproval Decimal? @db.Decimal(8, 2)
+  totalHoursAtApproval Decimal?  @db.Decimal(8, 2)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   submittedBy User?     @relation("timesheetSubmitter", fields: [submittedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -1599,7 +1606,7 @@ enum WeeklyTimesheetStatus {
 // (small construction teams) this is noise.
 
 model Notification {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
   recipientId String
   // null = system-generated (auto-events from check-ins
@@ -1616,7 +1623,7 @@ model Notification {
   //   "task"          — task assigned / status changed
   //   "project"       — project created / updated
   //   "system"        — generic system message
-  type    String
+  type String
 
   // Category — secondary grouping for filters. Same
   // values as type for v1, but kept separate so we can
@@ -1658,9 +1665,9 @@ model Notification {
   //   { payAppId: "..." } for pay-app notifs
   metadata String?
 
-  workspace  Workspace @relation("notificationWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  recipient  User      @relation("notificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  createdBy  User?     @relation("notificationCreator", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  workspace Workspace @relation("notificationWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipient User      @relation("notificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("notificationCreator", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   // Indexes are chosen for the two hot queries:
   //   1. "Give me my unread + recent in this workspace"
@@ -1675,4 +1682,527 @@ model Notification {
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([workspaceId, recipientId, createdAt(sort: Desc)])
   @@index([type])
+}
+
+// ============================================================================
+// PROCUREMENT / RFQ MODULE
+// ============================================================================
+//
+// Token-based vendor portal: admin builds a MaterialList,
+// sends an RFQ to a vendor (one RFQ per vendor, many per list),
+// vendor opens a magic link (no login), types prices, and
+// submits. We accept a quote and emit a PO.
+//
+// Money is always Decimal(19,4). Quantities are Decimal(19,4).
+// Never float/double.
+//
+// Pilot vendors: Locke Supply, Broken Arrow Electric.
+// Phase-1 project linkage is null (no FK to Project).
+// Phase-2 will populate projectId at RFQ-send time.
+
+enum VendorCapability {
+  MANUAL // rep types prices into the portal
+  QUOTE_LINK // rep has a vendor-side UI, we deep-link
+  PUNCHOUT // cXML/OAuth punchout (future)
+  API // programmatic pricing (future)
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MaterialListStatus {
+  DRAFT
+  QUOTING // RFQs sent, awaiting response
+  QUOTED // ≥1 quote in
+  CLOSED // a quote was accepted → PO created
+}
+
+enum RfqStatus {
+  DRAFT
+  SENT
+  VIEWED
+  RESPONDED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+enum QuoteStatus {
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  SUPERSEDED // a newer revision of the same RFQ replaced this
+}
+
+enum PoStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ISSUED
+  ACKNOWLEDGED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum PriceSource {
+  MANUAL
+  QUOTE
+  PUNCHOUT
+  API
+  IMPORT
+}
+
+model Vendor {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  name          String
+  legalName     String?
+  accountNumber String?
+  capability    VendorCapability @default(MANUAL)
+  status        VendorStatus     @default(ACTIVE)
+
+  phone        String?
+  website      String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+
+  defaultTerms String?
+  taxExempt    Boolean @default(false)
+  notes        String?
+
+  // Link to the Subcontractor record if the vendor is
+  // also a sub on the same workspace. Optional — a
+  // vendor (materials supplier) is not the same thing
+  // as a sub (trade contractor), but some companies
+  // play both roles.
+  subcontractorId String?
+
+  contacts    VendorContact[]
+  rfqs        Rfq[]
+  quotes      VendorQuote[]
+  pos         PurchaseOrder[]
+  vendorItems VendorItem[]
+  defaultFor  Item[]    @relation("ItemDefaultVendor")
+  prices      PriceObservation[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  deletedAt DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, status])
+  @@index([workspaceId, deletedAt])
+}
+
+model VendorContact {
+  id          String @id @default(cuid())
+  workspaceId String
+  vendorId    String
+  vendor      Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  name      String
+  email     String
+  phone     String?
+  role      String?
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, vendorId])
+  @@index([workspaceId, email])
+}
+
+model Item {
+  id              String  @id @default(cuid())
+  workspaceId     String
+  sku             String?
+  description     String
+  uom             String  @default("EA")
+  category        String?
+  manufacturer    String?
+  mfrPartNumber   String?
+  defaultVendorId String?
+  active          Boolean @default(true)
+
+  defaultVendor   Vendor? @relation("ItemDefaultVendor", fields: [defaultVendorId], references: [id])
+  vendorItems VendorItem[]
+  listLines   MaterialListLine[]
+  prices      PriceObservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, sku])
+  @@index([workspaceId, active])
+}
+
+// vendor-specific identity for an internal item
+model VendorItem {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  vendorId          String
+  vendor            Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  vendorSku         String
+  vendorDescription String?
+  lastUnitPrice     Decimal?  @db.Decimal(19, 4)
+  lastQuotedAt      DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, vendorId, vendorSku])
+  @@index([workspaceId, itemId])
+}
+
+model MaterialList {
+  id          String             @id @default(cuid())
+  workspaceId String
+  name        String
+  status      MaterialListStatus @default(DRAFT)
+
+  // Phase 1: nullable (pilot scope). Phase 2: required at
+  // RFQ-send time so committed cost rolls up to a project.
+  projectId String?
+  costCode  String?
+
+  neededBy  DateTime?
+  deliverTo String?
+  notes     String?
+
+  lines MaterialListLine[]
+  rfqs  Rfq[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  deletedAt DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, projectId])
+  @@index([workspaceId, deletedAt])
+}
+
+model MaterialListLine {
+  id          String       @id @default(cuid())
+  workspaceId String
+  listId      String
+  list        MaterialList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  position    Int
+
+  // null = free-text line (no item catalog entry).
+  // Free-text lines MUST work — the catalog is optional.
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id])
+
+  description   String
+  manufacturer  String?
+  mfrPartNumber String?
+  quantity      Decimal @db.Decimal(19, 4)
+  uom           String  @default("EA")
+  notes         String?
+
+  quoteLines VendorQuoteLine[]
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, position])
+  @@index([workspaceId, listId])
+}
+
+// RFQ = one vendor's quote request for a material list.
+// We send a SEPARATE RFQ per vendor so we can compare
+// multiple bids on the same list.
+model Rfq {
+  id          String @id @default(cuid())
+  workspaceId String
+  number      String // "RFQ-2026-0001"
+
+  listId      String
+  list        MaterialList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  vendorId    String
+  vendor      Vendor       @relation(fields: [vendorId], references: [id])
+  contactId   String?
+  sentToEmail String?
+
+  status RfqStatus @default(DRAFT)
+
+  // Magic-link auth. We store the SHA-256 hash only;
+  // the plaintext lives in the outbound email.
+  tokenHash     String    @unique
+  tokenPrefix   String // first 8 chars, support lookup only
+  expiresAt     DateTime
+  sentAt        DateTime?
+  firstViewedAt DateTime?
+  lastViewedAt  DateTime?
+  respondedAt   DateTime?
+  revokedAt     DateTime?
+
+  message  String?
+  neededBy DateTime?
+
+  quotes VendorQuote[]
+  events RfqEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([workspaceId, vendorId])
+  @@index([workspaceId, listId])
+}
+
+model RfqEvent {
+  id          String @id @default(cuid())
+  workspaceId String
+  rfqId       String
+  rfq         Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  // CREATED SENT VIEWED SUBMITTED DECLINED ACCEPTED REVOKED RESENT EXPIRED
+  type      String
+  actor     String? // clerk userId, or "vendor"
+  ipHash    String? // sha256(ip + APP_HASH_SALT) — never raw
+  userAgent String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, rfqId, createdAt])
+  @@index([type])
+}
+
+model VendorQuote {
+  id          String @id @default(cuid())
+  workspaceId String
+  rfqId       String
+  rfq         Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendorId    String
+  vendor      Vendor @relation(fields: [vendorId], references: [id])
+
+  status         QuoteStatus @default(SUBMITTED)
+  revision       Int         @default(1)
+  // client-generated UUID; blocks double-submit on the
+  // same RFQ (replay attack or rep's browser double-click).
+  idempotencyKey String?     @unique
+
+  vendorReference String?
+  respondentName  String?
+  respondentEmail String?
+
+  subtotal      Decimal @default(0) @db.Decimal(19, 4)
+  taxAmount     Decimal @default(0) @db.Decimal(19, 4)
+  freightAmount Decimal @default(0) @db.Decimal(19, 4)
+  total         Decimal @default(0) @db.Decimal(19, 4)
+
+  currency     String    @default("USD")
+  validUntil   DateTime?
+  leadTimeDays Int?
+  terms        String?
+  notes        String?
+
+  // Private Vercel Blob (signed-URL on read). The
+  // URL is a private-blob URL; we never expose it
+  // raw to the browser. vendorQuote.attachmentUrl is
+  // only ever read by authed staff through the signed
+  // URL helper in lib/procurement/attachments.
+  attachmentUrl  String?
+  attachmentName String?
+
+  lines VendorQuoteLine[]
+  po    PurchaseOrder?
+
+  submittedAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, rfqId])
+  @@index([workspaceId, vendorId, submittedAt])
+  @@index([workspaceId, status])
+}
+
+model VendorQuoteLine {
+  id          String            @id @default(cuid())
+  workspaceId String
+  quoteId     String
+  quote       VendorQuote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  // null for substitutions (the vendor is offering
+  // something that wasn't in the original list).
+  listLineId  String?
+  listLine    MaterialListLine? @relation(fields: [listLineId], references: [id])
+
+  position    Int
+  description String
+  vendorSku   String?
+  quantity    Decimal  @db.Decimal(19, 4)
+  uom         String   @default("EA")
+  unitPrice   Decimal? @db.Decimal(19, 4)
+  lineTotal   Decimal? @db.Decimal(19, 4)
+
+  available    Boolean @default(true)
+  leadTimeDays Int?
+
+  // substitution: vendor offers something different
+  isSubstitute   Boolean @default(false)
+  substituteNote String?
+
+  notes String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, quoteId])
+}
+
+model PurchaseOrder {
+  id          String @id @default(cuid())
+  workspaceId String
+  number      String // "PO-2026-0001"
+
+  vendorId String
+  vendor   Vendor       @relation(fields: [vendorId], references: [id])
+  quoteId  String?      @unique
+  quote    VendorQuote? @relation(fields: [quoteId], references: [id])
+
+  // nullable in Phase 1 (pilot scope). Phase 2 makes
+  // this effectively required at issue time so the
+  // PO rolls up to a project for cost tracking.
+  projectId String?
+  costCode  String?
+
+  status PoStatus @default(DRAFT)
+
+  subtotal      Decimal @default(0) @db.Decimal(19, 4)
+  taxAmount     Decimal @default(0) @db.Decimal(19, 4)
+  freightAmount Decimal @default(0) @db.Decimal(19, 4)
+  total         Decimal @default(0) @db.Decimal(19, 4)
+  currency      String  @default("USD")
+
+  terms    String?
+  shipTo   String?
+  neededBy DateTime?
+  notes    String?
+
+  // Approval: PM or ADMIN signs off before ISSUED.
+  // We store the approver + when for audit; the
+  // PENDING_APPROVAL → ISSUED transition is the gate.
+  approvedById   String?
+  approvedAt     DateTime?
+  issuedAt       DateTime?
+  issuedBy       String?
+  acknowledgedAt DateTime?
+  pdfUrl         String?
+
+  lines POLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([workspaceId, vendorId])
+  @@index([workspaceId, projectId])
+  @@index([workspaceId, approvedAt])
+}
+
+model POLine {
+  id          String        @id @default(cuid())
+  workspaceId String
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  position    Int
+  itemId      String?
+  description String
+  vendorSku   String?
+  quantity    Decimal       @db.Decimal(19, 4)
+  uom         String        @default("EA")
+  unitPrice   Decimal       @db.Decimal(19, 4)
+  lineTotal   Decimal       @db.Decimal(19, 4)
+  notes       String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, poId])
+}
+
+// APPEND-ONLY LEDGER — never update, never delete. This
+// is the long-term value of the whole module. Every priced
+// quote line writes one row. The "moat" is the history
+// we accumulate over time.
+model PriceObservation {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  itemId   String?
+  item     Item?   @relation(fields: [itemId], references: [id])
+  vendorId String
+  vendor   Vendor  @relation(fields: [vendorId], references: [id])
+
+  // denormalised so history survives item/vendor edits
+  descriptionSnapshot String
+  vendorSkuSnapshot   String?
+
+  unitPrice Decimal  @db.Decimal(19, 4)
+  uom       String
+  quantity  Decimal? @db.Decimal(19, 4) // qty break matters
+
+  source      PriceSource
+  sourceRefId String? // quoteId / poId
+  observedAt  DateTime    @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, itemId, observedAt(sort: Desc)])
+  @@index([workspaceId, vendorId, observedAt(sort: Desc)])
+  @@index([workspaceId, source, observedAt(sort: Desc)])
+}
+
+// Race-safe gapless per-workspace/year document numbering.
+// Incrementing this in the same transaction as the RFQ/PO
+// create guarantees no two docs get the same number even
+// under concurrent clicks. The primary key is the
+// (workspace, type, period) tuple.
+model DocCounter {
+  workspaceId String
+  docType     String // "RFQ" | "PO"
+  period      String // "2026"
+  value       Int    @default(0)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, docType, period])
+}
+
+// Postgres-backed rate limit. We have no Redis in the
+// stack today, and this is fine at the volume we expect
+// (a vendor portal doesn't see thousands of req/s).
+// A nightly cron purges rows older than 1 day.
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
 }

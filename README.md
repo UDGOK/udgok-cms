@@ -56,7 +56,39 @@ pnpm db:push
 3. Copy the API key into `.env` as `RESEND_API_KEY`
 4. Set `RESEND_FROM_ADDRESS` to something like `noreply@udgok.app`
 
-### 6. Run the dev server
+### 6. Procurement / RFQ environment
+
+The procurement module (vendors, RFQs, POs) requires a few additional env vars.
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `RESEND_API_KEY` | Yes (Phase 2) | Same Resend API key as above |
+| `PROCUREMENT_FROM_EMAIL` | Yes (Phase 2) | From-address used on RFQ emails. e.g. `RFQ <noreply@udgok.com>`. Must be on a domain whose SPF/DKIM/DMARC passes Resend's checks. |
+| `PROCUREMENT_FROM_NAME` | No | Default: `UDGOK Construction`. |
+| `APP_HASH_SALT` | Yes (Phase 2) | 32+ random bytes. Used to hash vendor-portal IPs and the RFQ token at rest. Generate with `openssl rand -base64 32`. **Never rotate without a migration** — old IP hashes will lose their correlation. |
+| `CRON_SECRET` | Yes (cron jobs) | Bearer token for the cron endpoint that times out RFQs. Any 32+ char random string. |
+
+Without these, the Phase 1 pages (vendors, items, material lists) work fine; only the
+RFQ send path (Phase 2) and the cron job that auto-times-out SENT RFQs require them.
+
+#### Email deliverability (P0 for first real RFQ)
+
+Before sending the first real RFQ to a real vendor:
+
+1. In your DNS provider, add the SPF / DKIM / DMARC records Resend asks for on the
+   `udgok.com` (or whichever you choose) domain.
+2. Verify the records pass with `nslookup -type=txt udgok.com` and
+   `nslookup -type=txt resend._domainkey.udgok.com`.
+3. Send a test RFQ to your own gmail/outlook and confirm it lands in Inbox, not Spam.
+4. Then flip the workspace to using the verified domain.
+
+#### Cron-job Vercel source-IP allowlist (defense-in-depth)
+
+Even with a bearer token, the cron endpoint should only accept Vercel source IPs.
+Allow-list: `23.227.148.0/22` (covers `23.227.148.0`–`23.227.151.255`).
+Optionally also `76.76.21.0/24`.
+
+### 7. Run the dev server
 
 ```bash
 pnpm dev
@@ -84,7 +116,9 @@ Open http://localhost:3000.
 
 ```
 /app
-  /api/webhooks/clerk   Clerk webhook handler (Task 4)
+  /api/webhooks/clerk   Clerk webhook handler
+  /q                     Vendor portal (public, token-auth)  ← procurement
+  /api/q                 Vendor portal submit endpoint        ← procurement
   /(app)                 Authenticated app
   /(auth)                Sign-in / sign-up
 /components
@@ -95,8 +129,10 @@ Open http://localhost:3000.
   /db                    Prisma client
   /auth                  Clerk helpers, RBAC
   /workspace             Workspace context
+  /procurement           Vendor + RFQ + PO + doc numbering     ← procurement
 /prisma
-  schema.prisma          Full v1 schema
+  schema.prisma          Full v6 schema (incl. procurement)
+  /migrations            Prisma migrations
 /docs
   /superpowers/specs     Design spec
   /superpowers/plans     Implementation plan

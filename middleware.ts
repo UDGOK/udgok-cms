@@ -57,6 +57,14 @@ const isPublicRoute = createRouteMatcher([
   '/api/subs/(.*)/documents',
   '/api/projects/(.*)/bim',
   '/api/projects/(.*)/photos/upload',
+  // ---- PROCUREMENT / VENDOR PORTAL ----
+  // Public, token-based vendor RFQ portal. The token in
+  // /q/:token is the credential — no Clerk session.
+  // Same-origin + frame-ancestors 'none' + form-action 'self'
+  // are already in the CSP. The /api/q/ namespace is the
+  // vendor's view + submit endpoints (token-authed).
+  '/q/(.*)',
+  '/api/q/(.*)',
   // Static assets
   '/manifest.json',
   '/sw.js',

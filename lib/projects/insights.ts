@@ -360,6 +360,20 @@ export async function getProjectWithRelations(workspaceId: string, id: string) {
       bimTakeoffs: {
         orderBy: { createdAt: 'desc' },
       },
+      // The estimate that was approved + converted into
+      // this project. Used to show the "Seed from
+      // estimate" banner for projects that were created
+      // before the convert action learned to seed
+      // divisions + tasks. null for projects that came
+      // from a Won deal (no estimate) or were created
+      // directly.
+      sourceEstimate: {
+        select: {
+          id: true,
+          number: true,
+          lineItems: { select: { id: true } },
+        },
+      },
     },
   });
   return project;

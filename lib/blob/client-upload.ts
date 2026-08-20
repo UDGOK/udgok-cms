@@ -299,11 +299,14 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
       // transfer.
       //
       // Also: while we're waiting for the first progress
-      // event, tick a fake "indeterminate" progress of 1%
-      // every second so the bar doesn't look stuck at 0
-      // for a 26KB PDF (which uploads fast enough that
-      // the real progress event may never fire — the
-      // upload completes between event-loop ticks).
+      // event, tick a fake "indeterminate" progress of 5%
+      // every 200ms so the bar never looks frozen — even
+      // if the @vercel/blob client's fetch-streams
+      // transport never fires (which can happen for very
+      // small or very fast uploads where the entire
+      // payload streams through one tick). Once the
+      // first real progress event lands (firstProgressAt
+      // gets set), the real percentage takes over.
       let lastProgressAt = Date.now();
       let firstProgressAt: number | null = null;
       let heartbeatCleared = false;
@@ -325,20 +328,20 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
           });
           return;
         }
-        // First 4 seconds with no progress events: tick
-        // the bar to 1% so the user sees it's not totally
-        // frozen. Stop ticking once real events arrive
-        // (firstProgressAt is set). This is a UX detail
-        // — for tiny files the real upload may complete
-        // in <100ms with no events, so the bar would
-        // otherwise jump straight from 0% to 100%.
-        if (firstProgressAt === null) {
+        // Before any real progress event, tick the bar
+        // to 5% then 10% then 15% etc. (every 200ms) so
+        // the user always sees motion. Capped at 50%
+        // so we don't get ahead of reality. As soon as
+        // a real progress event fires, the bar takes
+        // over and reports the real percentage.
+        if (firstProgressAt === null && Date.now() - lastProgressAt < 5_000) {
           setState((s) => {
-            if (s.progress > 0) return s;
-            return { ...s, progress: 1 };
+            if (s.phase === 'uploading' || s.phase === 'finalizing') return s;
+            const next = Math.min(50, (s.progress || 0) + 5);
+            return { ...s, progress: next, uploadedBytes: 0, totalBytes: s.totalBytes || file.size };
           });
         }
-      }, 1_000);
+      }, 200);
 
       const onProgressTick = (loaded: number, total: number) => {
         lastProgressAt = Date.now();

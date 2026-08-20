@@ -37,7 +37,7 @@ import { getWorkspace } from '@/lib/workspace/get-workspace';
 const DRAFT_ROLES = ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR'] as const;
 
 export type EstimateActionResult =
-  | { ok: true; id: string; shareToken: string | null }
+  | { ok: true; id: string; shareToken: string | null; seededLineItemCount?: number }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
 // =====================================================================
@@ -508,6 +508,22 @@ export async function convertEstimateToProjectAction(
       // fall back to the estimate title.
       pendingProjectName: true,
       pendingProjectCode: true,
+      // The line items drive the project schedule of
+      // values (ProjectDivision) and the task list
+      // (Task) on the new project.
+      lineItems: {
+        orderBy: { position: 'asc' },
+        select: {
+          id: true,
+          position: true,
+          divisionCode: true,
+          description: true,
+          quantity: true,
+          unit: true,
+          unitPrice: true,
+          lineTotal: true,
+        },
+      },
     },
   });
   if (!est) return { ok: false, error: 'Estimate not found' };
@@ -518,11 +534,11 @@ export async function convertEstimateToProjectAction(
     return { ok: false, error: 'Already converted' };
   }
 
-  // Create the project + stamp the estimate in a single
-  // transaction. The new project is ACTIVE and the
-  // estimate moves to CONVERTED. We don't auto-create
-  // CSI divisions from the line items — the admin adds
-  // those via the standard project flow after conversion.
+  // Create the project + stamp the estimate + seed
+  // the schedule of values + tasks from the line
+  // items, all in a single transaction. The new
+  // project is ACTIVE and the estimate moves to
+  // CONVERTED.
   //
   // Naming: prefer pendingProjectName (admin set this
   // explicitly at estimate creation), then estimate
@@ -550,6 +566,65 @@ export async function convertEstimateToProjectAction(
       },
       select: { id: true },
     });
+
+    // Seed the schedule of values (ProjectDivision)
+    // from the line items. Group by divisionCode so
+    // multiple line items under the same CSI code
+    // become one division with the rolled-up budget.
+    // Line items without a code get bucketed under
+    // "GEN" (general) so nothing gets dropped.
+    if (est.lineItems.length > 0) {
+      const byCode = new Map<
+        string,
+        { trade: string; budget: number; sortOrder: number }
+      >();
+      for (const li of est.lineItems) {
+        const code = (li.divisionCode ?? 'GEN').trim() || 'GEN';
+        const existing = byCode.get(code);
+        if (existing) {
+          existing.budget += parseFloat(li.lineTotal.toString());
+        } else {
+          byCode.set(code, {
+            trade: li.description,
+            budget: parseFloat(li.lineTotal.toString()),
+            sortOrder: li.position,
+          });
+        }
+      }
+      let order = 0;
+      for (const [code, v] of byCode) {
+        await tx.projectDivision.create({
+          data: {
+            projectId: newProject.id,
+            code,
+            trade: v.trade,
+            budget: Math.round(v.budget * 100) / 100,
+            sortOrder: order++,
+          },
+        });
+      }
+
+      // Seed the Tasks from the same line items, one
+      // task per line. The task title is the line item
+      // description; the priority is NORMAL and status
+      // is TODO. Assignees are left null so the PM can
+      // hand them out after the project starts.
+      for (const li of est.lineItems) {
+        await tx.task.create({
+          data: {
+            workspaceId: workspace.id,
+            projectId: newProject.id,
+            clientId: est.clientId,
+            title: li.description,
+            description: `${li.quantity.toString()} ${li.unit} @ $${li.unitPrice.toString()}/unit (from estimate ${est.number})`,
+            status: 'TODO',
+            priority: 'NORMAL',
+            createdById: userId,
+          },
+        });
+      }
+    }
+
     await tx.estimate.update({
       where: { id: est.id },
       data: {
@@ -564,7 +639,17 @@ export async function convertEstimateToProjectAction(
   revalidatePath(`/w/${workspaceSlug}/estimates`);
   revalidatePath(`/w/${workspaceSlug}/estimates/${est.id}`);
   revalidatePath(`/w/${workspaceSlug}/projects`);
-  return { ok: true, id: est.id, projectId: project.id, shareToken: null };
+  // Also revalidate the new project page so the
+  // newly-seeded divisions + tasks show up
+  // immediately on the next request.
+  revalidatePath(`/w/${workspaceSlug}/projects/${project.id}`);
+  return {
+    ok: true,
+    id: est.id,
+    projectId: project.id,
+    shareToken: null,
+    seededLineItemCount: est.lineItems.length,
+  };
 }
 
 // =====================================================================
@@ -617,4 +702,158 @@ export async function voidEstimateAction(
 
   revalidatePath(`/w/${workspaceSlug}/estimates`);
   return { ok: true, id: est.id, shareToken: null };
+}
+
+// =====================================================================
+// seed from estimate (retroactive — for projects created before the
+// convert action learned to seed divisions + tasks)
+// =====================================================================
+
+const seedFromEstimateSchema = z.object({ projectId: z.string().min(1) });
+
+/**
+ * Re-run the line-item seeding logic against an existing
+ * project. The user clicks "Seed from estimate" on a
+ * project that was converted from an estimate before
+ * the convert action learned to seed divisions +
+ * tasks. We:
+ *   1. Find the source estimate (Estimate.convertedProjectId == projectId)
+ *   2. Re-create the ProjectDivision rows (grouped by
+ *      divisionCode, budget = lineTotal, fallback
+ *      trade = line description)
+ *   3. Create one Task per line item
+ *
+ * The transaction deletes any existing ProjectDivision
+ * rows first so this is idempotent. Tasks are appended
+ * (we don't want to delete tasks the user may have
+ * already started), but we skip if a task with the same
+ * title already exists for the project.
+ */
+export async function seedFromEstimateAction(
+  workspaceSlug: string,
+  _prev: EstimateActionResult | undefined,
+  formData: FormData,
+): Promise<EstimateActionResult & { divisionCount?: number; taskCount?: number }> {
+  const { auth } = await import('@clerk/nextjs/server');
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: 'Not signed in' };
+
+  const parsed = seedFromEstimateSchema.safeParse({
+    projectId: formData.get('projectId'),
+  });
+  if (!parsed.success) return { ok: false, error: 'Invalid request' };
+
+  const workspace = await getWorkspace(workspaceSlug);
+  await requireRole(workspace.id, ['OWNER', 'ADMIN', 'PM']);
+
+  // Find the source estimate for this project.
+  const est = await prisma.estimate.findFirst({
+    where: { convertedProjectId: parsed.data.projectId, workspaceId: workspace.id },
+    select: {
+      id: true,
+      clientId: true,
+      number: true,
+      lineItems: {
+        orderBy: { position: 'asc' },
+        select: {
+          id: true,
+          position: true,
+          divisionCode: true,
+          description: true,
+          quantity: true,
+          unit: true,
+          unitPrice: true,
+          lineTotal: true,
+        },
+      },
+    },
+  });
+  if (!est) {
+    return {
+      ok: false,
+      error: 'No source estimate found for this project. This action only works on projects that were created by converting an estimate.',
+    };
+  }
+  if (est.lineItems.length === 0) {
+    return { ok: false, error: 'The source estimate has no line items to seed from.' };
+  }
+
+  const counts = await prisma.$transaction(async (tx) => {
+    // Wipe any existing divisions so this is idempotent.
+    // Tasks are kept (the user may have started some).
+    await tx.projectDivision.deleteMany({
+      where: { projectId: parsed.data.projectId },
+    });
+
+    // Group by divisionCode. Same logic as convert.
+    const byCode = new Map<
+      string,
+      { trade: string; budget: number; sortOrder: number }
+    >();
+    for (const li of est.lineItems) {
+      const code = (li.divisionCode ?? 'GEN').trim() || 'GEN';
+      const existing = byCode.get(code);
+      if (existing) {
+        existing.budget += parseFloat(li.lineTotal.toString());
+      } else {
+        byCode.set(code, {
+          trade: li.description,
+          budget: parseFloat(li.lineTotal.toString()),
+          sortOrder: li.position,
+        });
+      }
+    }
+    let order = 0;
+    for (const [code, v] of byCode) {
+      await tx.projectDivision.create({
+        data: {
+          projectId: parsed.data.projectId,
+          code,
+          trade: v.trade,
+          budget: Math.round(v.budget * 100) / 100,
+          sortOrder: order++,
+        },
+      });
+    }
+    const divisionCount = byCode.size;
+
+    // Append a task per line item, but only if no task
+    // with the same title exists yet. We don't want to
+    // clobber tasks the user has already started.
+    const existingTaskTitles = new Set(
+      (
+        await tx.task.findMany({
+          where: { projectId: parsed.data.projectId },
+          select: { title: true },
+        })
+      ).map((t) => t.title),
+    );
+    let taskCount = 0;
+    for (const li of est.lineItems) {
+      if (existingTaskTitles.has(li.description)) continue;
+      await tx.task.create({
+        data: {
+          workspaceId: workspace.id,
+          projectId: parsed.data.projectId,
+          clientId: est.clientId,
+          title: li.description,
+          description: `${li.quantity.toString()} ${li.unit} @ $${li.unitPrice.toString()}/unit (from estimate ${est.number})`,
+          status: 'TODO',
+          priority: 'NORMAL',
+          createdById: userId,
+        },
+      });
+      taskCount++;
+    }
+    return { divisionCount, taskCount };
+  });
+
+  revalidatePath(`/w/${workspaceSlug}/projects/${parsed.data.projectId}`);
+  return {
+    ok: true,
+    id: est.id,
+    shareToken: null,
+    divisionCount: counts.divisionCount,
+    taskCount: counts.taskCount,
+  };
 }

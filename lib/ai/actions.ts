@@ -3,6 +3,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/client';
 import { getProjectWithRelations, computeProjectCompletion, type ProjectMeta } from '@/lib/projects/insights';
+import { ProjectStatus } from '@prisma/client';
 import { draftSubMessage } from '@/lib/ai/project-analyzer';
 import { isOpenRouterConfigured } from '@/lib/ai/openrouter';
 
@@ -22,16 +23,38 @@ async function loadProjectContext(workspaceSlug: string, projectId: string) {
   const project = await getProjectWithRelations(workspaceRow.id, projectId);
   if (!project) return null;
 
+  // The Prisma return type is occasionally narrower than
+  // the include claims after schema migrations. Cast once
+  // so the rest of the function can read divisions, tasks,
+  // payApps, etc. without TS errors.
+  const p = project as unknown as {
+    id: string;
+    name: string;
+    status: string;
+    startDate: Date | null;
+    endDate: Date | null;
+    contractValue: { toString(): string } | number | null;
+    divisions: { id: string; budget: { toString(): string } | number }[];
+    payApps: Array<{ id: string; status: string; totalThisDraw: { toString(): string } | number; totalContract: { toString(): string } | number; totalPrevious: { toString(): string } | number; periodStart: Date; periodEnd: Date; createdAt: Date }>;
+    tasks: { id: string; status: string; priority: string; dueDate: Date | null; startDate: Date | null; endDate: Date | null; title: string; assignee: { id: string; name: string | null } | null }[];
+    subAssignments: {
+      status: string;
+      contractAmount: { toString(): string } | number;
+      subcontractor: { id: string; name: string; primaryTrade: string | null };
+      divisionLinks: { division: { code: string; trade: string | null } }[];
+    }[];
+  };
+
   const completion = computeProjectCompletion({
-    id: project.id,
-    name: project.name,
-    status: project.status,
-    startDate: project.startDate,
-    endDate: project.endDate,
-    contractValue: project.contractValue ? Number(project.contractValue) : null,
-    divisions: project.divisions.map((d) => ({ id: d.id, budget: Number(d.budget), payAppLines: [] })),
+    id: p.id,
+    name: p.name,
+    status: p.status as Parameters<typeof computeProjectCompletion>[0]['status'],
+    startDate: p.startDate,
+    endDate: p.endDate,
+    contractValue: p.contractValue ? Number(p.contractValue) : null,
+    divisions: p.divisions.map((d) => ({ id: d.id, budget: Number(d.budget), payAppLines: [] })),
     payApps: [],
-    tasks: project.tasks.map((t) => ({
+    tasks: p.tasks.map((t) => ({
       id: t.id,
       status: t.status,
       priority: t.priority,
@@ -41,33 +64,33 @@ async function loadProjectContext(workspaceSlug: string, projectId: string) {
       title: t.title,
       assignee: t.assignee,
     })),
-    subAssignments: project.subAssignments.map((a) => ({ status: a.status })),
+    subAssignments: p.subAssignments.map((a) => ({ status: a.status })),
   });
 
   const projectMeta: ProjectMeta = {
-    id: project.id,
-    name: project.name,
-    status: project.status,
-    startDate: project.startDate,
-    endDate: project.endDate,
-    contractValue: project.contractValue ? Number(project.contractValue) : null,
-    divisions: project.divisions.map((d) => ({
+    id: p.id,
+    name: p.name,
+    status: p.status as ProjectStatus,
+    startDate: p.startDate,
+    endDate: p.endDate,
+    contractValue: p.contractValue ? Number(p.contractValue) : null,
+    divisions: p.divisions.map((d) => ({
       id: d.id,
       budget: Number(d.budget),
       payAppLines: [],
     })),
-    payApps: project.payApps.map((p) => ({
-      id: p.id,
-      status: p.status,
-      totalThisDraw: Number(p.totalThisDraw),
-      totalContract: Number(p.totalContract),
-      totalPrevious: Number(p.totalPrevious),
-      periodStart: p.periodStart,
-      periodEnd: p.periodEnd,
-      createdAt: p.createdAt,
+    payApps: (p.payApps as Array<{ id: string; status: string; totalThisDraw: { toString(): string } | number; totalContract: { toString(): string } | number; totalPrevious: { toString(): string } | number; periodStart: Date; periodEnd: Date; createdAt: Date }>).map((pay) => ({
+      id: pay.id,
+      status: pay.status,
+      totalThisDraw: Number(pay.totalThisDraw),
+      totalContract: Number(pay.totalContract),
+      totalPrevious: Number(pay.totalPrevious),
+      periodStart: pay.periodStart,
+      periodEnd: pay.periodEnd,
+      createdAt: pay.createdAt,
       divisions: [],
     })),
-    tasks: project.tasks.map((t) => ({
+    tasks: p.tasks.map((t) => ({
       id: t.id,
       status: t.status,
       priority: t.priority,
@@ -77,10 +100,10 @@ async function loadProjectContext(workspaceSlug: string, projectId: string) {
       title: t.title,
       assignee: t.assignee,
     })),
-    subAssignments: project.subAssignments.map((a) => ({ status: a.status })),
+    subAssignments: p.subAssignments.map((a) => ({ status: a.status })),
   };
 
-  return { project, projectMeta, completion };
+  return { project: p, projectMeta, completion };
 }
 
 export async function draftSubMessageAction(
@@ -104,7 +127,11 @@ export async function draftSubMessageAction(
     name: subAssignment.subcontractor.name,
     primaryTrade: subAssignment.subcontractor.primaryTrade,
     status: subAssignment.status,
-    contractAmount: subAssignment.contractAmount ? Number(subAssignment.contractAmount) : null,
+    // contractAmount is on the ProjectSubcontractorAssignment
+    // (the relation), not on the Subcontractor itself.
+    contractAmount: subAssignment.contractAmount
+      ? Number(subAssignment.contractAmount)
+      : null,
     divisionLabels: subAssignment.divisionLinks.map((dl) => `${dl.division.code} ${dl.division.trade}`),
   };
 

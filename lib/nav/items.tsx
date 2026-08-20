@@ -172,6 +172,25 @@ export const navItems: NavItem[] = [
     ),
   },
   {
+    // Procurement: vendors, material lists, RFQs, POs.
+    // Phase 1 ships vendors + items + material lists.
+    // Phase 2 adds the RFQ loop + quote compare + PO.
+    // Lives near the end of the workspace section so
+    // it doesn't crowd the day-to-day tabs (projects,
+    // tasks, timesheets) — buying is a weekly/cycle
+    // workflow, not constant.
+    href: (s) => `/w/${s}/procurement`,
+    label: 'Procurement',
+    section: 'workspace',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 3h2l2 13h12l2-9H6" />
+        <circle cx="9" cy="20" r="1.5" />
+        <circle cx="17" cy="20" r="1.5" />
+      </svg>
+    ),
+  },
+  {
     href: (s) => `/w/${s}/settings`,
     label: 'Settings',
     section: 'settings',
