@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { issuePoAction, cancelPoAction } from '@/lib/procurement/po-actions';
+import { PoEditor } from './PoEditor';
 
 const STATUS_COLOR: Record<string, string> = {
   DRAFT: 'bg-ink-50/15 text-ink-50',
@@ -48,6 +49,7 @@ interface PoDto {
 export function PoDetailView({
   po,
   workspaceId,
+  workspaceSlug,
 }: {
   po: PoDto;
   workspaceId: string;
@@ -56,6 +58,7 @@ export function PoDetailView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   function issue() {
     if (!confirm(`Issue ${po.number}? It becomes a binding commitment to ${po.vendor.name}.`)) return;
@@ -110,6 +113,19 @@ export function PoDetailView({
           >
             ↓ Download PDF
           </a>
+          {po.status === 'PENDING_APPROVAL' || po.status === 'DRAFT' ? (
+            <button
+              type="button"
+              onClick={() => setEditing((v) => !v)}
+              className={`px-3 py-2 border-2 text-[11px] font-extrabold uppercase tracking-[0.12em] ${
+                editing
+                  ? 'bg-ink text-paper border-ink'
+                  : 'border-ink hover:bg-ink hover:text-paper'
+              }`}
+            >
+              {editing ? 'Close editor' : 'Edit PO'}
+            </button>
+          ) : null}
           {po.status === 'PENDING_APPROVAL' ? (
             <>
               <button
@@ -145,6 +161,32 @@ export function PoDetailView({
         <Field label="Issued" value={po.issuedAt ? new Date(po.issuedAt).toLocaleString() : '—'} />
       </div>
 
+      {editing ? (
+        <div className="mb-4">
+          <PoEditor
+            workspaceId={workspaceId}
+            poId={po.id}
+            status={po.status}
+            initialLines={po.lines.map((l) => ({
+              id: l.id,
+              description: l.description,
+              quantity: l.quantity,
+              uom: l.uom,
+              vendorSku: l.vendorSku,
+              unitPrice: l.unitPrice,
+              lineTotal: l.lineTotal,
+              notes: l.notes,
+            }))}
+            initialShipTo={po.shipTo}
+            initialTerms={po.terms}
+            initialNotes={po.notes}
+            initialFreight={po.freightAmount}
+            initialTax={po.taxAmount}
+          />
+        </div>
+      ) : null}
+
+      {!editing ? (
       <div className="bg-paper border-2 border-ink overflow-x-auto mb-4">
         <table className="w-full text-[12px]">
           <thead>
@@ -223,6 +265,7 @@ export function PoDetailView({
           </tfoot>
         </table>
       </div>
+      ) : null}
 
       {po.notes ? (
         <div className="bg-cream-2 border border-line p-3 text-[12px] text-ink-70 whitespace-pre-wrap">
