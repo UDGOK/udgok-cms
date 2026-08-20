@@ -41,6 +41,24 @@ vi.mock('@/lib/db/client', () => ({
   },
 }));
 
+// The page now also calls findOpenCheckIn (for the
+// signed-in path) to show the user's current state. We
+// mock the helper directly so the test doesn't have to
+// thread a prisma.checkInEvent mock through the deep
+// import path. Default: no open event.
+const { findOpenCheckInMock } = vi.hoisted(() => ({
+  findOpenCheckInMock: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('@/lib/checkins/queries', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/checkins/queries')>(
+    '@/lib/checkins/queries',
+  );
+  return {
+    ...actual,
+    findOpenCheckIn: (...a: unknown[]) => findOpenCheckInMock(...a),
+  };
+});
+
 // next/navigation
 vi.mock('next/navigation', () => ({
   notFound: () => {
@@ -122,8 +140,10 @@ describe('PublicCheckInPage — active code', () => {
     // "Check in at" eyebrow + project name
     expect(screen.getByText(/check in at/i)).toBeTruthy();
     expect(screen.getByText('Smith Residence')).toBeTruthy();
-    // The button label
-    expect(screen.getByRole('button', { name: /check in \/ check out/i })).toBeTruthy();
+    // Anonymous path with no open event → button reads
+    // "Check in" (the toggle to "Check out" only appears
+    // for signed-in users who already have an open event).
+    expect(screen.getByRole('button', { name: /^check in$/i })).toBeTruthy();
     // The sub-picker should be visible (we're anonymous)
     expect(screen.getByLabelText(/pick your subcontractor/i)).toBeTruthy();
   });
@@ -143,6 +163,9 @@ describe('PublicCheckInPage — active code', () => {
       token: 'abc123token',
       project: baseProject,
     });
+    // No open event → "Check in" button (signed-in path
+    // still defaults to check-in when off site).
+    findOpenCheckInMock.mockResolvedValue(null);
 
     const el = await PublicCheckInPage(baseProps);
     render(el);
@@ -152,6 +175,43 @@ describe('PublicCheckInPage — active code', () => {
     expect(screen.getByText('bob@acme.com')).toBeTruthy();
     // Sub-picker should NOT be visible in the signed-in path
     expect(screen.queryByLabelText(/pick your subcontractor/i)).toBeNull();
+    // Button reads "Check in" when off site
+    expect(screen.getByRole('button', { name: /^check in$/i })).toBeTruthy();
+    // "On site" banner should NOT be present
+    expect(screen.queryByText(/you.re on site/i)).toBeNull();
+  });
+
+  it('renders the on-site banner and a Check out button when the user is already on site', async () => {
+    authMock.mockResolvedValue({ userId: 'user_emp' });
+    userFindUnique.mockResolvedValue({
+      id: 'user_emp',
+      name: 'Bob Builder',
+      email: 'bob@acme.com',
+    });
+    codeFindUnique.mockResolvedValue({
+      id: 'code_1',
+      label: 'main gate',
+      isActive: true,
+      workspaceId: 'ws_1',
+      token: 'abc123token',
+      project: baseProject,
+    });
+    // User already has an open check-in → "Check out" + banner
+    findOpenCheckInMock.mockResolvedValue({
+      id: 'evt_1',
+      checkedInAt: new Date('2026-08-19T14:00:00Z'),
+      checkedOutAt: null,
+    });
+
+    const el = await PublicCheckInPage(baseProps);
+    render(el);
+
+    // Banner: "You're on site" + since-time + "tap below to check out"
+    expect(screen.getByText(/you.re on site/i)).toBeTruthy();
+    // The "since" copy includes the formatted time
+    expect(screen.getByText(/since/i)).toBeTruthy();
+    // Button label flips to "Check out" when on site
+    expect(screen.getByRole('button', { name: /^check out$/i })).toBeTruthy();
   });
 });
 
@@ -172,10 +232,9 @@ describe('PublicCheckInPage — retired code', () => {
     // The retired shell uses <RetiredCodeShell> which
     // shows the workspace name, the "Code retired"
     // heading, and a copy block. The page never renders
-    // the form, so the "Check in / Check out" button
-    // should not exist.
+    // the form, so the "Check in" button should not exist.
     expect(screen.getAllByText(/code retired/i).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: /check in \/ check out/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^check in$/i })).toBeNull();
   });
 });
 

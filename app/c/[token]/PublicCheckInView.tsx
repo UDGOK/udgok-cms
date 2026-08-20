@@ -18,6 +18,18 @@ interface PublicCheckInViewProps {
   codeLabel: string;
   isActive: boolean;
   signedInUser: { id: string; name: string; email: string } | null;
+  /**
+   * The signed-in user's currently-open check-in on this
+   * project, if any. When present, the page shows "You're
+   * on site since 2:14pm" and the action button reads
+   * "Check out". When null, the button reads "Check in".
+   *
+   * Anonymous (sub-foreman) path always gets null here
+   * because the picked sub isn't known server-side. That
+   * path falls back to a generic "Check in" button; a
+   * second scan toggles to "Check out".
+   */
+  currentOpenEvent: { id: string; checkedInAt: string; checkedInAtLabel: string } | null;
   subs: { id: string; name: string; primaryTrade: string | null }[];
 }
 
@@ -41,6 +53,7 @@ export function PublicCheckInView({
   codeLabel,
   isActive,
   signedInUser,
+  currentOpenEvent,
   subs,
 }: PublicCheckInViewProps) {
   const [result, setResult] = useState<CheckInResult | null>(null);
@@ -155,8 +168,23 @@ export function PublicCheckInView({
           className="bg-paper border-2 border-ink p-5"
           onFocus={requestGeolocation}
         >
+          {currentOpenEvent ? (
+            <div className="mb-4 bg-success/10 border-2 border-success p-3">
+              <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-success font-extrabold">
+                ✓ You{'\u2019'}re on site
+              </div>
+              <div className="text-[12px] text-ink-70 mt-0.5">
+                Since {currentOpenEvent.checkedInAtLabel}. Tap below to check out.
+              </div>
+            </div>
+          ) : null}
+
           {signedInUser ? (
-            <SignedInForm signedInUser={signedInUser} error={result && !result.ok ? result.error : null} />
+            <SignedInForm
+              signedInUser={signedInUser}
+              error={result && !result.ok ? result.error : null}
+              currentOpenEvent={currentOpenEvent}
+            />
           ) : (
             <AnonymousForm
               subs={subs}
@@ -189,6 +217,20 @@ export function PublicCheckInView({
           button above you record your visit at this check-in
           point.
         </p>
+        {/*
+          For the anonymous (sub-foreman) path, the server
+          doesn't know which sub the visitor is going to pick
+          yet, so we can't pre-resolve their current state.
+          The button defaults to "Check in" and a re-scan
+          (back to this URL) flips to "Check out" — the
+          action's toggle logic handles the rest.
+        */}
+        {!signedInUser ? (
+          <p className="text-[10px] font-mono text-ink-50 mt-2 leading-relaxed">
+            Tip: if you{'\u2019'}re already on site, scan the same QR
+            again to check out.
+          </p>
+        ) : null}
       </main>
     </div>
   );
@@ -197,9 +239,11 @@ export function PublicCheckInView({
 function SignedInForm({
   signedInUser,
   error,
+  currentOpenEvent,
 }: {
   signedInUser: { id: string; name: string; email: string };
   error: string | null;
+  currentOpenEvent: { checkedInAtLabel: string } | null;
 }) {
   return (
     <div>
@@ -215,7 +259,7 @@ function SignedInForm({
         </div>
       ) : null}
 
-      <SubmitButton />
+      <SubmitButton currentOpenEvent={currentOpenEvent} />
     </div>
   );
 }
@@ -288,17 +332,33 @@ function AnonymousForm({
   );
 }
 
-function SubmitButton({ disabled = false }: { disabled?: boolean }) {
+/**
+ * Banner shown above the form when the signed-in user
+ * already has an open check-in on this project. Makes the
+ * current state obvious so the user doesn't tap "Check
+ * in" by mistake when they should be checking out. The
+ * banner also tells them which check-in point they came
+ * in through (e.g. "Main entrance" / "Shop door") so
+ * context isn't lost.
+ */
+
+function SubmitButton({ disabled = false, currentOpenEvent = null }: { disabled?: boolean; currentOpenEvent?: { checkedInAtLabel: string } | null }) {
   // useFormStatus reads the parent <form>'s pending state
   // and disables the button while the action runs.
   const { pending } = useFormStatus();
+  // Toggle the label based on current state. "Check in"
+  // when the user is off site, "Check out" when they're
+  // already on site. For the anonymous path
+  // (currentOpenEvent=null) we default to "Check in" —
+  // the second scan toggles to check out.
+  const actionLabel = currentOpenEvent ? 'Check out' : 'Check in';
   return (
     <button
       type="submit"
       disabled={pending || disabled}
       className="mt-5 w-full min-h-[56px] bg-orange text-paper border-2 border-orange hover:bg-orange-d disabled:opacity-50 text-base font-extrabold uppercase tracking-[0.12em]"
     >
-      {pending ? 'Recording…' : 'Check in / Check out'}
+      {pending ? 'Recording…' : actionLabel}
     </button>
   );
 }

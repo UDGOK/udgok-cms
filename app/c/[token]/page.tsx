@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/client';
-import { findCheckInCodeByToken } from '@/lib/checkins/queries';
+import { findCheckInCodeByToken, findOpenCheckIn } from '@/lib/checkins/queries';
 import { PublicCheckInView } from './PublicCheckInView';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +66,38 @@ export default async function PublicCheckInPage({
     .filter(Boolean)
     .join(', ');
 
+  // For the signed-in path, query the user's current
+  // open check-in on this project so the page can show
+  // "You're on site since 2:14pm" + a "Check out" button
+  // instead of a generic toggle. For the anonymous
+  // sub-foreman path, the picked sub is unknown until the
+  // user selects one in the client; we leave
+  // `currentOpenEvent` null there and the button defaults
+  // to "Check in". Re-scanning after a check-in is the
+  // fallback to check out for the anonymous path.
+  let currentOpenEvent: { id: string; checkedInAt: string; checkedInAtLabel: string } | null = null;
+  if (signedInUser) {
+    const open = await findOpenCheckIn(code.project.id, {
+      userId: signedInUser.id,
+    });
+    if (open) {
+      const since = new Date(open.checkedInAt);
+      currentOpenEvent = {
+        id: open.id,
+        checkedInAt: open.checkedInAt.toISOString(),
+        // Human label: "2:14pm" / "yesterday 9am" / "Mar 4 9:14am"
+        // — relative is nicer for "since X" copy. We compute
+        // a small label here rather than a full RelativeTime
+        // component because the form is mobile-first and a
+        // single line is enough.
+        checkedInAtLabel: since.toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit',
+        }),
+      };
+    }
+  }
+
   return (
     <PublicCheckInView
       token={params.token}
@@ -81,6 +113,7 @@ export default async function PublicCheckInPage({
       codeLabel={code.label}
       isActive={code.isActive}
       signedInUser={signedInUser}
+      currentOpenEvent={currentOpenEvent}
       subs={subs}
     />
   );
