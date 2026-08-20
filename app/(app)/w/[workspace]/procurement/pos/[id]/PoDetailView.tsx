@@ -102,6 +102,14 @@ export function PoDetailView({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href={`/w/${workspaceSlug}/procurement/pos/${po.id}/pdf`}
+            target="_blank"
+            rel="noopener"
+            className="px-3 py-2 border-2 border-ink text-[11px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-paper"
+          >
+            ↓ Download PDF
+          </a>
           {po.status === 'PENDING_APPROVAL' ? (
             <>
               <button

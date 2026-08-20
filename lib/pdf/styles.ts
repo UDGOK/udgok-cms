@@ -56,6 +56,16 @@ export const font = {
   sizeKpi: 18,          // KPI numbers
   sizeKpiBig: 22,       // KPI big numbers
   sizeCoverMeta: 24,    // cover meta big numbers
+  // react-pdf fontFamily values. We use the default
+  // Helvetica family + Times-Roman for serif titles. No
+  // custom fonts shipped (would add 100-400KB per family).
+  body: 'Helvetica',
+  bodyBold: 'Helvetica-Bold',
+  headline: 'Times-Roman',
+  headlineBold: 'Times-Bold',
+  headlineItalic: 'Times-Italic',
+  mono: 'Courier',
+  monoBold: 'Courier-Bold',
 } as const;
 
 export const spacing = {
