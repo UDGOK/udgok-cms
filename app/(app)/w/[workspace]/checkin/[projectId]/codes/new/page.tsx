@@ -25,7 +25,15 @@ export default async function NewCheckInCodePage({
 
   const project = await prisma.project.findFirst({
     where: { id: params.projectId, workspaceId: workspace.id },
-    select: { id: true, name: true, code: true },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      address: true,
+      city: true,
+      state: true,
+      zip: true,
+    },
   });
   if (!project) notFound();
 
@@ -34,6 +42,15 @@ export default async function NewCheckInCodePage({
   // not enforced at the DB level, but duplicate labels
   // would be confusing on the printed sheet).
   const existing = await listCheckInCodesForProject(project.id);
+
+  // The project address, formatted for the sanity-check
+  // line under the GPS capture ("Project address: 123
+  // Main St, Tulsa" — admin checks the GPS they captured
+  // is in the right city).
+  const projectAddress = [project.address, project.city, project.state, project.zip]
+    .map((s) => (s ?? '').trim())
+    .filter(Boolean)
+    .join(', ') || null;
 
   return (
     <div className="max-w-2xl">
@@ -53,6 +70,7 @@ export default async function NewCheckInCodePage({
         projectId={project.id}
         projectName={project.name}
         existingLabels={existing.map((c) => c.label)}
+        projectAddress={projectAddress}
         action={generateCheckInCodeAction}
       />
     </div>

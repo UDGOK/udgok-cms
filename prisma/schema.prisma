@@ -1407,6 +1407,35 @@ model SiteCheckInCode {
   // back to a project without revealing the project id.
   token       String   @unique
   createdById String
+  // =========================================
+  // Bound GPS location (where this QR is installed)
+  // =========================================
+  // Captured at generation time via the admin's phone
+  // GPS, or entered manually for cases where the admin
+  // is at the office. When set, the public check-in
+  // flow compares the visitor's phone GPS to these
+  // coordinates and computes a Haversine distance.
+  // Null = no geofence (legacy codes, or admin skipped
+  // GPS capture). Legacy check-ins are not blocked.
+  lat                    Float?
+  lng                    Float?
+  // Geofence radius in meters. Default 150m covers a
+  // typical single-family construction site including
+  // laydown area + street parking. 0 disables the
+  // distance warning. requireWithinGeofence below
+  // controls hard vs. soft enforcement.
+  geofenceMeters         Int?     @default(150)
+  // Hard enforcement: when true, scans outside the
+  // geofence return an error and don't create a
+  // CheckInEvent. When false (default), the check-in
+  // succeeds but is flagged in the row so the admin
+  // can see who checked in from too far away.
+  requireWithinGeofence  Boolean  @default(false)
+  // The address string the admin saw at the time the
+  // code was generated — helps when re-finding the
+  // sticker in the field. Snapshot of project.address
+  // at the moment of create.
+  addressSnapshot        String?
   // Soft-disable so an admin can retire a sticker without
   // breaking the FK chain on a CheckInEvent that points at
   // it. Existing rows still resolve; new scans reject.
@@ -1460,6 +1489,22 @@ model CheckInEvent {
   checkInLng        Float?
   checkOutLat       Float?
   checkOutLng       Float?
+  // =========================================
+  // Geofence verification (v2 — Aug 2026)
+  // =========================================
+  // Distance in meters between the visitor's phone GPS
+  // and the bound GPS of the SiteCheckInCode that was
+  // scanned. Null = no bound GPS on the code (legacy),
+  // OR the visitor denied geolocation. The admin can
+  // sort/filter by this column to find out-of-area
+  // check-ins.
+  geofenceDistanceMeters Int?
+  // True if the check-in was within the bound geofence
+  // (or if no geofence was set). False if the visitor
+  // was outside the radius AND the check-in was still
+  // allowed (requireWithinGeofence=false). Null when
+  // distance could not be computed.
+  geofenceOk          Boolean?
 
   // =========================================
   // Hours-tracking admin overrides

@@ -396,6 +396,13 @@ function ResultShell({
   onReset: () => void;
 }) {
   const isCheckIn = result.action === 'checked_in';
+  // Show the visitor how far they were from the bound
+  // location — confirms "yes the system knows I'm here"
+  // and warns if they were on the edge.
+  const distance = result.geofenceDistanceMeters;
+  const radius = result.geofenceRadiusMeters;
+  const ok = result.geofenceOk;
+  const showDistance = distance != null && radius != null;
   return (
     <div className="min-h-screen bg-cream-2 flex items-center justify-center p-5">
       <div className="max-w-md w-full bg-paper border-2 border-ink p-6">
@@ -409,7 +416,28 @@ function ResultShell({
           <Row label="Project" value={projectName} />
           <Row label="Who" value={result.whoName} />
           <Row label="Time" value={new Date(result.when).toLocaleString()} />
+          {showDistance ? (
+            <Row
+              label="Distance"
+              value={
+                ok === false
+                  ? `${distance} m · outside ${radius} m`
+                  : `${distance} m · within ${radius} m`
+              }
+            />
+          ) : null}
         </div>
+        {ok === false && isCheckIn ? (
+          <div className="mt-4 bg-warning/15 border-2 border-warning p-3 text-[12px] text-ink leading-snug">
+            <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-warning-d font-extrabold mb-1">
+              ⚠ Out of geofence
+            </div>
+            You{'\u2019'}re {distance} m from this check-in point. The
+            site administrator has been notified. If you{'\u2019'}re
+            actually on site, ask the admin to check the GPS
+            location bound to this sticker.
+          </div>
+        ) : null}
         <p className="text-[11px] text-ink-70 mt-4 leading-relaxed">
           {isCheckIn
             ? 'You\u2019re on the clock. Scan the same QR again when you leave to check out.'

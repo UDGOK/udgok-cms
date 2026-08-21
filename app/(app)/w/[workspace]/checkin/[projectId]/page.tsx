@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { prisma } from '@/lib/db/client';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { googleMapsUrl, formatDistance } from '@/lib/geo/distance';
 import {
   listCheckInCodesForProject,
   listOpenCheckInsForProject,
@@ -140,6 +141,27 @@ export default async function ProjectCheckInPage({
                       <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mt-0.5">
                         Created {c.createdAt.toLocaleDateString()} · {c.createdByName ?? 'admin'}
                       </div>
+                      {c.lat != null && c.lng != null ? (
+                        <div className="mt-1.5 text-[10px] font-mono">
+                          <a
+                            href={googleMapsUrl(c.lat, c.lng)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-orange-d hover:underline"
+                          >
+                            📍 pinned at {c.lat.toFixed(4)}, {c.lng.toFixed(4)}
+                          </a>
+                          <div className="text-ink-50 text-[9px]">
+                            {c.geofenceMeters ?? 150} m radius
+                            {c.requireWithinGeofence ? ' · hard-enforced' : ' · soft warning'}
+                            {c.addressSnapshot ? ` · ${c.addressSnapshot}` : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 text-[10px] font-mono text-ink-30">
+                          no GPS pin (legacy)
+                        </div>
+                      )}
                       <div className="text-[10px] font-mono break-all text-ink-70 mt-2 leading-tight">
                         {url}
                       </div>
@@ -203,6 +225,21 @@ export default async function ProjectCheckInPage({
                     </span>
                   </div>
                   <div className="text-[11px] text-ink-70">at {c.codeLabel}</div>
+                  {c.checkInLat != null && c.checkInLng != null ? (
+                    <a
+                      href={googleMapsUrl(c.checkInLat, c.checkInLng)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-1 text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d hover:underline"
+                    >
+                      📍 {formatCoords(c.checkInLat, c.checkInLng)}
+                      {c.geofenceDistanceMeters != null
+                        ? ` · ${formatDistance(c.geofenceDistanceMeters)}${
+                            c.geofenceOk === false ? ' ⚠ out of range' : ' ✓'
+                          }`
+                        : null}
+                    </a>
+                  ) : null}
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
@@ -239,6 +276,7 @@ export default async function ProjectCheckInPage({
                 <tr>
                   <th className="px-3 py-2">Who</th>
                   <th className="px-3 py-2">Point</th>
+                  <th className="px-3 py-2 hidden md:table-cell">Location</th>
                   <th className="px-3 py-2 hidden sm:table-cell">In</th>
                   <th className="px-3 py-2 hidden sm:table-cell">Out</th>
                   <th className="px-3 py-2 text-right">Duration</th>
@@ -254,6 +292,30 @@ export default async function ProjectCheckInPage({
                       </span>
                     </td>
                     <td className="px-3 py-2 text-ink-70">{c.codeLabel}</td>
+                    <td className="px-3 py-2 hidden md:table-cell font-mono text-[10px]">
+                      {c.checkInLat != null && c.checkInLng != null ? (
+                        <a
+                          href={googleMapsUrl(c.checkInLat, c.checkInLng)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-orange-d hover:underline whitespace-nowrap"
+                        >
+                          {formatCoords(c.checkInLat, c.checkInLng)}
+                          {c.geofenceDistanceMeters != null ? (
+                            <span
+                              className={`ml-1.5 ${
+                                c.geofenceOk === false ? 'text-error font-extrabold' : 'text-ink-50'
+                              }`}
+                            >
+                              {c.geofenceOk === false ? '⚠' : '✓'}
+                              {formatDistance(c.geofenceDistanceMeters)}
+                            </span>
+                          ) : null}
+                        </a>
+                      ) : (
+                        <span className="text-ink-30">no GPS</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 hidden sm:table-cell text-ink-70 font-mono text-[11px]">
                       {c.checkedInAt.toLocaleString()}
                     </td>
@@ -295,4 +357,15 @@ function formatDuration(ms: number): string {
   const days = Math.floor(hours / 24);
   const remHours = hours % 24;
   return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
+/**
+ * Format a lat/lng pair to a short, tappable string.
+ * 4 decimal places is ~11m of precision — enough to
+ * locate a building on a map, short enough to fit in
+ * a tight table cell. We use the same precision Google
+ * Maps shows in its share dialog.
+ */
+function formatCoords(lat: number, lng: number): string {
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }

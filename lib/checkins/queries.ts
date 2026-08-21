@@ -18,11 +18,22 @@ export interface OpenCheckInRow {
   who: { kind: 'user' | 'sub'; id: string; name: string };
   checkedInAt: Date;
   note: string | null;
+  // GPS verification fields. lat/lng come from the
+  // visitor's phone at check-in. distanceMeters is
+  // computed server-side from the code's bound lat/lng
+  // to the visitor's lat/lng. ok is true when the
+  // distance is within the code's geofence.
+  checkInLat: number | null;
+  checkInLng: number | null;
+  geofenceDistanceMeters: number | null;
+  geofenceOk: boolean | null;
 }
 
 export interface HistoryCheckInRow extends OpenCheckInRow {
   checkedOutAt: Date;
   durationMs: number;
+  checkOutLat: number | null;
+  checkOutLng: number | null;
 }
 
 export interface CheckInCodeRow {
@@ -33,6 +44,13 @@ export interface CheckInCodeRow {
   isActive: boolean;
   createdAt: Date;
   createdByName: string | null;
+  // GPS binding (v2 — Aug 2026). Null when the code was
+  // created without GPS capture (legacy "no GPS" flow).
+  lat: number | null;
+  lng: number | null;
+  geofenceMeters: number | null;
+  requireWithinGeofence: boolean;
+  addressSnapshot: string | null;
 }
 
 /**
@@ -65,6 +83,10 @@ export async function listOpenCheckInsForWorkspace(
         : { kind: 'user', id: 'unknown', name: 'Unknown' },
     checkedInAt: r.checkedInAt,
     note: r.note,
+    checkInLat: r.checkInLat,
+    checkInLng: r.checkInLng,
+    geofenceDistanceMeters: r.geofenceDistanceMeters,
+    geofenceOk: r.geofenceOk,
   }));
 }
 
@@ -97,6 +119,10 @@ export async function listOpenCheckInsForProject(
         : { kind: 'user', id: 'unknown', name: 'Unknown' },
     checkedInAt: r.checkedInAt,
     note: r.note,
+    checkInLat: r.checkInLat,
+    checkInLng: r.checkInLng,
+    geofenceDistanceMeters: r.geofenceDistanceMeters,
+    geofenceOk: r.geofenceOk,
   }));
 }
 
@@ -133,10 +159,16 @@ export async function listRecentCheckInsForProject(
         : { kind: 'user', id: 'unknown', name: 'Unknown' },
     checkedInAt: r.checkedInAt,
     note: r.note,
+    checkInLat: r.checkInLat,
+    checkInLng: r.checkInLng,
+    geofenceDistanceMeters: r.geofenceDistanceMeters,
+    geofenceOk: r.geofenceOk,
     checkedOutAt: r.checkedOutAt as Date,
     durationMs: r.checkedOutAt
       ? r.checkedOutAt.getTime() - r.checkedInAt.getTime()
       : 0,
+    checkOutLat: r.checkOutLat,
+    checkOutLng: r.checkOutLng,
   }));
 }
 
@@ -172,10 +204,16 @@ export async function listRecentCheckInsForWorkspace(
         : { kind: 'user', id: 'unknown', name: 'Unknown' },
     checkedInAt: r.checkedInAt,
     note: r.note,
+    checkInLat: r.checkInLat,
+    checkInLng: r.checkInLng,
+    geofenceDistanceMeters: r.geofenceDistanceMeters,
+    geofenceOk: r.geofenceOk,
     checkedOutAt: r.checkedOutAt as Date,
     durationMs: r.checkedOutAt
       ? r.checkedOutAt.getTime() - r.checkedInAt.getTime()
       : 0,
+    checkOutLat: r.checkOutLat,
+    checkOutLng: r.checkOutLng,
   }));
 }
 
@@ -203,6 +241,11 @@ export async function listCheckInCodesForProject(
     isActive: r.isActive,
     createdAt: r.createdAt,
     createdByName: r.createdBy.name ?? r.createdBy.email ?? null,
+    lat: r.lat,
+    lng: r.lng,
+    geofenceMeters: r.geofenceMeters,
+    requireWithinGeofence: r.requireWithinGeofence,
+    addressSnapshot: r.addressSnapshot,
   }));
 }
 

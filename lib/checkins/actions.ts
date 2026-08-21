@@ -9,6 +9,7 @@ import { getWorkspace } from '@/lib/workspace/get-workspace';
 import { generateCheckInToken } from './qr-token';
 import { findOpenCheckIn } from './queries';
 import { emitNotification } from '@/lib/notifications/actions';
+import { haversineMeters } from '@/lib/geo/distance';
 
 // =====================================================================
 // ADMIN: generate / deactivate a SiteCheckInCode
@@ -21,6 +22,15 @@ export type GenerateCodeState =
 const generateCodeSchema = z.object({
   projectId: z.string().min(1, 'Project is required'),
   label: z.string().min(1, 'Label is required').max(80, 'Label too long'),
+  // Geofence binding. All optional so legacy "no GPS" flow
+  // still works (you can generate a code without pinning
+  // it to a location).
+  lat: z.coerce.number().min(-90).max(90).optional().or(z.literal('')),
+  lng: z.coerce.number().min(-180).max(180).optional().or(z.literal('')),
+  geofenceMeters: z.coerce.number().int().min(0).max(5000).optional().or(z.literal('')),
+  requireWithinGeofence: z
+    .union([z.literal('on'), z.literal('true'), z.literal('false'), z.literal('')])
+    .optional(),
 });
 
 /**
@@ -49,6 +59,10 @@ export async function generateCheckInCodeAction(
   const parsed = generateCodeSchema.safeParse({
     projectId: formData.get('projectId'),
     label: (formData.get('label') as string | null)?.trim(),
+    lat: formData.get('lat') || undefined,
+    lng: formData.get('lng') || undefined,
+    geofenceMeters: formData.get('geofenceMeters') || undefined,
+    requireWithinGeofence: formData.get('requireWithinGeofence') || undefined,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -59,16 +73,46 @@ export async function generateCheckInCodeAction(
     return { ok: false, error: 'Please fix the errors below', fieldErrors };
   }
 
+  // If they provided lat OR lng, require both. We don't
+  // accept a half-pinned code.
+  const hasLat = parsed.data.lat !== '' && parsed.data.lat != null;
+  const hasLng = parsed.data.lng !== '' && parsed.data.lng != null;
+  if (hasLat !== hasLng) {
+    return {
+      ok: false,
+      error: 'Both latitude and longitude must be set (or both blank)',
+      fieldErrors: { lat: 'Required when longitude is set', lng: 'Required when latitude is set' },
+    };
+  }
+
   // Verify the project belongs to this workspace (defense
   // against the user passing a project id from a different
   // workspace via crafted form data).
   const project = await prisma.project.findFirst({
     where: { id: parsed.data.projectId, workspaceId: workspace.id },
-    select: { id: true },
+    select: { id: true, address: true, city: true, state: true, zip: true },
   });
   if (!project) {
     return { ok: false, error: 'Project not found in this workspace' };
   }
+
+  // Build the address snapshot. This is the project's
+  // address at the moment of code generation so a future
+  // admin (who might be at the office) can find the
+  // sticker location without having to re-geocode.
+  const addressParts = [project.address, project.city, project.state, project.zip]
+    .map((s) => (s ?? '').trim())
+    .filter(Boolean);
+  const addressSnapshot = addressParts.join(', ') || null;
+
+  // Default radius: 150m. Admin can override per code.
+  const geofenceMeters =
+    parsed.data.geofenceMeters && parsed.data.geofenceMeters !== ''
+      ? Number(parsed.data.geofenceMeters)
+      : 150;
+  const requireWithinGeofence =
+    parsed.data.requireWithinGeofence === 'on' ||
+    parsed.data.requireWithinGeofence === 'true';
 
   // The token has a @unique constraint at the DB level. The
   // chance of a collision is 1 in 2^192 — vanishingly small
@@ -87,6 +131,14 @@ export async function generateCheckInCodeAction(
           token,
           createdById: userId,
           isActive: true,
+          // Geofence binding. If lat/lng are missing, we
+          // leave the columns null — the code still works
+          // for the legacy "no GPS" flow.
+          lat: hasLat ? Number(parsed.data.lat) : null,
+          lng: hasLng ? Number(parsed.data.lng) : null,
+          geofenceMeters,
+          requireWithinGeofence,
+          addressSnapshot,
         },
         select: { id: true, token: true },
       });
@@ -201,6 +253,21 @@ export type CheckInResult =
       projectName: string;
       whoName: string;
       when: string;
+      // Distance in meters between the visitor's phone
+      // GPS and the bound GPS of the code they scanned.
+      // null = no bound GPS on the code, or the visitor
+      // denied geolocation. The client uses this to
+      // show a "you're X m from the check-in point"
+      // banner on the success screen.
+      geofenceDistanceMeters: number | null;
+      // True if the check-in was within the geofence
+      // (or no geofence is set). False if it was out
+      // of range but still allowed.
+      geofenceOk: boolean | null;
+      // The geofence radius of the scanned code, so the
+      // client can show "X m / Y m allowed" without an
+      // extra round trip.
+      geofenceRadiusMeters: number | null;
     }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
@@ -334,6 +401,24 @@ export async function toggleCheckInAction(
         checkedOutAt: new Date(),
         checkOutLat: parsed.data.lat,
         checkOutLng: parsed.data.lng,
+        // Update geofence distance for the check-out too
+        // (in case the visitor left the geofence at
+        // check-out time — useful for the audit).
+        ...(() => {
+          if (
+            code.lat != null &&
+            code.lng != null &&
+            parsed.data.lat != null &&
+            parsed.data.lng != null
+          ) {
+            const distance = haversineMeters(
+              { lat: code.lat, lng: code.lng },
+              { lat: parsed.data.lat, lng: parsed.data.lng },
+            );
+            return { geofenceDistanceMeters: Math.round(distance) };
+          }
+          return {};
+        })(),
       },
     });
     return {
@@ -343,6 +428,48 @@ export async function toggleCheckInAction(
       projectName: code.project.name,
       whoName: userId ? userName : (subName ?? 'Unknown'),
       when: new Date().toISOString(),
+      geofenceDistanceMeters: null, // already persisted on the row above
+      geofenceOk: null,
+      geofenceRadiusMeters: code.geofenceMeters,
+    };
+  }
+
+  // =========================================
+  // Geofence verification on check-in
+  // =========================================
+  // If the code has a bound location and the visitor
+  // shared their phone GPS, compute the distance and
+  // decide whether to allow the check-in.
+  let geofenceDistance: number | null = null;
+  let geofenceOk: boolean | null = null;
+  if (
+    code.lat != null &&
+    code.lng != null &&
+    parsed.data.lat != null &&
+    parsed.data.lng != null
+  ) {
+    const distance = haversineMeters(
+      { lat: code.lat, lng: code.lng },
+      { lat: parsed.data.lat, lng: parsed.data.lng },
+    );
+    geofenceDistance = Math.round(distance);
+    const radius = code.geofenceMeters ?? 150;
+    geofenceOk = distance <= radius;
+    if (code.requireWithinGeofence && !geofenceOk) {
+      return {
+        ok: false,
+        error: `You're ${geofenceDistance} m from the check-in point (allowed: ${radius} m). This code requires you to be on site.`,
+      };
+    }
+  } else if (
+    code.requireWithinGeofence &&
+    (parsed.data.lat == null || parsed.data.lng == null)
+  ) {
+    // Hard-enforce + no GPS shared = reject. The visitor
+    // denied geolocation and the site is gated.
+    return {
+      ok: false,
+      error: 'This check-in requires location sharing. Please enable GPS and try again.',
     };
   }
 
@@ -360,6 +487,8 @@ export async function toggleCheckInAction(
       note: parsed.data.note,
       checkInLat: parsed.data.lat,
       checkInLng: parsed.data.lng,
+      geofenceDistanceMeters: geofenceDistance,
+      geofenceOk,
     },
     select: { id: true, checkedInAt: true },
   });
@@ -428,5 +557,8 @@ export async function toggleCheckInAction(
     projectName: code.project.name,
     whoName: userId ? userName : (subName ?? 'Unknown'),
     when: event.checkedInAt.toISOString(),
+    geofenceDistanceMeters: geofenceDistance,
+    geofenceOk,
+    geofenceRadiusMeters: code.geofenceMeters,
   };
 }

@@ -397,3 +397,140 @@ describe('toggleCheckInAction — can\'t double check-in', () => {
     expect(checkInEventCreate).not.toHaveBeenCalled();
   });
 });
+
+// =====================================================================
+// Geofence enforcement — Aug 2026
+// =====================================================================
+// The bound GPS of the SiteCheckInCode is compared to
+// the visitor's phone GPS. Three scenarios:
+//   1. No bound GPS on the code  → no check, no flag
+//   2. Within radius             → check-in succeeds, ok=true
+//   3. Outside, hard-enforced    → check-in rejected
+//   4. Outside, soft warning     → check-in succeeds, ok=false
+//   5. Hard + visitor denied GPS → rejected
+
+describe('toggleCheckInAction — geofence enforcement', () => {
+  /**
+   * Tulsa, OK is roughly 36.15, -95.99. We'll pin a code
+   * at the BOK Center (36.1461, -95.9895) and have the
+   * visitor either next to it (within 50m), a mile away,
+   * or in NYC.
+   */
+  const BOK = { lat: 36.1461, lng: -95.9895 };
+
+  function codeWith(opts: { lat: number | null; lng: number | null; geofenceMeters?: number; requireWithinGeofence?: boolean }) {
+    return {
+      id: 'code_g',
+      isActive: true,
+      token: 'tok_geofence',
+      geofenceMeters: opts.geofenceMeters ?? 150,
+      requireWithinGeofence: opts.requireWithinGeofence ?? false,
+      ...(opts.lat != null ? { lat: opts.lat, lng: opts.lng! } : {}),
+      project: { id: 'proj_g', name: 'Geofence Test', workspaceId: 'ws_1' },
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authMock.mockResolvedValue({ userId: 'user_emp' });
+    userFindUnique.mockResolvedValue({ name: 'Test', email: 't@x.com' });
+    checkInEventFindFirst.mockResolvedValue(null);
+    projectFindFirst.mockResolvedValue({ id: 'proj_g' });
+    checkInEventCreate.mockResolvedValue({ id: 'evt_g', checkedInAt: new Date() });
+    scanEventCreate.mockResolvedValue({});
+  });
+
+  it('succeeds and tags the event with geofenceOk=true when within radius', async () => {
+    siteCheckInCodeFindUnique.mockResolvedValue(codeWith({ lat: BOK.lat, lng: BOK.lng, requireWithinGeofence: true }));
+    const res = await toggleCheckInAction(undefined, makeFormData({
+      token: 'tok_geofence',
+      // ~30m east of the BOK pin
+      lat: String(BOK.lat),
+      lng: String(BOK.lng + 0.0003),
+    }));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.action).toBe('checked_in');
+    expect(res.geofenceOk).toBe(true);
+    expect(res.geofenceDistanceMeters).not.toBeNull();
+    expect(res.geofenceDistanceMeters!).toBeLessThan(100);
+    expect(checkInEventCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          geofenceOk: true,
+          geofenceDistanceMeters: expect.any(Number),
+        }),
+      }),
+    );
+  });
+
+  it('rejects when requireWithinGeofence=true and visitor is far away', async () => {
+    siteCheckInCodeFindUnique.mockResolvedValue(codeWith({ lat: BOK.lat, lng: BOK.lng, requireWithinGeofence: true }));
+    // ~1.5 km from the pin
+    const res = await toggleCheckInAction(undefined, makeFormData({
+      token: 'tok_geofence',
+      lat: String(BOK.lat + 0.013),
+      lng: String(BOK.lng),
+    }));
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.error).toMatch(/m from the check-in point/i);
+    expect(checkInEventCreate).not.toHaveBeenCalled();
+  });
+
+  it('succeeds but flags ok=false when soft warning and visitor is far away', async () => {
+    siteCheckInCodeFindUnique.mockResolvedValue(codeWith({ lat: BOK.lat, lng: BOK.lng, requireWithinGeofence: false }));
+    const res = await toggleCheckInAction(undefined, makeFormData({
+      token: 'tok_geofence',
+      lat: String(BOK.lat + 0.013), // 1.5km
+      lng: String(BOK.lng),
+    }));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.action).toBe('checked_in');
+    expect(res.geofenceOk).toBe(false);
+    expect(checkInEventCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          geofenceOk: false,
+        }),
+      }),
+    );
+  });
+
+  it('passes through when code has no bound GPS (legacy)', async () => {
+    siteCheckInCodeFindUnique.mockResolvedValue(codeWith({ lat: null, lng: null }));
+    const res = await toggleCheckInAction(undefined, makeFormData({
+      token: 'tok_geofence',
+      lat: '40.7128',  // NYC
+      lng: '-74.0060',
+    }));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.geofenceOk).toBeNull();
+    expect(res.geofenceDistanceMeters).toBeNull();
+  });
+
+  it('rejects when hard-enforced and visitor denied GPS', async () => {
+    siteCheckInCodeFindUnique.mockResolvedValue(codeWith({ lat: BOK.lat, lng: BOK.lng, requireWithinGeofence: true }));
+    const res = await toggleCheckInAction(undefined, makeFormData({
+      token: 'tok_geofence',
+      // no lat/lng
+    }));
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.error).toMatch(/location sharing/i);
+    expect(checkInEventCreate).not.toHaveBeenCalled();
+  });
+
+  it('passes through with null distance when soft and visitor denied GPS', async () => {
+    siteCheckInCodeFindUnique.mockResolvedValue(codeWith({ lat: BOK.lat, lng: BOK.lng, requireWithinGeofence: false }));
+    const res = await toggleCheckInAction(undefined, makeFormData({
+      token: 'tok_geofence',
+    }));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.geofenceDistanceMeters).toBeNull();
+    expect(checkInEventCreate).toHaveBeenCalled();
+  });
+});

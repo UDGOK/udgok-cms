@@ -8,6 +8,14 @@ export interface PrintableCode {
   token: string;
   isActive: boolean;
   createdAt: Date;
+  // GPS binding for this sticker. Null = legacy code
+  // without a pin (the sheet still works, just no
+  // geofence verification on the print).
+  lat: number | null;
+  lng: number | null;
+  geofenceMeters: number | null;
+  requireWithinGeofence: boolean;
+  addressSnapshot: string | null;
 }
 
 /**
@@ -144,6 +152,21 @@ export function PrintableCheckInSheet({
                   <div className="text-[10px] text-ink-70 mt-1">
                     {projectName}
                   </div>
+                  {c.lat != null && c.lng != null ? (
+                    <div className="mt-1 text-[8px] font-mono text-ink-70 leading-tight">
+                      <span className="text-ink-50">Pinned GPS:</span>{' '}
+                      {c.lat.toFixed(5)}, {c.lng.toFixed(5)}
+                      <br />
+                      <span className="text-ink-50">Radius:</span>{' '}
+                      {c.geofenceMeters ?? 150} m
+                      {c.requireWithinGeofence ? ' · hard' : ' · soft'}
+                      {c.addressSnapshot ? ` · ${c.addressSnapshot}` : null}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-[8px] font-mono text-ink-30">
+                      No GPS pin (legacy sticker)
+                    </div>
+                  )}
                   <div className="text-[8px] font-mono break-all text-ink-50 mt-2 leading-tight">
                     {url}
                   </div>
