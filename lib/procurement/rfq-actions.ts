@@ -582,11 +582,20 @@ export async function reviseRfqAction(
   const url = `${baseUrl}/q/${token}`;
 
   // Atomic: flip parent to SUPERSEDED, create child, log events.
-  const newRfqId = await prisma.$transaction(async (tx) => {
-    // Number the new Rfq with the SAME number as the parent.
-    // The "rev N" suffix is the discriminator; the underlying
-    // number stays stable so the audit trail / cross-references
-    // remain valid. We do NOT call nextDocNumber here.
+  //
+  // The child Rfq's number MUST be unique in the workspace
+  // (Rfq has @@unique([workspaceId, number])). We append
+  // "-R{revision}" for rev > 1 so the displayed number is
+  // still human-readable ("RFQ-2026-0001 rev 2") and the row
+  // satisfies the constraint. The detail view hides the
+  // suffix and renders "rev N" as a separate label.
+  const childNumber = nextRevision > 1
+    ? `${parent.number}-R${nextRevision}`
+    : parent.number;
+
+  let newRfqId: string;
+  try {
+    newRfqId = await prisma.$transaction(async (tx) => {
     const child = await tx.rfq.create({
       data: {
         workspaceId,
@@ -594,7 +603,7 @@ export async function reviseRfqAction(
         vendorId: parent.vendorId,
         contactId,
         sentToEmail: contactEmail,
-        number: parent.number,
+        number: childNumber,
         tokenHash,
         tokenPrefix,
         expiresAt,
@@ -634,7 +643,23 @@ export async function reviseRfqAction(
       },
     });
     return child.id;
-  });
+    });
+  } catch (e) {
+    // Translate Prisma's unique-constraint error to a
+    // user-friendly message. The most likely cause is a
+    // stale (workspaceId, number) collision — defensive
+    // re-numbering as `-R{nextRevision}` is supposed to
+    // prevent this, but a prior failed run may have left
+    // a row with the same suffix.
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    if (msg.includes('Unique constraint') && msg.includes('number')) {
+      return {
+        ok: false,
+        error: `A revision with that number already exists. Please refresh and try again. (${msg})`,
+      };
+    }
+    return { ok: false, error: `Revise failed: ${msg}` };
+  }
 
   // Send the email. Same shape as createRfqAction, just
   // stamping "rev N" in the subject.

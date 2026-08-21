@@ -266,13 +266,15 @@ describe('reviseRfqAction — parent/child Rfq rows', () => {
     }
 
     // The new Rfq row should have parentRfqId, revision 2,
-    // and the same number as the parent.
+    // and a number suffixed with "-R2" so it satisfies the
+    // (workspaceId, number) unique constraint while staying
+    // human-readable.
     const create = txCalls.find((c) => c.method === 'rfq.create');
     expect(create).toBeTruthy();
     const createData = (create as { args: { data: { parentRfqId: string; revision: number; number: string } } }).args.data;
     expect(createData.parentRfqId).toBe('rfq_parent');
     expect(createData.revision).toBe(2);
-    expect(createData.number).toBe('RFQ-2026-0001');
+    expect(createData.number).toBe('RFQ-2026-0001-R2');
 
     // The parent should have been flipped to SUPERSEDED.
     const parentUpdate = txCalls.find(
@@ -290,5 +292,38 @@ describe('reviseRfqAction — parent/child Rfq rows', () => {
     );
     expect(eventTypes).toContain('SUPERSEDED');
     expect(eventTypes).toContain('CREATED');
+  });
+
+  it('returns a friendly error when the suffix still collides (defensive)', async () => {
+    // Defensive: if a prior failed run left a child row with
+    // the same -R{nextRevision} suffix, we should surface a
+    // clear error instead of a raw Prisma stack trace.
+    mockFindFirst.mockResolvedValueOnce({
+      id: 'rfq_parent',
+      workspaceId: 'ws_1',
+      deletedAt: null,
+      contact: { id: 'c1', name: 'C', email: 'c@v.com' },
+      vendor: { name: 'V', id: 'v1' },
+      list: { id: 'l1', neededBy: null, name: 'L', lines: [] },
+      childRfqs: [],
+      status: 'SENT',
+      neededBy: null,
+      message: null,
+      number: 'RFQ-2026-0001',
+      vendorId: 'v1',
+      contactId: 'c1',
+      listId: 'l1',
+      revision: 1,
+    });
+    mockTransaction.mockImplementationOnce(() => {
+      throw new Error(
+        'Unique constraint failed on the fields: (`workspaceId`,`number`)',
+      );
+    });
+    const res = await reviseRfqAction('ws_1', 'rfq_parent');
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toMatch(/revision with that number already exists/i);
+    }
   });
 });

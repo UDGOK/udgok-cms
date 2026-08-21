@@ -13,6 +13,14 @@ import {
 } from '@/lib/procurement/rfq-actions';
 import type { RfqDetail } from '@/lib/procurement/rfq-queries';
 
+/** Human-friendly number: strips the "-R{n}" storage suffix
+ *  that the revise action appends to satisfy the
+ *  (workspaceId, number) unique constraint. Display is
+ *  "{baseNumber} rev {revision}", not the raw DB number. */
+function displayNumber(rfq: RfqDetail): string {
+  return rfq.number.replace(/-R\d+$/, '');
+}
+
 const STATUS_COLOR: Record<string, string> = {
   DRAFT: 'bg-ink-50/15 text-ink-50',
   SENT: 'bg-info/15 text-info',
@@ -78,7 +86,7 @@ export function RfqDetailView({
   }
 
   function revoke() {
-    if (!confirm(`Revoke ${rfq.number}? The link will stop working and the vendor can no longer submit.`))
+    if (!confirm(`Revoke ${displayNumber(rfq)}? The link will stop working and the vendor can no longer submit.`))
       return;
     setError(null);
     startTransition(async () => {
@@ -127,7 +135,7 @@ export function RfqDetailView({
   }
   function revise() {
     const ok = confirm(
-      `Revise ${rfq.number}? This creates rev ${(rfq.revision ?? 1) + 1} with a new link, and the old link will show "this RFQ has been revised". The vendor gets a fresh email.`,
+      `Revise ${displayNumber(rfq)}? This creates rev ${(rfq.revision ?? 1) + 1} with a new link, and the old link will show "this RFQ has been revised". The vendor gets a fresh email.`,
     );
     if (!ok) return;
     setError(null);
@@ -164,7 +172,7 @@ export function RfqDetailView({
   function deleteRfq() {
     if (
       !confirm(
-        `Delete draft ${rfq.number}? The audit trail is preserved but the row is removed from lists. This is reversible only by an admin.`,
+        `Delete draft ${displayNumber(rfq)}? The audit trail is preserved but the row is removed from lists. This is reversible only by an admin.`,
       )
     )
       return;
@@ -185,7 +193,7 @@ export function RfqDetailView({
       <div className="flex items-end justify-between gap-4 flex-wrap mt-2 mb-4">
         <div>
           <h1 className="text-2xl font-black">
-            {rfq.number}
+            {displayNumber(rfq)}
             {rfq.revision > 1 ? (
               <span className="text-ink-50 font-mono text-[14px] font-normal ml-2">
                 rev {rfq.revision}
