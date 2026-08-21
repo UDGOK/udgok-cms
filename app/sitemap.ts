@@ -60,6 +60,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.5,
     },
     {
+      url: 'https://cms.udgok.com/contact',
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
       url: 'https://cms.udgok.com/security',
       lastModified: now,
       changeFrequency: 'monthly',

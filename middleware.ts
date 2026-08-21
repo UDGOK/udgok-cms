@@ -8,7 +8,6 @@ const isPublicRoute = createRouteMatcher([
   // Auth pages
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/tabs-debug',
   // SEO / RFC 8615 / well-known files (served by app/robots.ts,
   // app/sitemap.ts, public/.well-known/security.txt)
   '/robots.txt',
