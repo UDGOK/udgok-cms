@@ -35,6 +35,11 @@ describe('PO email body', () => {
         neededBy: null,
         shipTo: null,
         terms: null,
+        deliveryName: null,
+        deliveryAddress: null,
+        deliveryContactName: null,
+        deliveryContactPhone: null,
+        deliveryContactEmail: null,
         pdf: Buffer.from('x'),
       });
       expect(res.sent).toBe(false);
@@ -73,6 +78,11 @@ describe('PO email body', () => {
         neededBy: null,
         shipTo: null,
         terms: null,
+        deliveryName: null,
+        deliveryAddress: null,
+        deliveryContactName: null,
+        deliveryContactPhone: null,
+        deliveryContactEmail: null,
         pdf: Buffer.from('x'),
       });
       expect(res.sent).toBe(true);

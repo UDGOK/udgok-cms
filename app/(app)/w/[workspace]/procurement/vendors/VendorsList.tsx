@@ -3,13 +3,19 @@
 import Link from 'next/link';
 import type { VendorListItem } from '@/lib/procurement/queries';
 
-export function VendorsList({ items }: { items: VendorListItem[] }) {
+export function VendorsList({
+  items,
+  workspaceSlug,
+}: {
+  items: VendorListItem[];
+  workspaceSlug: string;
+}) {
   if (items.length === 0) {
     return (
       <div className="bg-cream-2 border-2 border-line p-6 text-center">
         <div className="text-[13px] text-ink-50 mb-3">No vendors yet.</div>
         <Link
-          href="../vendors/new"
+          href={`/w/${workspaceSlug}/procurement/vendors/new`}
           className="inline-block px-3 py-2 bg-orange text-paper border-2 border-orange text-[11px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d"
         >
           + Add your first vendor
@@ -54,7 +60,7 @@ export function VendorsList({ items }: { items: VendorListItem[] }) {
             >
               <td className="px-3 py-2">
                 <Link
-                  href={`./${v.id}`}
+                  href={`/w/${workspaceSlug}/procurement/vendors/${v.id}`}
                   className="font-extrabold text-ink hover:text-orange-d"
                 >
                   {v.name}

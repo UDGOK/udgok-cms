@@ -76,7 +76,7 @@ export default async function VendorsPage({
         </button>
       </form>
 
-      <VendorsList items={filtered} />
+      <VendorsList items={filtered} workspaceSlug={workspace.slug} />
     </div>
   );
 }
