@@ -1729,6 +1729,15 @@ enum RfqStatus {
   DECLINED
   EXPIRED
   CANCELLED
+  // SUPERSEDED: a newer revision exists (this Rfq is a
+  // tombstone of a revise-and-resend). Old link on the
+  // vendor portal returns a polite "this RFQ has been
+  // revised" page with a path to the new revision.
+  SUPERSEDED
+  // REVOKED: the buyer pulled the RFQ back. The vendor's
+  // link shows "this RFQ has been revoked". Permanent
+  // — re-sending creates a new Rfq row, doesn't un-revoke.
+  REVOKED
 }
 
 enum QuoteStatus {
@@ -1961,6 +1970,26 @@ model Rfq {
   message  String?
   neededBy DateTime?
 
+  // ---- REVISION TRACKING ----
+  // A revise-and-resend creates a new Rfq row (linked by
+  // parentRfqId) and flips this one's status to SUPERSEDED.
+  // The vendor's old link is dead but routes to a polite
+  // "revised" page that links to the new one.
+  parentRfqId String?
+  parentRfq   Rfq?   @relation("RfqRevisions", fields: [parentRfqId], references: [id])
+  childRfqs   Rfq[]  @relation("RfqRevisions")
+  // Sequential per logical RFQ lifetime. The first Rfq
+  // is 1, first revision is 2, etc. Stamped on the row +
+  // surfaced in the email subject so the vendor can tell
+  // "this is RFQ-2026-0001 rev 2" at a glance.
+  revision Int @default(1)
+
+  // ---- SOFT DELETE ----
+  // Only set on DRAFT RFQs that the buyer deletes. SENT+
+  // RFQs are revoked, not deleted, so the audit trail
+  // stays intact. Reads filter `deletedAt: null`.
+  deletedAt DateTime?
+
   quotes VendorQuote[]
   events RfqEvent[]
 
@@ -1974,6 +2003,8 @@ model Rfq {
   @@index([workspaceId, status])
   @@index([workspaceId, vendorId])
   @@index([workspaceId, listId])
+  @@index([workspaceId, parentRfqId])
+  @@index([workspaceId, deletedAt])
 }
 
 model RfqEvent {

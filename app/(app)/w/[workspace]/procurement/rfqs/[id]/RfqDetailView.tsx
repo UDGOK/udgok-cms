@@ -3,7 +3,14 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { resendRfqAction, revokeRfqAction } from '@/lib/procurement/rfq-actions';
+import {
+  resendRfqAction,
+  revokeRfqAction,
+  updateRfqAction,
+  reviseRfqAction,
+  extendRfqDeadlineAction,
+  softDeleteRfqAction,
+} from '@/lib/procurement/rfq-actions';
 import type { RfqDetail } from '@/lib/procurement/rfq-queries';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -15,6 +22,8 @@ const STATUS_COLOR: Record<string, string> = {
   DECLINED: 'bg-error/15 text-error',
   CANCELLED: 'bg-ink-50/15 text-ink-50',
   EXPIRED: 'bg-error/15 text-error',
+  SUPERSEDED: 'bg-ink-50/15 text-ink-50',
+  REVOKED: 'bg-ink-50/15 text-ink-50',
 };
 
 export function RfqDetailView({
@@ -34,6 +43,7 @@ export function RfqDetailView({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<{ kind: 'sent' | 'copied'; text: string } | null>(null);
+  const [editingDraft, setEditingDraft] = useState(false);
 
   // For "Copy link" the token hash is in the DB; the plaintext
   // is only in the email we sent. We can't reconstruct it.
@@ -79,14 +89,120 @@ export function RfqDetailView({
   }
 
   const latestQuote = rfq.quotes[0] ?? null;
-  const isClosed = ['ACCEPTED', 'CANCELLED', 'DECLINED', 'EXPIRED'].includes(rfq.status);
+  const isClosed = ['ACCEPTED', 'CANCELLED', 'DECLINED', 'EXPIRED', 'SUPERSEDED', 'REVOKED'].includes(rfq.status);
   const isExpired = rfq.expiresAt < new Date() && !isClosed;
+  const isDraft = rfq.status === 'DRAFT';
+  const isLive = ['SENT', 'VIEWED', 'RESPONDED'].includes(rfq.status);
+
+  // Edit: DRAFT only. Free edit, no email.
+  // Revise: SENT/VIEWED. Creates a new Rfq row (parent/child),
+  //   marks this one SUPERSEDED, sends fresh email. Use this
+  //   when line items or contact changed.
+  // Resend: any non-closed. Same link, fresh email. Use for
+  //   "I lost the email".
+  // Extend: SENT/VIEWED. Pushes expiresAt, sends "deadline
+  //   extended" email. No new revision (content unchanged).
+  // Revoke: SENT/VIEWED/RESPONDED. Permanent. Vendor's link
+  //   shows a "revoked" page.
+  // Delete: DRAFT only. Soft delete.
+  function editDraft() {
+    setEditingDraft(true);
+  }
+  function cancelEditDraft() {
+    setEditingDraft(false);
+  }
+  async function saveDraft(patch: { message?: string | null; neededBy?: Date | null; contactId?: string | null }) {
+    setError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set('payload', JSON.stringify({ rfqId: rfq.id, ...patch }));
+      const res = await updateRfqAction(workspaceId, undefined, fd);
+      if (res.ok) {
+        setEditingDraft(false);
+        router.refresh();
+      } else {
+        setError(res.error);
+      }
+    });
+  }
+  function revise() {
+    const ok = confirm(
+      `Revise ${rfq.number}? This creates rev ${(rfq.revision ?? 1) + 1} with a new link, and the old link will show "this RFQ has been revised". The vendor gets a fresh email.`,
+    );
+    if (!ok) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await reviseRfqAction(workspaceId, rfq.id);
+      if (res.ok) {
+        // Navigate to the new revision so the buyer sees it.
+        router.push(`/w/${workspaceSlug}/procurement/rfqs/${res.newRfqId}`);
+        router.refresh();
+      } else {
+        setError(res.error);
+      }
+    });
+  }
+  function extendDeadline() {
+    const input = window.prompt('Extend deadline by how many days? (1-90)', '7');
+    if (!input) return;
+    const days = Number(input);
+    if (!Number.isFinite(days) || days < 1 || days > 90) {
+      setError('Days must be a number between 1 and 90');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await extendRfqDeadlineAction(workspaceId, rfq.id, days);
+      if (res.ok) {
+        setInfo({ kind: 'sent', text: `Deadline extended by ${days} day${days === 1 ? '' : 's'}` });
+        router.refresh();
+      } else {
+        setError(res.error);
+      }
+    });
+  }
+  function deleteRfq() {
+    if (
+      !confirm(
+        `Delete draft ${rfq.number}? The audit trail is preserved but the row is removed from lists. This is reversible only by an admin.`,
+      )
+    )
+      return;
+    setError(null);
+    startTransition(async () => {
+      const res = await softDeleteRfqAction(workspaceId, rfq.id);
+      if (res.ok) {
+        router.push(`/w/${workspaceSlug}/procurement/lists/${rfq.listId}`);
+        router.refresh();
+      } else {
+        setError(res.error);
+      }
+    });
+  }
 
   return (
     <div>
       <div className="flex items-end justify-between gap-4 flex-wrap mt-2 mb-4">
         <div>
-          <h1 className="text-2xl font-black">{rfq.number}</h1>
+          <h1 className="text-2xl font-black">
+            {rfq.number}
+            {rfq.revision > 1 ? (
+              <span className="text-ink-50 font-mono text-[14px] font-normal ml-2">
+                rev {rfq.revision}
+              </span>
+            ) : null}
+          </h1>
+          {rfq.parentRfqId ? (
+            <div className="text-[10px] text-ink-50 font-mono mt-1">
+              ←{' '}
+              <Link
+                href={`/w/${workspaceSlug}/procurement/rfqs/${rfq.parentRfqId}`}
+                className="hover:text-ink underline"
+              >
+                view predecessor (rev {rfq.revision - 1})
+              </Link>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <span
               className={`px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.1em] ${
@@ -105,27 +221,79 @@ export function RfqDetailView({
             {isExpired ? ' (EXPIRED)' : ''}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {!isClosed ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* DRAFT-ONLY actions */}
+          {isDraft ? (
             <>
+              <button
+                type="button"
+                onClick={editingDraft ? cancelEditDraft : editDraft}
+                disabled={pending}
+                className="px-3 py-2 border-2 border-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-paper disabled:opacity-50"
+              >
+                {editingDraft ? 'Close editor' : 'Edit'}
+              </button>
+              <button
+                type="button"
+                onClick={resend}
+                disabled={pending}
+                className="px-3 py-2 bg-orange text-paper border-2 border-orange text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d disabled:opacity-50"
+              >
+                {pending ? 'Working…' : rfq.sentAt ? 'Resend' : 'Send'}
+              </button>
+              <button
+                type="button"
+                onClick={deleteRfq}
+                disabled={pending}
+                className="px-3 py-2 border-2 border-error text-error text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-error/10 disabled:opacity-50"
+                title="Delete this DRAFT. Sent RFQs must be revoked, not deleted."
+              >
+                Delete
+              </button>
+            </>
+          ) : null}
+          {/* LIVE RFQ actions (SENT / VIEWED / RESPONDED) */}
+          {isLive ? (
+            <>
+              <button
+                type="button"
+                onClick={revise}
+                disabled={pending}
+                className="px-3 py-2 bg-orange text-paper border-2 border-orange text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d disabled:opacity-50"
+                title="Create a new revision. Old link shows 'revised', vendor gets a fresh link."
+              >
+                {pending ? 'Working…' : 'Revise + resend'}
+              </button>
               <button
                 type="button"
                 onClick={resend}
                 disabled={pending}
                 className="px-3 py-2 border-2 border-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-ink hover:text-paper disabled:opacity-50"
+                title="Re-send the same link (no new revision). Use for 'I lost the email'."
               >
-                {pending ? 'Working…' : rfq.sentAt ? 'Resend' : 'Send'}
+                Resend same link
+              </button>
+              <button
+                type="button"
+                onClick={extendDeadline}
+                disabled={pending}
+                className="px-3 py-2 border-2 border-info text-info text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-info/10 disabled:opacity-50"
+                title="Push the deadline out by N days. Vendor gets an 'extended' email."
+              >
+                Extend deadline
               </button>
               <button
                 type="button"
                 onClick={revoke}
                 disabled={pending}
                 className="px-3 py-2 border-2 border-error text-error text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-error/10 disabled:opacity-50"
+                title="Pull the RFQ back. Vendor's link shows 'revoked'."
               >
                 Revoke
               </button>
             </>
           ) : null}
+          {/* ACCEPTED / DECLINED / EXPIRED: no actions */}
         </div>
       </div>
 
@@ -138,6 +306,16 @@ export function RfqDetailView({
         <div className="bg-error/10 border border-error p-2 mb-3 text-[12px] text-error font-semibold">
           ⚠ {error}
         </div>
+      ) : null}
+
+      {editingDraft ? (
+        <DraftEditForm
+          rfq={rfq}
+          contacts={rfq.vendorContacts}
+          pending={pending}
+          onSave={saveDraft}
+          onCancel={cancelEditDraft}
+        />
       ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
@@ -396,6 +574,106 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
     <div>
       <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">{label}</div>
       <div className={mono ? 'font-mono' : ''}>{value}</div>
+    </div>
+  );
+}
+
+/**
+ * DraftEditForm — inline editor for DRAFT RFQs. Lets the
+ * buyer fix the message, the needed-by date, and the
+ * contact (which rep gets the email). Line items are NOT
+ * editable from this view — to change line items, the
+ * buyer goes to the source MaterialList.
+ */
+function DraftEditForm({
+  rfq,
+  contacts,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  rfq: RfqDetail;
+  contacts: Array<{ id: string; name: string; email: string; isPrimary: boolean }>;
+  pending: boolean;
+  onSave: (patch: { message?: string | null; neededBy?: Date | null; contactId?: string | null }) => void;
+  onCancel: () => void;
+}) {
+  const [message, setMessage] = useState(rfq.message ?? '');
+  const [neededBy, setNeededBy] = useState(
+    rfq.neededBy ? rfq.neededBy.toISOString().slice(0, 10) : '',
+  );
+  const [contactId, setContactId] = useState(rfq.contact?.id ?? '');
+
+  return (
+    <div className="bg-paper border-2 border-ink p-4 mb-4">
+      <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-3">
+        {'// Edit DRAFT — changes apply before you send'}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <label className="block">
+          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+            Send to (contact)
+          </div>
+          <select
+            value={contactId}
+            onChange={(e) => setContactId(e.target.value)}
+            className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px]"
+          >
+            {contacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.email}){c.isPrimary ? ' — primary' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+            Needed by
+          </div>
+          <input
+            type="date"
+            value={neededBy}
+            onChange={(e) => setNeededBy(e.target.value)}
+            className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px]"
+          />
+        </label>
+      </div>
+      <label className="block mb-3">
+        <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+          Message to vendor (optional)
+        </div>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={3}
+          maxLength={4000}
+          className="w-full px-2 py-1.5 bg-cream border border-line text-ink text-[12px] resize-y"
+        />
+      </label>
+      <div className="flex items-center gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={pending}
+          className="px-3 py-2 border-2 border-line text-[11px] font-extrabold uppercase tracking-[0.12em] hover:border-ink disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSave({
+              message: message || null,
+              neededBy: neededBy ? new Date(neededBy) : null,
+              contactId: contactId || null,
+            })
+          }
+          disabled={pending}
+          className="px-3 py-2 bg-orange text-paper border-2 border-orange text-[11px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d disabled:opacity-50"
+        >
+          {pending ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
     </div>
   );
 }

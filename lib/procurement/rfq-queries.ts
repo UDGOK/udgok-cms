@@ -25,7 +25,7 @@ export async function listRfqsForList(
   listId: string,
 ): Promise<RfqSummary[]> {
   const rows = await prisma.rfq.findMany({
-    where: { workspaceId, listId },
+    where: { workspaceId, listId, deletedAt: null },
     orderBy: { createdAt: 'desc' },
     include: {
       vendor: { select: { id: true, name: true } },
@@ -59,8 +59,17 @@ export interface RfqDetail {
   id: string;
   number: string;
   status: string;
+  // Revision metadata. parentRfqId is null on the first
+  // revision. revision starts at 1 and increments per
+  // revise-and-resend. The detail view shows
+  // "{number} rev {revision}".
+  revision: number;
+  parentRfqId: string | null;
   vendor: { id: string; name: string; defaultTerms: string | null };
   contact: { id: string; name: string; email: string } | null;
+  // All contacts on the vendor — the buyer can switch the
+  // RFQ to a different rep via the DRAFT edit form.
+  vendorContacts: Array<{ id: string; name: string; email: string; isPrimary: boolean }>;
   listId: string;
   listName: string;
   listDeliverTo: string | null;
@@ -126,9 +135,16 @@ export interface RfqDetail {
 
 export async function getRfqDetail(workspaceId: string, rfqId: string): Promise<RfqDetail | null> {
   const r = await prisma.rfq.findFirst({
-    where: { id: rfqId, workspaceId },
+    where: { id: rfqId, workspaceId, deletedAt: null },
     include: {
-      vendor: { select: { id: true, name: true, defaultTerms: true } },
+      vendor: {
+        select: {
+          id: true,
+          name: true,
+          defaultTerms: true,
+          contacts: { select: { id: true, name: true, email: true, isPrimary: true } },
+        },
+      },
       contact: { select: { id: true, name: true, email: true } },
       list: { select: { id: true, name: true, deliverTo: true, neededBy: true } },
       events: {
@@ -154,8 +170,11 @@ export async function getRfqDetail(workspaceId: string, rfqId: string): Promise<
     id: r.id,
     number: r.number,
     status: r.status,
+    revision: r.revision,
+    parentRfqId: r.parentRfqId,
     vendor: r.vendor,
     contact: r.contact,
+    vendorContacts: r.vendor.contacts,
     listId: r.listId,
     listName: r.list.name,
     listDeliverTo: r.list.deliverTo,

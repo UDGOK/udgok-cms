@@ -14,11 +14,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const mockFindUnique = vi.fn();
+const mockFindFirst = vi.fn();
 
 vi.mock('@/lib/db/client', () => ({
   prisma: {
     rfq: {
       findUnique: (...args: unknown[]) => mockFindUnique(...args),
+      findFirst: (...args: unknown[]) => mockFindFirst(...args),
     },
   },
 }));
@@ -43,6 +45,7 @@ function makeRfq(overrides: Record<string, unknown> = {}) {
 describe('resolveRfqToken — security guarantees', () => {
   beforeEach(() => {
     mockFindUnique.mockReset();
+    mockFindFirst.mockReset();
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
   });
@@ -102,6 +105,39 @@ describe('resolveRfqToken — security guarantees', () => {
       const r = await resolveRfqToken('a'.repeat(43));
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.reason).toBe('CLOSED');
+    }
+  });
+
+  it('returns SUPERSEDED with the successor id when status is SUPERSEDED', async () => {
+    mockFindUnique.mockResolvedValueOnce(makeRfq({ status: 'SUPERSEDED' }));
+    mockFindFirst.mockResolvedValueOnce({ id: 'rfq_new' });
+    const r = await resolveRfqToken('a'.repeat(43));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe('SUPERSEDED');
+      expect(r.supersededByRfqId).toBe('rfq_new');
+    }
+    // The resolver should have queried for the newest child
+    // (the successor) so the vendor can be redirected to it.
+    expect(mockFindFirst).toHaveBeenCalledTimes(1);
+    const callArg = mockFindFirst.mock.calls[0]?.[0] as {
+      where: { parentRfqId: string; deletedAt: null };
+    };
+    expect(callArg.where.parentRfqId).toBe('rfq_1');
+    expect(callArg.where.deletedAt).toBe(null);
+  });
+
+  it('returns SUPERSEDED with null successor when no child Rfq exists', async () => {
+    // Defensive: if a SUPERSEDED Rfq has no successor (data
+    // corruption / deleted successor), the vendor portal
+    // falls back to a generic "ask the buyer" message.
+    mockFindUnique.mockResolvedValueOnce(makeRfq({ status: 'SUPERSEDED' }));
+    mockFindFirst.mockResolvedValueOnce(null);
+    const r = await resolveRfqToken('a'.repeat(43));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe('SUPERSEDED');
+      expect(r.supersededByRfqId).toBe(null);
     }
   });
 

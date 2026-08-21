@@ -21,7 +21,7 @@ export interface RfqListItem {
 
 export async function listAllRfqs(workspaceId: string): Promise<RfqListItem[]> {
   const rows = await prisma.rfq.findMany({
-    where: { workspaceId },
+    where: { workspaceId, deletedAt: null },
     orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
     include: {
       vendor: { select: { id: true, name: true } },

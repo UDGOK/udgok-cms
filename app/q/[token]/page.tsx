@@ -23,6 +23,7 @@ import { rateLimit } from '@/lib/procurement/rateLimit';
 import { headers } from 'next/headers';
 import { QuoteForm } from './QuoteForm';
 import { ExpiredNotice } from './ExpiredNotice';
+import { RevisedNotice } from './RevisedNotice';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +61,22 @@ export default async function PublicVendorPortalPage({
 
   const result = await resolveRfqToken(params.token);
   if (!result.ok) {
-    // Generic 410 — the spec is explicit: do not differentiate.
+    // NOT_FOUND / EXPIRED / REVOKED / CLOSED all collapse to
+    // one generic 410 — the spec is explicit: do not
+    // differentiate (so attackers can't probe state).
+    //
+    // SUPERSEDED is intentionally distinguishable: the buyer
+    // explicitly told us a newer revision exists, and we want
+    // the vendor to be able to follow the new link instead of
+    // staring at a dead page.
+    if (result.reason === 'SUPERSEDED') {
+      return (
+        <RevisedNotice
+          rfqNumber={undefined}
+          supersededByRfqId={result.supersededByRfqId ?? null}
+        />
+      );
+    }
     return <ExpiredNotice />;
   }
 

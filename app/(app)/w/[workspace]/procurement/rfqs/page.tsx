@@ -11,6 +11,8 @@ const STATUS_COLOR: Record<string, string> = {
   DECLINED: 'bg-error/15 text-error',
   CANCELLED: 'bg-ink-50/15 text-ink-50',
   EXPIRED: 'bg-error/15 text-error',
+  SUPERSEDED: 'bg-ink-50/15 text-ink-50',
+  REVOKED: 'bg-ink-50/15 text-ink-50',
 };
 
 export const dynamic = 'force-dynamic';

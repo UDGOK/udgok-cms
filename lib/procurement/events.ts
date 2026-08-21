@@ -25,7 +25,15 @@ export type RfqEventType =
   | 'ACCEPTED'
   | 'REVOKED'
   | 'RESENT'
-  | 'EXPIRED';
+  | 'EXPIRED'
+  // New for the CMS-grade RFQ flow (commit
+  // revising this conversation). The schema column is
+  // still `String` so any string lands, but this list
+  // is the source of truth for type-safe callers.
+  | 'EDITED'        // DRAFT/SENT edit (with or without notify)
+  | 'SUPERSEDED'    // marked dead by a revise-and-resend
+  | 'EXTENDED'      // expiresAt pushed out
+  | 'DELETED';      // soft-delete (DRAFT only)
 
 export async function recordRfqEvent(
   rfq: { id: string; workspaceId: string },
