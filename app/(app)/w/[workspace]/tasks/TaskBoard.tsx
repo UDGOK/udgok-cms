@@ -5,6 +5,7 @@ import { Button } from '@/components/ui';
 import { TASK_STATUS_LABELS, TASK_STATUSES, type TaskStatus } from '@/lib/tasks/queries';
 import { setTaskStatus } from '@/lib/tasks/actions';
 import { NewTaskModal } from './NewTaskModal';
+import { EditTaskModal } from './EditTaskModal';
 
 export interface TaskCard {
   id: string;
@@ -39,6 +40,7 @@ export function TaskBoard({
   clients: { id: string; name: string }[];
 }) {
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<TaskCard | null>(null);
   const grouped = TASK_STATUSES.reduce<Record<TaskStatus, TaskCard[]>>(
     (acc, s) => {
       acc[s] = tasks.filter((t) => t.status === s);
@@ -82,6 +84,14 @@ export function TaskBoard({
                               {t.dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </span>
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setEditing(t)}
+                            className="ml-auto text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 hover:text-ink"
+                            title="Edit task"
+                          >
+                            edit
+                          </button>
                         </div>
                         <div className="font-extrabold text-[13px] leading-snug mb-2">
                           {t.title}
@@ -126,6 +136,26 @@ export function TaskBoard({
           projects={projects}
           clients={clients}
           onClose={() => setShowNew(false)}
+        />
+      ) : null}
+
+      {editing ? (
+        <EditTaskModal
+          workspaceSlug={workspaceSlug}
+          task={{
+            id: editing.id,
+            title: editing.title,
+            description: editing.description,
+            priority: editing.priority,
+            dueDate: editing.dueDate ? editing.dueDate.toISOString() : null,
+            assigneeId: editing.assignee?.id ?? null,
+            projectId: editing.project?.id ?? null,
+            clientId: editing.client?.id ?? null,
+          }}
+          team={team}
+          projects={projects}
+          clients={clients}
+          onClose={() => setEditing(null)}
         />
       ) : null}
     </>
