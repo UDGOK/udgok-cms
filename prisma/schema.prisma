@@ -24,46 +24,51 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members           Membership[]
-  clients           Client[]
-  deals             Deal[]
-  projects          Project[]
-  estimates         Estimate[]
-  tasks             Task[]
-  files             File[]
-  teams             Team[]
-  subs              Subcontractor[]
-  activity          ActivityLog[]
-  messages          Message[]
-  projectPhotos     ProjectPhoto[]
-  permits           Permit[]
-  photoFolders      ProjectPhotoFolder[]
-  inspections       Inspection[]
-  bimModels         BimModel[]
-  bimTakeoffs       BimTakeoff[]
-  scanEvents        ScanEvent[]
-  materials         Material[]
-  equipment         Equipment[]
-  productCatalog    ProductCatalogItem[]
-  siteCheckInCodes  SiteCheckInCode[]
-  checkInEvents     CheckInEvent[]
-  weeklyTimesheets  WeeklyTimesheet[]
-  notifications     Notification[]       @relation("notificationWorkspace")
-  vendors           Vendor[]
-  vendorContacts    VendorContact[]
-  items             Item[]
-  vendorItems       VendorItem[]
-  materialLists     MaterialList[]
-  materialListLines MaterialListLine[]
-  rfqs              Rfq[]
-  rfqEvents         RfqEvent[]
-  vendorQuotes      VendorQuote[]
-  vendorQuoteLines  VendorQuoteLine[]
-  poEvents          PoEvent[]
-  purchaseOrders    PurchaseOrder[]
-  polines           POLine[]
-  priceObservations PriceObservation[]
-  docCounters       DocCounter[]
+  members               Membership[]
+  clients               Client[]
+  deals                 Deal[]
+  projects              Project[]
+  estimates             Estimate[]
+  tasks                 Task[]
+  files                 File[]
+  teams                 Team[]
+  subs                  Subcontractor[]
+  activity              ActivityLog[]
+  messages              Message[]
+  projectPhotos         ProjectPhoto[]
+  permits               Permit[]
+  photoFolders          ProjectPhotoFolder[]
+  inspections           Inspection[]
+  bimModels             BimModel[]
+  bimTakeoffs           BimTakeoff[]
+  scanEvents            ScanEvent[]
+  materials             Material[]
+  equipment             Equipment[]
+  productCatalog        ProductCatalogItem[]
+  siteCheckInCodes      SiteCheckInCode[]
+  checkInEvents         CheckInEvent[]
+  weeklyTimesheets      WeeklyTimesheet[]
+  notifications         Notification[]            @relation("notificationWorkspace")
+  vendors               Vendor[]
+  vendorContacts        VendorContact[]
+  items                 Item[]
+  vendorItems           VendorItem[]
+  materialLists         MaterialList[]
+  materialListLines     MaterialListLine[]
+  rfqs                  Rfq[]
+  rfqEvents             RfqEvent[]
+  vendorQuotes          VendorQuote[]
+  vendorQuoteLines      VendorQuoteLine[]
+  poEvents              PoEvent[]
+  purchaseOrders        PurchaseOrder[]
+  polines               POLine[]
+  priceObservations     PriceObservation[]
+  docCounters           DocCounter[]
+  paymentSettings       WorkspacePaymentSettings?
+  vendorPaymentMethods  VendorPaymentMethod[]
+  poVendorResponses     PoVendorResponse[]
+  poVendorResponseLines PoVendorResponseLine[]
+  poInvoices            PoInvoice[]
 
   @@index([slug])
 }
@@ -484,43 +489,43 @@ model Note {
 // =========================================
 
 model Project {
-  id              String        @id @default(cuid())
-  workspaceId     String
-  clientId        String?
+  id                String        @id @default(cuid())
+  workspaceId       String
+  clientId          String?
   // Set when this project was created from a Won deal. One
   // deal → at most one project (enforced by the @unique below).
   // OnDelete: SetNull so deleting a deal doesn't cascade-delete
   // the project — the project stands on its own.
-  dealId          String?       @unique
-  name            String
-  code            String?
-  description     String?
-  status          ProjectStatus @default(ACTIVE)
-  startDate       DateTime?
-  endDate         DateTime?
-  contractValue   Decimal?      @db.Decimal(12, 2)
-  address         String?
-  city            String?
-  state           String?
-  zip             String?
+  dealId            String?       @unique
+  name              String
+  code              String?
+  description       String?
+  status            ProjectStatus @default(ACTIVE)
+  startDate         DateTime?
+  endDate           DateTime?
+  contractValue     Decimal?      @db.Decimal(12, 2)
+  address           String?
+  city              String?
+  state             String?
+  zip               String?
   // Geocoded coordinates. Auto-populated by the geocoder when address
   // changes, but can be manually overridden (set geocodeSource='manual').
   // Used by the Site Map / Project MAP features.
-  latitude        Float?
-  longitude       Float?
-  geocodedAt      DateTime?
-  geocodeSource   String? // 'nominatim' | 'manual' | 'mapbox' | 'cached'
-  geocodedAddress String? // the address that was actually geocoded (for cache invalidation)
+  latitude          Float?
+  longitude         Float?
+  geocodedAt        DateTime?
+  geocodeSource     String? // 'nominatim' | 'manual' | 'mapbox' | 'cached'
+  geocodedAddress   String? // the address that was actually geocoded (for cache invalidation)
   // Per-project permit portal override. When set, the JurisdictionCard
   // surfaces this URL instead of the matched city's default portal.
   // Use case: city isn't in the JURISDICTIONS directory, or the project
   // is in a sub-jurisdiction (county + city) with its own portal, or
   // the user wants a custom deep link to a specific permit application.
-  permitPortalUrl     String?
-  permitPortalLabel   String? // e.g. "MyGov (Bixby) — applicant login"
-  permitPortalNotes   String? // free text shown under the link
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  permitPortalUrl   String?
+  permitPortalLabel String? // e.g. "MyGov (Bixby) — applicant login"
+  permitPortalNotes String? // free text shown under the link
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   workspace        Workspace                        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   client           Client?                          @relation(fields: [clientId], references: [id])
@@ -1802,13 +1807,17 @@ model Vendor {
   // play both roles.
   subcontractorId String?
 
-  contacts    VendorContact[]
-  rfqs        Rfq[]
-  quotes      VendorQuote[]
-  pos         PurchaseOrder[]
-  vendorItems VendorItem[]
-  defaultFor  Item[]             @relation("ItemDefaultVendor")
-  prices      PriceObservation[]
+  contacts       VendorContact[]
+  rfqs           Rfq[]
+  quotes         VendorQuote[]
+  pos            PurchaseOrder[]
+  vendorItems    VendorItem[]
+  defaultFor     Item[]                @relation("ItemDefaultVendor")
+  prices         PriceObservation[]
+  // PO loop extensions (2026-08) — payment methods on
+  // file for the vendor (ACH / card / check). Multiple
+  // per vendor; one is marked isDefault.
+  paymentMethods VendorPaymentMethod[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -2176,7 +2185,30 @@ model PurchaseOrder {
   acknowledgedAt DateTime?
   pdfUrl         String?
 
+  // ---- PO vendor response loop (2026-08) ----
+  // Latest response pointer; the full history is in
+  // PoVendorResponse rows (append-only).
+  vendorResponseId    String?
+  paymentMethodChosen PoPaymentMethod?
+  paymentMethodDetail String?
+  vendorReference     String?
+  lastActivityAt      DateTime?
+  // Latest non-VOID invoice pointer; full history in
+  // PoInvoice rows.
+  invoiceId           String?
+
+  // Vendor portal token — generated on issue, never
+  // changes. URL: https://cms.udgok.com/p/<token>.
+  // Vendors use it to acknowledge / counter / reject /
+  // send invoice. Token is the only credential — no
+  // Clerk session, mirrors the RFQ portal pattern.
+  vendorPortalToken         String?   @unique
+  vendorPortalTokenIssuedAt DateTime?
+
   lines POLine[]
+
+  vendorResponses PoVendorResponse[]
+  invoices        PoInvoice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2207,6 +2239,10 @@ model PoEvent {
   po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
 
   // CREATED EDITED ISSUED RESENT CANCELLED ACKNOWLEDGED RECEIVED CLOSED
+  // VENDOR_RESPONSE_SUBMITTED VENDOR_RESPONSE_RECEIVED
+  // COUNTER_ACCEPTED COUNTER_REJECTED
+  // INVOICE_REQUESTED INVOICE_RECEIVED INVOICE_APPROVED
+  // INVOICE_DISPUTED PAYMENT_SENT
   type      String
   actor     String? // clerk userId
   meta      Json?
@@ -2239,6 +2275,9 @@ model POLine {
   notes          String?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // Per-line responses when the vendor counters an issued PO.
+  vendorResponses PoVendorResponseLine[]
 
   @@index([workspaceId, poId])
 }
@@ -2301,4 +2340,218 @@ model RateLimit {
   windowStart DateTime @default(now())
 
   @@index([windowStart])
+}
+
+// =====================================================================
+//  PO VENDOR RESPONSE LOOP (2026-08)
+// =====================================================================
+//
+// After we issue a PO, the vendor needs to:
+//   1. Acknowledge the PO at the agreed pricing
+//      (or counter with changes, or reject)
+//   2. Pick how they want to be paid
+//      (on file / payment link / invoice to our email / check)
+//   3. Eventually send us the final invoice for payment
+//
+// The loop is event-sourced: PoVendorResponse rows are
+// append-only, PoEvent is the audit log, and the PO never
+// silently changes state. Every vendor action logs a
+// PoEvent with a typed `type` and a JSON `meta` blob.
+
+// ---- PO vendor response type ----
+enum PoVendorResponseType {
+  ACCEPTED // vendor accepted as-is
+  COUNTERED // vendor proposed changes — pending our decision
+  REJECTED // vendor said no
+  INFO_ONLY // vendor acknowledged but no commitment yet
+}
+
+// ---- How the vendor wants to be paid ----
+enum PoPaymentMethod {
+  ON_FILE // ACH/card on file (VendorPaymentMethod)
+  PAYMENT_LINK // we email them a Stripe checkout link
+  INVOICE_BY_EMAIL // vendor emails invoice to our ap@udgok.com
+  CHECK // vendor mails a check
+}
+
+// ---- Final invoice lifecycle ----
+enum PoInvoiceStatus {
+  SUBMITTED
+  APPROVED
+  DISPUTED
+  PAID
+  VOID
+}
+
+// ---- Vendor's payment methods on file (ACH / card / check) ----
+enum VendorPaymentMethodType {
+  ACH
+  CARD
+  CHECK
+}
+
+// Singleton per workspace. Created on first read if absent.
+// invoiceEmail is what gets printed on every PO ("send
+// invoices to: ap@udgok.com"). paymentLinkBaseUrl is the
+// Stripe (or similar) base URL for the "send me a payment
+// link" option. Both are read at PO-issue time and embedded
+// in the vendor email + portal.
+model WorkspacePaymentSettings {
+  workspaceId        String    @id
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoiceEmail       String // "ap@udgok.com"
+  invoiceEmailCc     String? // optional AR CC
+  defaultTerms       String // "Net 30"
+  paymentLinkBaseUrl String? // "https://buy.stripe.com/udgok-…"
+  achInstructions    String? // free-text shown to vendors
+  checkPayableTo     String? // "UDGOK Construction LLC"
+  checkMailTo        String? // mailing address for checks
+  allowAch           Boolean   @default(true)
+  allowCard          Boolean   @default(false)
+  allowCheck         Boolean   @default(true)
+  allowPaymentLink   Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// Per-vendor payment methods. ACH / card / check.
+// We never store the full account number — only the
+// last 4 digits + bank/brand metadata. The full number
+// lives in the vendor's own records.
+model VendorPaymentMethod {
+  id              String                  @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  vendorId        String
+  vendor          Vendor                  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  methodType      VendorPaymentMethodType
+  isDefault       Boolean                 @default(false)
+  nickname        String? // "Locke ACH — primary"
+  last4           String? // "1234" — last 4 only
+  achBankName     String?
+  achRoutingLast4 String?
+  achAccountLast4 String?
+  cardBrand       String? // "Visa"
+  cardExpMonth    Int?
+  cardExpYear     Int?
+  notes           String?
+  isActive        Boolean                 @default(true)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@index([workspaceId, vendorId, isActive])
+}
+
+// One row per vendor submission against an issued PO.
+// New response = new row. The PO points at the latest via
+// PurchaseOrder.vendorResponseId. We keep history (don't
+// delete) so we can see "vendor sent 3 counters" etc.
+model PoVendorResponse {
+  id          String        @id @default(cuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  responseType        PoVendorResponseType
+  paymentMethod       PoPaymentMethod
+  paymentMethodDetail String? // "ACH ending 1234" or "Stripe link to rep@x.com"
+  vendorReference     String? // vendor's order #
+  notes               String?
+
+  // Authenticity — who clicked, when, from where.
+  signedByName  String
+  signedByEmail String
+  signedByPhone String?
+  submittedAt   DateTime @default(now())
+  ipAddress     String?
+
+  // Optional copy of the vendor's response (e.g. screenshot
+  // they uploaded) — private blob; signed URL on read.
+  attachmentPathname String?
+
+  lines PoVendorResponseLine[]
+
+  @@index([workspaceId, poId, submittedAt(sort: Desc)])
+  @@index([workspaceId, responseType])
+}
+
+// Per-line response. Vendor can confirm, counter, or
+// backorder each line independently. The COUNTER flow
+// creates these with non-matching qty/price; the
+// our-side "accept counter" action reads them to build
+// the new PO.
+model PoVendorResponseLine {
+  id          String           @id @default(cuid())
+  workspaceId String
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  responseId  String
+  response    PoVendorResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  poLineId    String
+  poLine      POLine           @relation(fields: [poLineId], references: [id], onDelete: Cascade)
+
+  isConfirmed           Boolean   @default(true)
+  confirmedQty          Decimal?  @db.Decimal(19, 4)
+  confirmedPrice        Decimal?  @db.Decimal(19, 4)
+  backorderQty          Decimal?  @db.Decimal(19, 4)
+  shipDate              DateTime?
+  substituteSku         String?
+  substituteDescription String?
+  notes                 String?
+
+  @@index([workspaceId, responseId])
+  @@index([poLineId])
+}
+
+// Final invoice for a PO. Lifecycle:
+//   SUBMITTED → APPROVED → PAID
+//      │           │
+//      └──→ DISPUTED ──resolved──> APPROVED
+//              │
+//              └──→ VOID
+//
+// We allow multiple invoices per PO (e.g. partial
+// shipments billed separately). PurchaseOrder.invoiceId
+// points at the latest non-VOID one.
+model PoInvoice {
+  id          String        @id @default(cuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  invoiceNumber String
+  invoiceDate   DateTime
+  invoiceAmount Decimal         @db.Decimal(19, 4)
+  status        PoInvoiceStatus @default(SUBMITTED)
+
+  // Private blob path; signed URL on read. Vendor uploaded
+  // via the portal OR we uploaded it from email.
+  pdfBlobPathname String?
+
+  // Provenance — where the invoice came from.
+  submittedByEmail String // vendor's email or "manual upload"
+  receivedAt       DateTime @default(now())
+
+  // Approval
+  approvedAt   DateTime?
+  approvedById String? // clerk userId
+
+  // Dispute
+  disputedAt     DateTime?
+  disputedReason String?
+
+  // Payment
+  paidAt        DateTime?
+  paidMethod    String? // ACH | CARD | CHECK | WIRE
+  paidReference String? // check #, ACH trace, Stripe charge id
+  paidById      String? // clerk userId who marked paid
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, poId, status])
+  @@index([workspaceId, status, receivedAt(sort: Desc)])
+  @@index([workspaceId, invoiceNumber])
 }

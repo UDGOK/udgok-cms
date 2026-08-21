@@ -19,6 +19,9 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db/client';
 import { assertRole } from './auth';
 import { nextDocNumber } from './number';
+import { generateVendorPortalToken, sha256Token } from './vendor-portal-token';
+import { resolvePoPortalUrl } from './portal-url';
+import { getWorkspacePaymentSettings } from './payment-settings';
 import type { ActionResult } from './types';
 
 const acceptSchema = z.object({
@@ -185,13 +188,34 @@ export async function issuePoAction(
   const parsed = issueSchema.safeParse({ poId: formData.get('poId') });
   if (!parsed.success) return { ok: false, error: 'Invalid input' };
 
+  // Mint a vendor portal token. The plaintext goes into the
+  // PO issue email (and the re-send path); the hash is what
+  // we store. We generate BEFORE flipping status so a DB
+  // error doesn't leave us with a half-issued PO. Tokens are
+  // stable — we don't rotate on re-send.
+  let portalPlaintext: string;
+  let portalHash: string;
+  try {
+    const t = generateVendorPortalToken();
+    portalPlaintext = t.plaintext;
+    portalHash = t.hash;
+  } catch {
+    return { ok: false, error: 'Could not generate portal token' };
+  }
+
   // Flip status first so the PO is "real" before we do any
   // IO. If email fails, the PO is still issued and the buyer
   // can re-send manually. Reverse order is worse — buyer
   // thinks the PO is sent but it's actually still pending.
   const result = await prisma.purchaseOrder.updateMany({
     where: { id: parsed.data.poId, workspaceId, status: 'PENDING_APPROVAL' },
-    data: { status: 'ISSUED', issuedAt: new Date(), issuedBy: userId },
+    data: {
+      status: 'ISSUED',
+      issuedAt: new Date(),
+      issuedBy: userId,
+      vendorPortalToken: portalHash,
+      vendorPortalTokenIssuedAt: new Date(),
+    },
   });
   if (result.count === 0) return { ok: false, error: 'PO not in PENDING_APPROVAL' };
 
@@ -209,7 +233,7 @@ export async function issuePoAction(
   // and surfaced to the UI, but does NOT un-issue the PO —
   // the buyer can re-send or download the PDF manually.
   try {
-    const sent = await emailPoToVendor(workspaceId, parsed.data.poId);
+    const sent = await emailPoToVendor(workspaceId, parsed.data.poId, portalPlaintext);
     if (!sent.ok) {
       console.warn('[po-actions] PO email not sent:', sent.reason, sent.message);
     }
@@ -230,6 +254,7 @@ export async function issuePoAction(
 async function emailPoToVendor(
   workspaceId: string,
   poId: string,
+  portalPlaintext: string,
 ): Promise<{ ok: true } | { ok: false; reason: string; message?: string }> {
   const po = await prisma.purchaseOrder.findFirst({
     where: { id: poId, workspaceId },
@@ -254,6 +279,11 @@ async function emailPoToVendor(
   const ourCompanyName = process.env.PROCUREMENT_FROM_NAME ?? 'UDGOK Construction';
   const ourEmail = process.env.PROCUREMENT_FROM_EMAIL?.match(/<([^>]+)>/)?.[1] ?? 'purchasing@udgok.com';
   const ourPhone = process.env.UDGOK_CONTACT_PHONE ?? '';
+
+  // Workspace payment settings — surfaces the invoice email
+  // and "send us a payment link" CTA in the PO body.
+  const settings = await getWorkspacePaymentSettings(workspaceId);
+  const portalUrl = resolvePoPortalUrl(portalPlaintext);
 
   const { renderPoPdf } = await import('@/lib/procurement/render-po-pdf');
   const { sendPoEmail } = await import('@/lib/procurement/email');
@@ -318,6 +348,8 @@ async function emailPoToVendor(
     deliveryContactName: po.deliveryContactName,
     deliveryContactPhone: po.deliveryContactPhone,
     deliveryContactEmail: po.deliveryContactEmail,
+    portalUrl,
+    invoiceEmail: settings.invoiceEmail,
     pdf,
   });
 
@@ -366,8 +398,26 @@ export async function resendPoEmailAction(
     return { ok: false, error: `Cannot resend for a ${po.status} PO. Issue it first.` };
   }
 
+  // Re-mint the portal token. The previous link is
+  // invalidated — vendor must use the new link in this
+  // email. Plaintext lives in this scope only; the DB
+  // stores the hash.
+  let portalPlaintext: string;
   try {
-    const sent = await emailPoToVendor(workspaceId, poId);
+    portalPlaintext = generateVendorPortalToken().plaintext;
+  } catch {
+    return { ok: false, error: 'Could not generate portal token' };
+  }
+  await prisma.purchaseOrder.update({
+    where: { id: poId },
+    data: {
+      vendorPortalToken: sha256Token(portalPlaintext),
+      vendorPortalTokenIssuedAt: new Date(),
+    },
+  });
+
+  try {
+    const sent = await emailPoToVendor(workspaceId, poId, portalPlaintext);
     if (!sent.ok) {
       return { ok: false, error: sent.reason, ...(sent.message ? { message: sent.message } : {}) };
     }

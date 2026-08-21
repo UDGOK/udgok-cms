@@ -221,6 +221,13 @@ export type PoEmailInput = {
   deliveryContactName: string | null;
   deliveryContactPhone: string | null;
   deliveryContactEmail: string | null;
+  // Vendor portal URL — the link the vendor uses to
+  // acknowledge / counter / reject / send invoice. Goes
+  // into the body so the vendor has a single-click path.
+  portalUrl?: string | null;
+  // The invoice email the vendor should send final
+  // invoices to. Comes from workspace payment settings.
+  invoiceEmail?: string | null;
   // BCC — the buyer's purchasing inbox gets a copy for
   // records. Comes from PROCUREMENT_BCC_EMAIL env var; if
   // unset, no BCC.
@@ -281,6 +288,22 @@ function poText(input: PoEmailInput): string {
     '',
     'The attached PDF is the binding order. Please confirm receipt and any ship date at your earliest convenience.',
     '',
+    input.portalUrl
+      ? [
+          '',
+          '────────────────────────────────────────',
+          'Acknowledge, counter, or send invoice:',
+          `  ${input.portalUrl}`,
+          '',
+          'Payment options:',
+          '  • ACH on file',
+          '  • Send me a payment link',
+          `  • Invoice by email — send to ${input.invoiceEmail ?? 'ap@udgok.com'}`,
+          '  • Pay by check (mailing instructions on the portal)',
+          '────────────────────────────────────────',
+        ].join('\n')
+      : '',
+    '',
     'Questions? Reply to this email.',
     `${input.ourCompanyName}`,
   ].join('\n');
@@ -332,6 +355,17 @@ function poHtml(input: PoEmailInput): string {
     <div style="margin:16px 0;">${meta.join('')}</div>
     ${deliveryHtml}
     <p style="margin:16px 0;font-size:14px;">The attached PDF is the binding order. Please confirm receipt and any ship date at your earliest convenience.</p>
+    ${
+      input.portalUrl
+        ? `<div style="margin:24px 0;padding:18px 20px;background:#1a1a1a;color:#ffffff;border-radius:2px;">
+        <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#a8a29e;font-family:ui-monospace,Menlo,monospace;">// ACKNOWLEDGE / COUNTER / INVOICE</p>
+        <p style="margin:0 0 12px;font-size:15px;">Use the portal to confirm this PO, propose changes, pick how you'd like to be paid, and send your final invoice.</p>
+        <a href="${escapeHtml(input.portalUrl)}" style="display:inline-block;background:#ff5a1f;color:#ffffff;padding:11px 22px;text-decoration:none;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-size:12px;">Open PO Portal →</a>
+        <p style="margin:14px 0 0;font-size:11px;color:#a8a29e;font-family:ui-monospace,Menlo,monospace;word-break:break-all;">${escapeHtml(input.portalUrl)}</p>
+        <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#d6d3d1;">Payment options: <strong>ACH on file</strong> · <strong>Send me a payment link</strong> · <strong>Invoice by email</strong> — send to <span style="font-family:ui-monospace,Menlo,monospace;">${escapeHtml(input.invoiceEmail ?? 'ap@udgok.com')}</span> · <strong>Pay by check</strong> (mailing instructions on the portal)</p>
+      </div>`
+        : ''
+    }
     <hr style="border:none;border-top:1px solid #e7e5e4;margin:24px 0;" />
     <p style="margin:0;font-size:12px;color:#78716c;">Questions? Reply to this email.</p>
     <p style="margin:4px 0 0;font-size:12px;color:#78716c;">${escapeHtml(input.ourCompanyName)}</p>
@@ -388,6 +422,126 @@ export async function sendPoEmail(
         { name: 'type', value: 'po' },
         { name: 'po', value: input.poNumber },
       ],
+    });
+    if (error) {
+      return { sent: false, reason: 'RESEND_ERROR', message: error.message };
+    }
+    return { sent: true, resendId: data?.id };
+  } catch (e) {
+    return {
+      sent: false,
+      reason: 'THROW',
+      message: e instanceof Error ? e.message : 'Unknown error',
+    };
+  }
+}
+
+// =====================================================================
+//  Vendor response notification + invoice request
+// =====================================================================
+//
+// Internal-side notifications fired when a vendor responds
+// to a PO at /p/[token] or when we ask them to send us an
+// invoice. Sent to the buyer's PM + AP (not the vendor —
+// they got their own confirmation via the portal).
+
+export type VendorNotificationInput = {
+  to: string;
+  subject: string;
+  workspaceName: string;
+  poNumber: string;
+  vendorName: string;
+  // 'VENDOR_RESPONSE' | 'INVOICE_REQUEST'
+  responseType: 'VENDOR_RESPONSE' | 'INVOICE_REQUEST';
+  paymentMethod?:
+    | 'ON_FILE'
+    | 'PAYMENT_LINK'
+    | 'INVOICE_BY_EMAIL'
+    | 'CHECK'
+    | null;
+  portalUrl?: string | null;
+  invoiceEmail?: string;
+  lineCount?: number;
+  notes?: string | null;
+};
+
+function vendorNotificationText(input: VendorNotificationInput): string {
+  const portal = input.portalUrl ? `\n  Portal: ${input.portalUrl}\n` : '';
+  const method = input.paymentMethod
+    ? `\n  Payment method: ${input.paymentMethod.replace(/_/g, ' ').toLowerCase()}\n`
+    : '';
+  if (input.responseType === 'INVOICE_REQUEST') {
+    return `Invoice needed for ${input.poNumber}
+
+Hi,
+
+We need the final invoice for ${input.poNumber} (${input.vendorName}).
+
+Please send it to:
+  ${input.invoiceEmail ?? 'ap@udgok.com'}
+with the PO number in the subject line.
+
+You can also upload it via the portal:
+  ${input.portalUrl ?? '(no portal link — request a new one from the buyer)'}
+
+Payment terms: as quoted on the PO.
+
+— ${input.workspaceName}
+`;
+  }
+  return `${input.vendorName} responded to ${input.poNumber}
+${portal}${method}Lines: ${input.lineCount ?? '—'}
+
+${input.notes ? `Vendor notes:\n${input.notes}\n` : ''}
+— ${input.workspaceName}
+`;
+}
+
+function vendorNotificationHtml(input: VendorNotificationInput): string {
+  const safe = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const portal = input.portalUrl
+    ? `<p style="margin:12px 0"><a href="${safe(input.portalUrl)}" style="display:inline-block;background:#1e2a3a;color:#f5f1e8;padding:10px 20px;text-decoration:none;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-size:11px">Open PO</a></p>`
+    : '';
+  const method = input.paymentMethod
+    ? `<p style="margin:8px 0"><b>Payment method:</b> ${safe(input.paymentMethod.replace(/_/g, ' ').toLowerCase())}</p>`
+    : '';
+  if (input.responseType === 'INVOICE_REQUEST') {
+    return `<div style="font-family:Helvetica,sans-serif;color:#1e2a3a;max-width:560px">
+<p>Hi,</p>
+<p>We need the final invoice for <b>${safe(input.poNumber)}</b> (${safe(input.vendorName)}).</p>
+<p>Please send it to <a href="mailto:${safe(input.invoiceEmail ?? 'ap@udgok.com')}">${safe(input.invoiceEmail ?? 'ap@udgok.com')}</a> with the PO number in the subject line.</p>
+${portal}
+<p>Payment terms: as quoted on the PO.</p>
+<p style="color:#7c8694">— ${safe(input.workspaceName)}</p>
+</div>`;
+  }
+  return `<div style="font-family:Helvetica,sans-serif;color:#1e2a3a;max-width:560px">
+<p>${safe(input.vendorName)} responded to <b>${safe(input.poNumber)}</b></p>
+${method}
+${input.lineCount ? `<p><b>Lines:</b> ${input.lineCount}</p>` : ''}
+${input.notes ? `<p style="white-space:pre-wrap;background:#ebe6d7;padding:8px 12px;border-left:3px solid #ff5a1f">${safe(input.notes)}</p>` : ''}
+${portal}
+<p style="color:#7c8694">— ${safe(input.workspaceName)}</p>
+</div>`;
+}
+
+export async function sendVendorResponseNotification(
+  input: VendorNotificationInput,
+): Promise<{ sent: boolean; reason?: string; message?: string; resendId?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    return { sent: false, reason: 'NO_RESEND_KEY' };
+  }
+  const from =
+    process.env.RESEND_FROM_ADDRESS ?? 'noreply@cms.udgok.com';
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from,
+      to: input.to,
+      subject: input.subject,
+      text: vendorNotificationText(input),
+      html: vendorNotificationHtml(input),
     });
     if (error) {
       return { sent: false, reason: 'RESEND_ERROR', message: error.message };

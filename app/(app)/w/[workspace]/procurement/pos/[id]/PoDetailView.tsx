@@ -31,6 +31,12 @@ interface PoDto {
   issuedAt: string | null;
   issuedBy: string | null;
   createdAt: string;
+  // Vendor response loop (2026-08) — surfaced in the
+  // Vendor response section below. The detail view itself
+  // shows payment method + ref at a glance.
+  paymentMethodChosen: 'ON_FILE' | 'PAYMENT_LINK' | 'INVOICE_BY_EMAIL' | 'CHECK' | null;
+  paymentMethodDetail: string | null;
+  vendorReference: string | null;
   // Delivery block (separate from shipTo) — where the
   // driver physically drops off + on-site point of contact
   deliveryName: string | null;
