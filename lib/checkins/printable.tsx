@@ -1,4 +1,6 @@
-import { buildCheckInUrl, buildQrImageUrl } from './qr';
+'use client';
+
+import { buildCheckInUrl, buildQrImageUrl } from './qr-urls';
 
 export interface PrintableCode {
   id: string;

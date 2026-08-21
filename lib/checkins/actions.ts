@@ -6,7 +6,7 @@ import { z } from '@/lib/validation';
 import { prisma } from '@/lib/db/client';
 import { requireRole } from '@/lib/auth/require-role';
 import { getWorkspace } from '@/lib/workspace/get-workspace';
-import { generateCheckInToken } from './qr';
+import { generateCheckInToken } from './qr-token';
 import { findOpenCheckIn } from './queries';
 import { emitNotification } from '@/lib/notifications/actions';
 

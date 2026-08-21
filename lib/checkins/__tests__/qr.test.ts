@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  QR_TOKEN_BYTES,
-  buildCheckInUrl,
-  buildQrImageUrl,
-  generateCheckInToken,
-} from '../qr';
+import { QR_TOKEN_BYTES, generateCheckInToken } from '../qr-token';
+import { buildCheckInUrl, buildQrImageUrl } from '../qr-urls';
 
 /**
  * Unit tests for the QR helper module.

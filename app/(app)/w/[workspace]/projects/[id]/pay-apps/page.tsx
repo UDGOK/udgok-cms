@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { GeneratePayAppButton } from '../GeneratePayAppButton';
 import { ProjectTabsBar } from '../ProjectTabsBar';
 import { PayAppFlow3DViewer } from '@/components/3d/PayAppFlow3DViewer';
+import { ImportInvoiceButton } from './ImportInvoiceButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,11 +98,18 @@ export default async function ProjectPayAppsPage({
         <p className="text-[13px] text-ink-70">
           Each draw is a pay application sent to the client. Track when they open it, when they sign, and when it&apos;s paid.
         </p>
-        <GeneratePayAppButton
-          workspaceSlug={params.workspace}
-          projectId={project.id}
-          hasDivisions={project.divisions.length > 0}
-        />
+        <div className="flex items-center gap-2 flex-wrap">
+          <ImportInvoiceButton
+            workspaceSlug={params.workspace}
+            projectId={project.id}
+            nextDrawNumber={project.payApps.length + 1}
+          />
+          <GeneratePayAppButton
+            workspaceSlug={params.workspace}
+            projectId={project.id}
+            hasDivisions={project.divisions.length > 0}
+          />
+        </div>
       </div>
 
       {/* 3D cash-flow column */}
