@@ -19,15 +19,28 @@ export type GenerateCodeState =
   | { ok: true; id: string; token: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
+// Helper: turn empty / missing form fields into undefined
+// BEFORE z.coerce runs. Without this, an empty input
+// gets coerced to 0 (which the user probably didn't
+// mean — they meant "no value"). With it, an empty
+// input stays undefined, and the schema is just
+// `z.coerce.number().optional()` with no `.or(z.literal(''))`
+// jank.
+const emptyToUndefined = (v: unknown) => (v === '' || v == null ? undefined : v);
+
 const generateCodeSchema = z.object({
   projectId: z.string().min(1, 'Project is required'),
   label: z.string().min(1, 'Label is required').max(80, 'Label too long'),
   // Geofence binding. All optional so legacy "no GPS" flow
   // still works (you can generate a code without pinning
-  // it to a location).
-  lat: z.coerce.number().min(-90).max(90).optional().or(z.literal('')),
-  lng: z.coerce.number().min(-180).max(180).optional().or(z.literal('')),
-  geofenceMeters: z.coerce.number().int().min(0).max(5000).optional().or(z.literal('')),
+  // it to a location). Empty-string inputs normalize to
+  // undefined via emptyToUndefined.
+  lat: z.preprocess(emptyToUndefined, z.coerce.number().min(-90).max(90).optional()),
+  lng: z.preprocess(emptyToUndefined, z.coerce.number().min(-180).max(180).optional()),
+  geofenceMeters: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(0).max(5000).optional(),
+  ),
   requireWithinGeofence: z
     .union([z.literal('on'), z.literal('true'), z.literal('false'), z.literal('')])
     .optional(),
@@ -75,13 +88,13 @@ export async function generateCheckInCodeAction(
 
   // If they provided lat OR lng, require both. We don't
   // accept a half-pinned code.
-  const hasLat = parsed.data.lat !== '' && parsed.data.lat != null;
-  const hasLng = parsed.data.lng !== '' && parsed.data.lng != null;
+  const hasLat = parsed.data.lat != null;
+  const hasLng = parsed.data.lng != null;
   if (hasLat !== hasLng) {
     return {
       ok: false,
       error: 'Both latitude and longitude must be set (or both blank)',
-      fieldErrors: { lat: 'Required when longitude is set', lng: 'Required when latitude is set' },
+      fieldErrors: { lat: 'Required when longitude is set', lng: 'Required when longitude is set' },
     };
   }
 
@@ -106,10 +119,7 @@ export async function generateCheckInCodeAction(
   const addressSnapshot = addressParts.join(', ') || null;
 
   // Default radius: 150m. Admin can override per code.
-  const geofenceMeters =
-    parsed.data.geofenceMeters && parsed.data.geofenceMeters !== ''
-      ? Number(parsed.data.geofenceMeters)
-      : 150;
+  const geofenceMeters = parsed.data.geofenceMeters ?? 150;
   const requireWithinGeofence =
     parsed.data.requireWithinGeofence === 'on' ||
     parsed.data.requireWithinGeofence === 'true';
@@ -134,8 +144,8 @@ export async function generateCheckInCodeAction(
           // Geofence binding. If lat/lng are missing, we
           // leave the columns null — the code still works
           // for the legacy "no GPS" flow.
-          lat: hasLat ? Number(parsed.data.lat) : null,
-          lng: hasLng ? Number(parsed.data.lng) : null,
+          lat: hasLat && parsed.data.lat != null ? parsed.data.lat : null,
+          lng: hasLng && parsed.data.lng != null ? parsed.data.lng : null,
           geofenceMeters,
           requireWithinGeofence,
           addressSnapshot,
