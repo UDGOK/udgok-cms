@@ -77,7 +77,7 @@ beforeEach(() => {
 });
 
 describe('getProjectTabs — order + labels are stable', () => {
-  it('returns 12 tabs in the documented order', async () => {
+  it('returns 13 tabs in the documented order', async () => {
     const tabs = await getProjectTabs({
       workspaceSlug: 'udgok',
       projectId: 'p_1',
@@ -100,6 +100,7 @@ describe('getProjectTabs — order + labels are stable', () => {
       'map',
       'pay-apps',
       'subs',
+      'financials',
     ]);
   });
 

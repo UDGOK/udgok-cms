@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { workspaceDashboard, recentActivity } from '@/lib/dashboard/queries';
+import { getWorkspaceFinancialRollup } from '@/lib/projects/financial-summary';
 
 export default async function DashboardPage({
   params,
@@ -9,9 +10,10 @@ export default async function DashboardPage({
 }) {
   const { workspace } = await requireMembership(params.workspace);
 
-  const [stats, activity] = await Promise.all([
+  const [stats, activity, financials] = await Promise.all([
     workspaceDashboard(workspace.id),
     recentActivity(workspace.id, 10),
+    getWorkspaceFinancialRollup(workspace.id),
   ]);
 
   const isFresh = stats.activeClients + stats.openDeals + stats.activeProjects === 0;
@@ -54,6 +56,70 @@ export default async function DashboardPage({
           <div className="text-[10px] md:text-[11px] text-ink-50 mt-1">across the team</div>
         </div>
       </div>
+
+      {/* Financial pulse — workspace-wide rollup across all
+          active projects. Surfaces the 4 most important money
+          numbers in one strip. */}
+      {financials.activeProjectCount > 0 ? (
+        <div className="border-2 border-ink bg-paper mb-5 md:mb-7">
+          <div className="px-4 md:px-5 py-3 border-b-2 border-ink flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="label-eyebrow">{'// Financial pulse'}</div>
+              <div className="text-[11px] text-ink-50 mt-0.5">
+                Across {financials.activeProjectCount} active project{financials.activeProjectCount === 1 ? '' : 's'}
+              </div>
+            </div>
+            {financials.projectsWithOverdueAr > 0 ? (
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] px-2 py-1 bg-warning/15 text-warning border border-warning/40">
+                ⚠ {financials.projectsWithOverdueAr} project{financials.projectsWithOverdueAr === 1 ? '' : 's'} with 30+ day receivable
+              </div>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3">
+            <div className="p-4 md:p-5 border-r border-b md:border-b-0 border-line">
+              <div className="label-mono">Contract value</div>
+              <div className="font-black text-xl md:text-2xl">
+                ${financials.totalContractValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-[10px] md:text-[11px] text-ink-50 mt-1">
+                active scope
+              </div>
+            </div>
+            <div className="p-4 md:p-5 border-r md:border-r border-b md:border-b-0 border-line">
+              <div className="label-mono">Billed to date</div>
+              <div className="font-black text-xl md:text-2xl text-success">
+                ${financials.totalBilled.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-[10px] md:text-[11px] text-ink-50 mt-1">
+                {financials.totalContractValue > 0
+                  ? `${Math.round((financials.totalBilled / financials.totalContractValue) * 100)}% of contract`
+                  : 'no contracts set'}
+              </div>
+              {financials.totalContractValue > 0 ? (
+                <div className="mt-2 h-1 bg-cream-2 border border-line overflow-hidden">
+                  <div
+                    className="h-full bg-success"
+                    style={{
+                      width: `${Math.min(100, Math.round((financials.totalBilled / financials.totalContractValue) * 100))}%`,
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+            <div className="p-4 md:p-5">
+              <div className="label-mono">Outstanding AR</div>
+              <div className={`font-black text-xl md:text-2xl ${financials.totalOutstandingAr > 0 ? 'text-warning' : 'text-success'}`}>
+                ${financials.totalOutstandingAr.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-[10px] md:text-[11px] text-ink-50 mt-1">
+                {financials.totalOutstandingAr > 0
+                  ? 'awaiting payment'
+                  : 'all caught up'}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Quick actions */}

@@ -10,6 +10,8 @@ import { auth } from '@clerk/nextjs/server';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 import { getProjectWithRelations, computeProjectCompletion, generateProjectInsights } from '@/lib/projects/insights';
+import { getProjectFinancialSummary } from '@/lib/projects/financial-summary';
+import { FinancialSummary } from './FinancialSummary';
 import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { GanttChart, type GanttTask } from '@/components/workspace/GanttChart';
@@ -219,7 +221,7 @@ export default async function ProjectDetailPage({
   const { userId } = await auth();
   const tab = searchParams.tab ?? 'overview';
 
-  const [project, subs, messages, activity, photoCounts, recentPhotos, workspaceMembers, projectMembers, myRole, permits, gpsPhotos] = await Promise.all([
+  const [project, subs, messages, activity, photoCounts, recentPhotos, workspaceMembers, projectMembers, myRole, permits, gpsPhotos, financialSummary] = await Promise.all([
     getProjectWithRelations(workspace.id, params.id),
     prisma.subcontractor.findMany({
       where: { workspaceId: workspace.id },
@@ -249,6 +251,11 @@ export default async function ProjectDetailPage({
     // exceed a few hundred, and a hard cap keeps the map payload
     // bounded even on a busy project.
     listProjectGpsPhotos(params.id, 500),
+    // Financial rollup for the embedded FinancialSummary
+    // card (top of the project page) and the dedicated
+    // /financials deep-dive page. One batch, one pass —
+    // see lib/projects/financial-summary.ts.
+    getProjectFinancialSummary(params.id),
   ]);
   if (!project) notFound();
   const projectData = project as unknown as ProjectData;
@@ -473,15 +480,26 @@ export default async function ProjectDetailPage({
 
       {/* Render the active tab */}
       {tab === 'overview' ? (
-        <OverviewTab
-          projectId={projectData.id}
-          workspace={params.workspace}
-          project={projectData}
+        <>
+          {/* Financial summary card — the "pulse" of money on
+              this project. Shows contract, billed, AR, margin,
+              plus a quick snapshot of pay apps and billables.
+              The full deep-dive is at /financials. */}
+          <FinancialSummary
+            workspace={params.workspace}
+            projectId={projectData.id}
+            summary={financialSummary}
+          />
+          <OverviewTab
+            projectId={projectData.id}
+            workspace={params.workspace}
+            project={projectData}
           photoCounts={photoCounts}
           recentPhotos={recentPhotos}
           totalPhotoCount={photoCounts.ROUGH_IN + photoCounts.FINAL}
           completion={completion}
         />
+        </>
       ) : null}
 
       {tab === 'ai' ? (

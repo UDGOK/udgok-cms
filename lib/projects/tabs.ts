@@ -137,6 +137,15 @@ export async function getProjectTabs(ctx: ProjectTabsContext): Promise<ProjectTa
       href: `${base}?tab=subs`,
       badge: ctx.subAssignmentCount > 0 ? ctx.subAssignmentCount : undefined,
     },
+    {
+      // The dedicated financial guide page (a deep-dive
+      // walkthrough of pay apps, billables, margin, AR
+      // aging — see /financials/page.tsx). The at-a-glance
+      // summary also shows on the Overview tab.
+      key: 'financials',
+      label: 'Financials',
+      href: `${base}/financials`,
+    },
   ];
 }
 
