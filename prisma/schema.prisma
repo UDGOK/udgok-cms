@@ -511,6 +511,14 @@ model Project {
   geocodedAt      DateTime?
   geocodeSource   String? // 'nominatim' | 'manual' | 'mapbox' | 'cached'
   geocodedAddress String? // the address that was actually geocoded (for cache invalidation)
+  // Per-project permit portal override. When set, the JurisdictionCard
+  // surfaces this URL instead of the matched city's default portal.
+  // Use case: city isn't in the JURISDICTIONS directory, or the project
+  // is in a sub-jurisdiction (county + city) with its own portal, or
+  // the user wants a custom deep link to a specific permit application.
+  permitPortalUrl     String?
+  permitPortalLabel   String? // e.g. "MyGov (Bixby) — applicant login"
+  permitPortalNotes   String? // free text shown under the link
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

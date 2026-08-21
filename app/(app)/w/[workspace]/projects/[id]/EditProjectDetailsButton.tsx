@@ -20,6 +20,9 @@ interface EditProjectDetailsButtonProps {
     latitude: number | null;
     longitude: number | null;
     geocodeSource: string | null;
+    permitPortalUrl: string | null;
+    permitPortalLabel: string | null;
+    permitPortalNotes: string | null;
   };
 }
 
@@ -232,6 +235,61 @@ export function EditProjectDetailsButton({
               </select>
             </div>
           </div>
+
+          {/* Permit portal override. Optional — leave empty
+              to use the matched city's default. Use this when:
+                - the city isn't in the directory yet
+                - the project is in a sub-jurisdiction (county, MUD, etc.)
+                - the user wants a custom deep link to a specific
+                  permit application. */}
+          <div className="border-2 border-dashed border-ink bg-cream-2 p-3 space-y-2">
+            <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+              🏛 Permit portal link
+            </div>
+            <div>
+              <label className="block text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+                Custom portal URL
+              </label>
+              <input
+                type="url"
+                name="permitPortalUrl"
+                defaultValue={initial.permitPortalUrl ?? ''}
+                placeholder="https://web.mygov.us/..."
+                maxLength={2048}
+                className="w-full px-3 py-2 bg-paper border border-line text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+                Button label (optional)
+              </label>
+              <input
+                type="text"
+                name="permitPortalLabel"
+                defaultValue={initial.permitPortalLabel ?? ''}
+                placeholder="MyGov (Bixby) — applicant login"
+                maxLength={200}
+                className="w-full px-3 py-2 bg-paper border border-line text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-orange"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 mb-1">
+                Notes (optional)
+              </label>
+              <textarea
+                name="permitPortalNotes"
+                defaultValue={initial.permitPortalNotes ?? ''}
+                rows={2}
+                maxLength={2000}
+                placeholder="e.g. login as contractor — see yuba for applicant login"
+                className="w-full px-3 py-2 bg-paper border border-line text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-orange"
+              />
+            </div>
+            <p className="text-[10px] text-ink-50">
+              Leave empty to use the matched city&apos;s default portal (e.g. MyGov for Bixby). When set, this project shows a <b>custom link</b> badge on the Permit Office card.
+            </p>
+          </div>
+
           {'error' in (state ?? {}) && state?.error ? (
             <div className="text-[12px] text-error font-extrabold">{state.error}</div>
           ) : null}

@@ -6,6 +6,12 @@ interface JurisdictionCardProps {
     city?: string | null;
     state?: string | null;
     zip?: string | null;
+    // Per-project override for the permit portal link.
+    // When set, the project uses this URL instead of the
+    // matched city's default. See Project.permitPortalUrl.
+    permitPortalUrl?: string | null;
+    permitPortalLabel?: string | null;
+    permitPortalNotes?: string | null;
   };
 }
 
@@ -13,6 +19,16 @@ export function JurisdictionCard({ project }: JurisdictionCardProps) {
   const j = findJurisdiction(project.city, project.state, project.zip);
   const mapUrl = buildMapSearchUrl(project);
   const hasAddress = Boolean(project.address || project.city || project.zip);
+
+  // Portal link resolution: per-project override wins over
+  // the matched city's default. The label follows the same
+  // precedence so the user can see which one is in effect.
+  const portalUrl = project.permitPortalUrl ?? j?.portalUrl ?? null;
+  const portalLabel =
+    project.permitPortalLabel ??
+    j?.portalLabel ??
+    (project.permitPortalUrl ? 'Project portal' : 'Open permit portal');
+  const portalIsOverride = Boolean(project.permitPortalUrl);
 
   if (!hasAddress) {
     return (
@@ -63,8 +79,18 @@ export function JurisdictionCard({ project }: JurisdictionCardProps) {
         <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
           {'// Permit office'}
         </div>
-        <div className="text-[9px] font-mono uppercase tracking-[0.1em] text-success flex items-center gap-1">
-          <span className="w-1.5 h-1.5 bg-success rounded-full" /> matched
+        <div className="flex items-center gap-2">
+          {portalIsOverride ? (
+            <span
+              className="text-[8px] font-mono uppercase tracking-[0.1em] text-orange border border-orange px-1"
+              title="This project has a custom permit portal link that overrides the city default."
+            >
+              custom link
+            </span>
+          ) : null}
+          <div className="text-[9px] font-mono uppercase tracking-[0.1em] text-success flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-success rounded-full" /> matched
+          </div>
         </div>
       </div>
 
@@ -108,6 +134,28 @@ export function JurisdictionCard({ project }: JurisdictionCardProps) {
             } />
           ) : null}
         </dl>
+
+        {portalUrl ? (
+          <div className="mt-3">
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener"
+              className="block w-full text-center px-3 py-2.5 bg-ink text-cream text-[11px] font-mono uppercase tracking-[0.12em] font-extrabold hover:bg-orange-d transition-colors"
+            >
+              {portalLabel} →
+            </a>
+            <div className="mt-1.5 text-[10px] text-ink-50 font-mono break-all">
+              {portalUrl.replace(/^https?:\/\/(www\.)?/, '')}
+            </div>
+            {project.permitPortalNotes ? (
+              <div className="mt-2 px-3 py-2 bg-cream-2 border border-line text-[11px] text-ink-70 leading-relaxed">
+                <span className="font-extrabold text-ink-50 mr-1">PROJECT NOTE:</span>
+                {project.permitPortalNotes}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {j.notes ? (
           <div className="mt-3 px-3 py-2 bg-cream-2 border border-line text-[11px] text-ink-70 leading-relaxed">

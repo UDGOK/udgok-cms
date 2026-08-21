@@ -119,6 +119,12 @@ interface ProjectData {
   city: string | null;
   state: string | null;
   zip: string | null;
+  // Per-project permit portal override. When set, the
+  // JurisdictionCard surfaces this URL instead of the
+  // matched city's default. See Project.permitPortalUrl.
+  permitPortalUrl: string | null;
+  permitPortalLabel: string | null;
+  permitPortalNotes: string | null;
   latitude: number | null;
   longitude: number | null;
   geocodedAt: Date | null;
@@ -416,6 +422,9 @@ export default async function ProjectDetailPage({
                 latitude: projectData.latitude,
                 longitude: projectData.longitude,
                 geocodeSource: projectData.geocodeSource,
+                permitPortalUrl: projectData.permitPortalUrl,
+                permitPortalLabel: projectData.permitPortalLabel,
+                permitPortalNotes: projectData.permitPortalNotes,
               }}
             />
           </div>

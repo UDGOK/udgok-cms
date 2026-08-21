@@ -328,6 +328,21 @@ const updateProjectDetailsSchema = z.object({
   // Explicit "force re-geocode from current address" signal. Sent
   // when the user clicks the Re-geocode button.
   forceRegeocode: z.union([z.literal('on'), z.literal('true'), z.literal('1')]).optional(),
+  // Per-project permit portal override. When set, the
+  // JurisdictionCard surfaces this URL instead of the
+  // matched city's default. Use for sub-jurisdictions or
+  // when the city isn't in the JURISDICTIONS directory.
+  permitPortalUrl: z
+    .string()
+    .max(2048, 'Portal URL is too long')
+    .refine(
+      (v) => !v || /^https?:\/\//i.test(v.trim()),
+      'Portal URL must start with http:// or https://',
+    )
+    .optional()
+    .or(z.literal('')),
+  permitPortalLabel: z.string().max(200).optional(),
+  permitPortalNotes: z.string().max(2000).optional(),
 });
 
 export type UpdateProjectDetailsState =
@@ -359,6 +374,9 @@ export async function updateProjectDetailsAction(
     latitude: formData.get('latitude') ?? undefined,
     longitude: formData.get('longitude') ?? undefined,
     forceRegeocode: formData.get('forceRegeocode') ?? undefined,
+    permitPortalUrl: formData.get('permitPortalUrl') ?? undefined,
+    permitPortalLabel: formData.get('permitPortalLabel') ?? undefined,
+    permitPortalNotes: formData.get('permitPortalNotes') ?? undefined,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -396,6 +414,11 @@ export async function updateProjectDetailsAction(
       endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : null,
       contractValue: parsed.data.contractValue,
       status: parsed.data.status,
+      // Per-project permit portal override. Empty string from
+      // the form becomes null so the city default takes over.
+      permitPortalUrl: parsed.data.permitPortalUrl?.trim() || null,
+      permitPortalLabel: parsed.data.permitPortalLabel?.trim() || null,
+      permitPortalNotes: parsed.data.permitPortalNotes?.trim() || null,
       // Manual pin wins: clear auto-geocode provenance and lock coords
       // to whatever the user typed. Future edits won't auto-override.
       ...(isManualPin

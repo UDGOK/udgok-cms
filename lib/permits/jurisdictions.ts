@@ -37,6 +37,16 @@ export interface Jurisdiction {
   avgReviewDays?: number;
   /** Inspector portal / inspection request URL if separate. */
   inspectionUrl?: string;
+  /**
+   * Online permit portal login URL — usually the contractor
+   * (collaborator) link for builder/PM access. The homeowner
+   * (applicant) link is typically the same base without
+   * `loginas=collaborator`. Per-project override lives on
+   * the Project row (`permitPortalUrl`).
+   */
+  portalUrl?: string;
+  /** Display label for the portalUrl. e.g. "MyGov (Bixby)" */
+  portalLabel?: string;
   /** Notes shown to the user. */
   notes?: string;
 }
@@ -76,11 +86,119 @@ export const JURISDICTIONS: Jurisdiction[] = [
     slug: 'broken-arrow',
     name: 'City of Broken Arrow',
     state: 'OK',
-    match: ['broken arrow'],
-    zipPrefixes: ['740', '741'],
+    match: ['broken arrow', 'ba'],
+    // No zipPrefixes on purpose: 740 is shared across Bixby,
+    // Jenks, Owasso, Sand Springs, Sapulpa, Glenpool, Catoosa
+    // — falling back to Broken Arrow for those zips would
+    // misattribute their projects. The city+state match
+    // in findJurisdiction catches Broken Arrow projects by
+    // name; unknown cities get the "not in directory" card.
     phone: '(918) 259-2400',
     website: 'https://www.brokenarrowok.gov/government/development',
     address: '220 S 1st St, Broken Arrow, OK 74012',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+  },
+  {
+    // Bixby runs its own permitting on the MyGov platform.
+    // The 740 ZIP prefix overlaps with Broken Arrow, so this
+    // entry MUST come before any zip-only fallback in the
+    // matcher (and the matcher prefers city+state over zip).
+    slug: 'bixby',
+    name: 'City of Bixby',
+    state: 'OK',
+    match: ['bixby'],
+    zipPrefixes: ['740'],
+    phone: '(918) 366-4430',
+    website: 'https://www.bixbyok.gov/164/Community-Development',
+    address: '116 W Needles Ave, Bixby, OK 74008',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+    portalUrl:
+      'https://web.mygov.us/authentication/login/?loginas=collaborator&city_id=182&permalink=Nh1xrRBObl6_h73NRgS-XdDYacQSxSUUpp_Tk-TCQwc',
+    portalLabel: 'MyGov (Bixby) — contractor login',
+  },
+  {
+    slug: 'jenks',
+    name: 'City of Jenks',
+    state: 'OK',
+    match: ['jenks'],
+    zipPrefixes: ['740'],
+    phone: '(918) 299-5883',
+    website: 'https://jenks.com/152/Community-Development',
+    address: '211 N Elm St, Jenks, OK 74037',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+  },
+  {
+    slug: 'owasso',
+    name: 'City of Owasso',
+    state: 'OK',
+    match: ['owasso'],
+    zipPrefixes: ['740'],
+    phone: '(918) 272-4951',
+    website: 'https://www.owasso.org/164/Community-Development',
+    address: '200 S Main St, Owasso, OK 74055',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+  },
+  {
+    slug: 'sand-springs',
+    name: 'City of Sand Springs',
+    state: 'OK',
+    match: ['sand springs'],
+    zipPrefixes: ['740'],
+    phone: '(918) 246-2500',
+    website: 'https://sandspringsok.org/202/Community-Development',
+    address: '100 E Broadway St, Sand Springs, OK 74063',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+  },
+  {
+    slug: 'sapulpa',
+    name: 'City of Sapulpa',
+    state: 'OK',
+    match: ['sapulpa'],
+    zipPrefixes: ['740'],
+    phone: '(918) 224-3040',
+    website: 'https://www.sapulpaok.gov/164/Community-Development',
+    address: '425 E Dewey Ave, Sapulpa, OK 74066',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+  },
+  {
+    slug: 'glenpool',
+    name: 'City of Glenpool',
+    state: 'OK',
+    match: ['glenpool'],
+    zipPrefixes: ['740'],
+    phone: '(918) 322-5401',
+    website: 'https://www.glenpool.org/164/Community-Development',
+    address: '13809 S Casper St, Glenpool, OK 74033',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+  },
+  {
+    slug: 'catoosa',
+    name: 'City of Catoosa',
+    state: 'OK',
+    match: ['catoosa'],
+    zipPrefixes: ['740'],
+    phone: '(918) 266-2585',
+    website: 'https://www.cityofcatoosa.org/164/Community-Development',
+    address: '214 S Cherokee St, Catoosa, OK 74015',
+    hours: 'Mon-Fri 8:00am - 5:00pm',
+    avgReviewDays: 10,
+  },
+  {
+    slug: 'coweta',
+    name: 'City of Coweta',
+    state: 'OK',
+    match: ['coweta'],
+    zipPrefixes: ['744'],
+    phone: '(918) 486-2189',
+    website: 'https://www.cityofcoweta-ok.gov/164/Community-Development',
+    address: '310 S Broadway, Coweta, OK 74429',
     hours: 'Mon-Fri 8:00am - 5:00pm',
     avgReviewDays: 10,
   },
