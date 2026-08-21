@@ -19,10 +19,10 @@ export function BottomCTA() {
             Start free →
           </Link>
           <Link
-            href="/showcase"
+            href="/features"
             className="px-6 py-4 border-2 border-cream/30 text-cream text-[12px] font-extrabold uppercase tracking-[0.15em] hover:bg-cream/10"
           >
-            See it in action
+            See what you get →
           </Link>
         </div>
       </div>

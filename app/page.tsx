@@ -90,7 +90,7 @@ function Hero() {
                 Start free →
               </Link>
               <Link
-                href="/showcase"
+                href="/features"
                 className="px-5 py-3.5 md:py-4 border-2 border-ink text-ink text-[12px] font-extrabold uppercase tracking-[0.15em] hover:bg-ink hover:text-cream text-center"
               >
                 See how it works

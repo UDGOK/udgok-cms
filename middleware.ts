@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   // app/sitemap.ts, public/.well-known/security.txt)
   '/robots.txt',
   '/sitemap.xml',
+  '/changelog.xml',
   '/.well-known/(.*)',
   // Marketing site (customer-facing, public)
   '/',

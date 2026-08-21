@@ -40,7 +40,6 @@ export function MarketingNav() {
           <div className="hidden md:flex items-center gap-7">
             <NavLink href="/features" currentPath={pathname}>Features</NavLink>
             <NavLink href="/pricing" currentPath={pathname}>Pricing</NavLink>
-            <NavLink href="/showcase" currentPath={pathname}>Showcase</NavLink>
             <NavLink href="/help" currentPath={pathname}>Help</NavLink>
             <NavLink href="/docs" currentPath={pathname}>Docs</NavLink>
             <NavLink href="/changelog" currentPath={pathname}>Changelog</NavLink>

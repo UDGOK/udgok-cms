@@ -218,7 +218,6 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
         { label: 'Home', href: '/', icon: ICONS.home },
         { label: 'Features', href: '/features', icon: ICONS.features, description: 'Every tool in UDGOK' },
         { label: 'Pricing', href: '/pricing', icon: ICONS.pricing, description: 'Free, Pro, Enterprise' },
-        { label: 'Showcase', href: '/showcase', icon: ICONS.showcase, description: 'See the live app' },
       ],
     },
     {
@@ -284,7 +283,6 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
       items: [
         { label: 'Features', href: '/features', icon: ICONS.features },
         { label: 'Pricing', href: '/pricing', icon: ICONS.pricing },
-        { label: 'Showcase', href: '/showcase', icon: ICONS.showcase },
       ],
     },
     {

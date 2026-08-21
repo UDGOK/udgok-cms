@@ -16,20 +16,19 @@ export function MarketingFooter() {
           <FooterCol title="Product" links={[
             { href: '/features', label: 'Features' },
             { href: '/pricing', label: 'Pricing' },
-            { href: '/showcase', label: 'Showcase' },
-            { href: '#', label: 'Changelog' },
+            { href: '/changelog', label: 'Changelog' },
           ]} />
           <FooterCol title="Resources" links={[
             { href: '/help', label: 'Help center' },
             { href: '/docs', label: 'Docs' },
-            { href: '#', label: 'API' },
-            { href: '#', label: 'Status' },
+            { href: '/changelog', label: 'What\'s new' },
+            { href: 'https://status.udgok.com', label: 'Status', external: true },
           ]} />
           <FooterCol title="Company" links={[
             { href: '/about', label: 'About' },
-            { href: '#', label: 'Blog' },
-            { href: '#', label: 'Customers' },
-            { href: 'mailto:hello@udgok.com', label: 'Contact' },
+            { href: '/contact?source=footer', label: 'Contact' },
+            { href: '/security', label: 'Security' },
+            { href: 'https://github.com/UDGOK/udgok-cms', label: 'GitHub', external: true },
           ]} />
           <FooterCol title="Legal" links={[
             { href: '/privacy', label: 'Privacy' },
@@ -47,7 +46,13 @@ export function MarketingFooter() {
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: { href: string; label: string }[] }) {
+function FooterCol({
+  title,
+  links,
+}: {
+  title: string;
+  links: { href: string; label: string; external?: boolean }[];
+}) {
   return (
     <div>
       <h4 className="text-[10px] font-extrabold uppercase tracking-[0.15em] mb-3 text-ink">
@@ -56,12 +61,24 @@ function FooterCol({ title, links }: { title: string; links: { href: string; lab
       <ul className="space-y-1.5">
         {links.map((l) => (
           <li key={l.label}>
-            <Link
-              href={l.href}
-              className="text-[13px] text-ink-70 hover:text-ink"
-            >
-              {l.label}
-            </Link>
+            {l.external ? (
+              <a
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[13px] text-ink-70 hover:text-ink inline-flex items-center gap-1"
+              >
+                {l.label}
+                <span aria-hidden className="text-[10px]">↗</span>
+              </a>
+            ) : (
+              <Link
+                href={l.href}
+                className="text-[13px] text-ink-70 hover:text-ink"
+              >
+                {l.label}
+              </Link>
+            )}
           </li>
         ))}
       </ul>
