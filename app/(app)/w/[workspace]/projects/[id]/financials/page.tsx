@@ -60,7 +60,6 @@ export default async function ProjectFinancialsPage({ params }: PageProps) {
         title="Financial guide"
         subtitle={`${project.code ?? 'PROJECT'} · ${project.name} · ${project.client?.name ?? 'No client'}`}
         backHref={`${base}?tab=overview`}
-        backLabel="← Project"
       />
 
       {/* Sub-nav: keeps the project tab bar in context */}
