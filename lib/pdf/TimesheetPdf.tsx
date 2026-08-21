@@ -97,7 +97,6 @@ const styles = StyleSheet.create({
     fontSize: font.sizeLg,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink,
-    letterSpacing: 0.5,
   },
   brandAccent: {
     fontSize: font.sizeLg,
@@ -108,7 +107,6 @@ const styles = StyleSheet.create({
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica',
     color: colors.ink50,
-    letterSpacing: 1.4,
     textTransform: 'uppercase',
     marginLeft: 8,
   },
@@ -119,7 +117,6 @@ const styles = StyleSheet.create({
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
   periodDates: {
@@ -164,7 +161,6 @@ const styles = StyleSheet.create({
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
   personName: {
@@ -192,7 +188,6 @@ const styles = StyleSheet.create({
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 1.4,
     textTransform: 'uppercase',
     marginTop: 4,
   },
@@ -202,7 +197,6 @@ const styles = StyleSheet.create({
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 1.4,
     textTransform: 'uppercase',
     marginTop: 14,
     marginBottom: 6,
@@ -221,7 +215,6 @@ const styles = StyleSheet.create({
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   dailyDate: {
@@ -316,7 +309,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
     paddingVertical: 1,
     marginLeft: 4,
-    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
 
@@ -366,7 +358,6 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 1.2,
     textTransform: 'uppercase',
     marginTop: 4,
   },
@@ -382,7 +373,6 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontFamily: 'Helvetica',
     color: colors.ink50,
-    letterSpacing: 0.8,
   },
 
   // ─── Empty state ────────────────────────────────────────────
@@ -417,11 +407,20 @@ function fmtDayLabel(label: string): string {
 }
 
 export function TimesheetPdf({ data }: { data: TimesheetPdfData }) {
-  // Per-day totals
+  // Per-day totals. day.dateLabel is something like "8/18" — we
+  // can't just `new Date("8/18")` because that defaults to year
+  // 2001 (ECMAScript spec) and would never match the 2026 events.
+  // Compare month + day numbers instead, which is robust to year
+  // and timezone.
   const dailyTotals = data.days.map((day) => {
-    const dayKey = new Date(day.dateLabel).toDateString();
+    const parts = day.dateLabel.split('/');
+    const month = Number(parts[0]);
+    const dayNum = Number(parts[1]);
     const total = data.events
-      .filter((e) => e.checkedInAt.toDateString() === dayKey)
+      .filter((e) => {
+        const d = e.checkedInAt;
+        return d.getMonth() + 1 === month && d.getDate() === dayNum;
+      })
       .reduce((sum, e) => sum + (e.hours ?? 0), 0);
     return Math.round(total * 100) / 100;
   });
@@ -461,7 +460,9 @@ export function TimesheetPdf({ data }: { data: TimesheetPdfData }) {
           <View style={styles.brand}>
             <Text style={styles.brandName}>UDG</Text>
             <Text style={styles.brandAccent}>OK</Text>
-            <Text style={styles.brandSub}>{data.workspaceName}</Text>
+            {data.workspaceName && data.workspaceName.toLowerCase() !== 'udgok' && data.workspaceName.toLowerCase() !== 'udgok construction' ? (
+              <Text style={styles.brandSub}>· {data.workspaceName}</Text>
+            ) : null}
           </View>
           <View style={styles.periodStack}>
             <Text style={styles.periodLabel}>Week of</Text>
@@ -533,7 +534,7 @@ export function TimesheetPdf({ data }: { data: TimesheetPdfData }) {
                 <View style={styles.eventTimeCol}>
                   <Text style={styles.eventTimeText}>
                     {fmtTime(e.checkedInAt)}
-                    {' → '}
+                    {' — '}
                     {e.checkedOutAt ? fmtTime(e.checkedOutAt) : 'open'}
                   </Text>
                 </View>
@@ -553,12 +554,12 @@ export function TimesheetPdf({ data }: { data: TimesheetPdfData }) {
                     ) : null}
                   </Text>
                   {e.siteLabel ? (
-                    <Text style={styles.eventProjectMeta}>📍 {e.siteLabel}</Text>
+                    <Text style={styles.eventProjectMeta}>at {e.siteLabel}</Text>
                   ) : null}
                   {e.note ? <Text style={styles.eventNote}>{e.note}</Text> : null}
                   {e.editNote && e.isEdited ? (
                     <Text style={styles.eventNote}>
-                      Override note: &ldquo;{e.editNote}&rdquo;
+                      Override note: &quot;{e.editNote}&quot;
                     </Text>
                   ) : null}
                 </View>
@@ -587,7 +588,7 @@ export function TimesheetPdf({ data }: { data: TimesheetPdfData }) {
                   {p.code ? `  (${p.code})` : ''}
                 </Text>
                 <Text style={styles.projEv}>
-                  {p.events} {p.events === 1 ? 'ev' : 'ev'}
+                  {p.events} {p.events === 1 ? 'event' : 'events'}
                 </Text>
                 <Text style={styles.projHours}>{p.hours}h</Text>
               </View>

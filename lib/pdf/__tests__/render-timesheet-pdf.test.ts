@@ -12,6 +12,8 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 let renderTimesheetPdf:
   | typeof import('../render-timesheet').renderTimesheetPdf;
@@ -112,5 +114,29 @@ describe('Timesheet PDF render', () => {
       totalEvents: 0,
     });
     expect(buf.length).toBeGreaterThan(500);
+  });
+
+  it('does not use `new Date("M/D")` for daily-totals matching (year-2001 bug)', async () => {
+    // Regression: the daily-totals calculation used to do
+    //   new Date("8/18").toDateString() === event.checkedInAt.toDateString()
+    // but `new Date("8/18")` defaults to year 2001 (ECMAScript spec),
+    // so a 2026 event's toDateString() would never match.
+    //
+    // The fix: compare month + day numbers instead of full Date
+    // strings. This is a static-analysis test — we just want to
+    // make sure the regression doesn't sneak back in.
+    if (!supported) return;
+    const src = readFileSync(
+      join(process.cwd(), 'lib/pdf/TimesheetPdf.tsx'),
+      'utf-8',
+    );
+    // The fix uses getMonth() + getDate() and parses day.dateLabel
+    // as a "M/D" string. Confirm both.
+    expect(src).toMatch(/getMonth\(\)\s*\+\s*1/);
+    expect(src).toMatch(/getDate\(\)/);
+    // The bug pattern: `new Date(day.dateLabel)` or
+    // `new Date(day.dateLabel).toDateString()`. This shouldn't
+    // appear anywhere in the daily-totals calculation.
+    expect(src).not.toMatch(/new Date\(day\.dateLabel\)/);
   });
 });
