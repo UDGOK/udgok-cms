@@ -1,9 +1,24 @@
 import { auth, currentUser } from '@clerk/nextjs/server';
+import Script from 'next/script';
 import { prisma } from '@/lib/db/client';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 
 export async function MarketingPageShell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-cream text-ink">{children}</div>;
+  return (
+    <div className="min-h-screen bg-cream text-ink">
+      {/*
+        Vercel Web Analytics — drop-in page-view + custom-event
+        tracking. Free tier covers 100k events/mo, no cookies, no
+        consent banner needed. We inject the script via next/script
+        so it streams in without blocking first paint.
+
+        To verify: open https://cms.udgok.com, then the Vercel
+        dashboard → Analytics. Events arrive within ~30s.
+      */}
+      <Script src="/_vercel/insights/script.js" strategy="afterInteractive" />
+      {children}
+    </div>
+  );
 }
 
 /**

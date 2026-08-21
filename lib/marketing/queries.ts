@@ -75,7 +75,7 @@ function getPlans(): PlanData[] {
         { label: 'Dedicated success manager', included: true },
         { label: 'SLA + 99.9% uptime', included: true },
       ],
-      cta: { label: 'Contact sales', href: 'mailto:sales@udgok.com' },
+      cta: { label: 'Contact sales', href: '/contact?plan=enterprise&source=enterprise' },
       featured: false,
     },
   ];

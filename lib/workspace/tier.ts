@@ -55,6 +55,7 @@ export function hasFeature(
   plan: Plan | null | undefined,
   feature: FeatureKey,
   isMasterAdmin = false,
+  trialEndsAt?: Date | string | null,
 ): boolean {
   // Master admins always have access to every feature, regardless of
   // plan. This lets the platform owner test what Starter looks like
@@ -64,11 +65,48 @@ export function hasFeature(
   if (!plan) return false;
   const required = FEATURE_MIN_TIER[feature];
   if (!required) return true; // No gating = free for all
+  // If on a trial with PRO plan access, the trial window unlocks Pro
+  // features. The trial overrides the plan tier for feature checks
+  // ONLY when the trial was a paid Pro trial (i.e. plan === 'PRO').
+  if (plan === 'PRO' && trialEndsAt) {
+    const t = typeof trialEndsAt === 'string' ? new Date(trialEndsAt) : trialEndsAt;
+    if (!Number.isNaN(t.getTime()) && t.getTime() > Date.now()) {
+      return true;
+    }
+  }
   return TIER_RANK[plan] >= TIER_RANK[required];
 }
 
 export function requiresTier(userPlan: Plan, required: Plan): boolean {
   return TIER_RANK[userPlan] >= TIER_RANK[required];
+}
+
+/**
+ * True if the workspace is currently in an active Pro trial
+ * (plan === 'PRO' AND trialEndsAt is in the future).
+ */
+export function isOnProTrial(
+  plan: Plan | null | undefined,
+  trialEndsAt: Date | string | null | undefined,
+): boolean {
+  if (plan !== 'PRO' || !trialEndsAt) return false;
+  const t = typeof trialEndsAt === 'string' ? new Date(trialEndsAt) : trialEndsAt;
+  return !Number.isNaN(t.getTime()) && t.getTime() > Date.now();
+}
+
+/**
+ * Returns the number of full days remaining in the trial, or 0 if not on
+ * a trial. Used to drive the "Pro trial · X days remaining" banner.
+ */
+export function trialDaysRemaining(
+  trialEndsAt: Date | string | null | undefined,
+): number {
+  if (!trialEndsAt) return 0;
+  const t = typeof trialEndsAt === 'string' ? new Date(trialEndsAt) : trialEndsAt;
+  if (Number.isNaN(t.getTime())) return 0;
+  const ms = t.getTime() - Date.now();
+  if (ms <= 0) return 0;
+  return Math.ceil(ms / (24 * 60 * 60 * 1000));
 }
 
 export const PLAN_INFO: Record<Plan, { label: string; price: string; tagline: string; color: string }> = {

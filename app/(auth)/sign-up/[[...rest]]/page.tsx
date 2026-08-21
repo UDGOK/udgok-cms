@@ -1,12 +1,18 @@
-import { SignUp } from '@clerk/nextjs';
 import Link from 'next/link';
+import { SignUpClient } from './SignUpClient';
 
 export const metadata = {
   title: 'Sign up — UDGOK CMS',
   description: 'Create your free UDGOK CMS account. No credit card required.',
 };
 
-export default function SignUpPage() {
+export default function SignUpPage({
+  searchParams,
+}: {
+  searchParams: { plan?: string };
+}) {
+  const plan = searchParams.plan;
+  const isTrial = plan === 'pro' || plan === 'enterprise';
   return (
     <div className="min-h-screen bg-cream flex flex-col">
       <header className="bg-paper border-b-2 border-ink">
@@ -30,37 +36,26 @@ export default function SignUpPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
             <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-orange-d mb-2 font-bold">
-              {'// Start your first workspace'}
+              {isTrial ? '// Start your 14-day Pro trial' : '// Start your first workspace'}
             </div>
             <h1 className="font-black text-3xl md:text-4xl tracking-[-0.02em]">
-              Get <span className="font-serif italic text-orange-d">started</span> in 2 minutes.
+              {isTrial ? (
+                <>
+                  Start your <span className="font-serif italic text-orange-d">Pro trial.</span>
+                </>
+              ) : (
+                <>
+                  Get <span className="font-serif italic text-orange-d">started</span> in 2 minutes.
+                </>
+              )}
             </h1>
             <p className="text-[13px] text-ink-50 mt-2 font-mono uppercase tracking-[0.1em]">
-              Free forever · No credit card
+              {isTrial
+                ? '14 days Pro · no credit card · cancel anytime'
+                : 'Free forever · No credit card'}
             </p>
           </div>
-          <SignUp
-            appearance={{
-              elements: {
-                rootBox: 'mx-auto',
-                card: 'shadow-none border-2 border-ink bg-paper',
-                formButtonPrimary:
-                  'bg-orange hover:bg-orange-d border-2 border-orange hover:border-orange-d text-[11px] font-extrabold uppercase tracking-[0.15em] py-3',
-                headerTitle: 'hidden',
-                headerSubtitle: 'hidden',
-                socialButtonsBlockButton:
-                  'border-2 border-line hover:border-ink hover:bg-cream-2 text-ink',
-                socialButtonsBlockButtonText: 'font-extrabold text-[12px] uppercase tracking-[0.1em]',
-                formFieldInput:
-                  'border-2 border-line focus:border-ink focus:ring-0',
-                formFieldLabel: 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-70',
-                footerActionLink: 'text-orange-d hover:underline font-bold',
-                dividerLine: 'bg-line',
-                dividerText: 'text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50',
-                formResendCodeLink: 'text-orange-d hover:underline',
-              },
-            }}
-          />
+          <SignUpClient plan={plan} />
           <p className="text-[11px] text-ink-50 text-center mt-4 font-mono uppercase tracking-[0.05em]">
             By signing up you agree to our{' '}
             <Link href="/terms" className="text-ink-70 underline">Terms</Link> and{' '}

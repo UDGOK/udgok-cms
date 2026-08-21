@@ -1,4 +1,5 @@
 import { OnboardingForm } from './OnboardingForm';
+import { TrialWelcome } from './TrialWelcome';
 
 export default function OnboardingPage() {
   return (
@@ -12,6 +13,7 @@ export default function OnboardingPage() {
           A workspace is where all your clients, projects, and pay apps live. Most contractors
           have one per company, but you can create as many as you need.
         </p>
+        <TrialWelcome />
         <OnboardingForm />
       </div>
     </div>

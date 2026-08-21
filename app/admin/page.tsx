@@ -7,7 +7,7 @@ import { PLAN_INFO } from '@/lib/workspace/tier';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminOverview() {
-  const [users, workspaces, recentActivity] = await Promise.all([
+  const [users, workspaces, recentActivity, newLeads, recentLeads] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       take: 8,
@@ -29,6 +29,11 @@ export default async function AdminOverview() {
       take: 10,
       include: { actor: { select: { email: true, name: true } } },
     }),
+    prisma.marketingLead.count({ where: { status: 'new' } }),
+    prisma.marketingLead.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
   ]);
 
   const planCounts: Record<Plan, number> = { STARTER: 0, PRO: 0, ENTERPRISE: 0 };
@@ -42,6 +47,35 @@ export default async function AdminOverview() {
       <p className="text-ink-70 text-sm mb-6">
         Platform owner view. You have absolute rights across all workspaces.
       </p>
+
+      {/* Sales alerts — new leads, hot prospects */}
+      {newLeads > 0 || recentLeads.length > 0 ? (
+        <Link
+          href="/admin/leads"
+          className="block bg-orange text-paper border-2 border-orange-d p-4 mb-6 hover:bg-orange-d transition-colors"
+        >
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-paper/80 font-bold">
+                {'// Inbound'}
+              </div>
+              <div className="font-extrabold text-lg mt-0.5">
+                {newLeads > 0
+                  ? `${newLeads} new lead${newLeads === 1 ? '' : 's'} waiting for follow-up`
+                  : `${recentLeads.length} recent lead${recentLeads.length === 1 ? '' : 's'}`}
+              </div>
+              <div className="text-[12px] text-paper/80 mt-0.5">
+                {recentLeads[0]
+                  ? `Latest: ${recentLeads[0].email}${recentLeads[0].company ? ` (${recentLeads[0].company})` : ''}`
+                  : 'No recent leads yet.'}
+              </div>
+            </div>
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.12em]">
+              View all →
+            </div>
+          </div>
+        </Link>
+      ) : null}
 
       {/* Master admin notice */}
       <div className="bg-ink text-cream border-2 border-orange p-5 mb-6">

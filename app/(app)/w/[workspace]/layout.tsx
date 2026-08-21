@@ -7,6 +7,7 @@ import { WorkspaceProvider } from '@/components/workspace/WorkspaceContext';
 import { PresenceShell } from '@/components/workspace/PresenceShell';
 import { MobileShellClient } from '@/components/workspace/MobileShellClient';
 import { AppFooter } from '@/components/workspace/AppFooter';
+import { TrialBanner } from '@/components/workspace/TrialBanner';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 
 export default async function WorkspaceLayout({
@@ -101,6 +102,11 @@ export default async function WorkspaceLayout({
               <Sidebar />
             </div>
             <div className="flex-1 flex flex-col min-w-0">
+              <TrialBanner
+                workspaceSlug={workspace.slug}
+                plan={workspace.plan}
+                trialEndsAt={workspace.trialEndsAt}
+              />
               <TopbarWithDrawer
                 allWorkspaces={allWorkspaces}
                 isMasterAdmin={master}

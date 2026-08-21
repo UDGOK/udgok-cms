@@ -44,6 +44,7 @@ export function MarketingNav() {
             <NavLink href="/help" currentPath={pathname}>Help</NavLink>
             <NavLink href="/docs" currentPath={pathname}>Docs</NavLink>
             <NavLink href="/changelog" currentPath={pathname}>Changelog</NavLink>
+            <NavLink href="/contact" currentPath={pathname}>Contact</NavLink>
           </div>
 
           {/* Desktop CTAs */}

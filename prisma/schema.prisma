@@ -16,13 +16,14 @@ datasource db {
 // =========================================
 
 model Workspace {
-  id        String   @id // == Clerk organization ID
-  name      String
-  slug      String   @unique
-  industry  String?
-  plan      Plan     @default(STARTER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id // == Clerk organization ID
+  name        String
+  slug        String    @unique
+  industry    String?
+  plan        Plan      @default(STARTER)
+  trialEndsAt DateTime? // if set, the workspace has Pro access until this timestamp (paid trial)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   members               Membership[]
   clients               Client[]
@@ -2554,4 +2555,39 @@ model PoInvoice {
   @@index([workspaceId, poId, status])
   @@index([workspaceId, status, receivedAt(sort: Desc)])
   @@index([workspaceId, invoiceNumber])
+}
+
+// ============================================================================
+// Marketing / Sales
+// ============================================================================
+// Captures leads from /contact, /enterprise, "Talk to sales" forms, and any
+// future marketing page. The owner (Yasir) is notified when a new lead
+// lands. Used to drive follow-up; not the same as the Clerk User record
+// (a lead may not be a signed-up user yet).
+model MarketingLead {
+  id         String   @id @default(cuid())
+  email      String
+  name       String?
+  company    String?
+  phone      String?
+  // "contact" | "enterprise" | "demo" | "trial-intent" | "pricing-question"
+  source     String
+  // Optional free-text message
+  message    String?
+  // What plan they were looking at, if any
+  plan       String?
+  // Page they came from, for context
+  page       String?
+  // "new" | "contacted" | "qualified" | "won" | "lost"
+  status     String   @default("new")
+  // UTM-style attribution if we add it later
+  metadata   Json?
+  // Soft assignment to the owner who claimed this lead
+  ownerEmail String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([email])
+  @@index([source, createdAt(sort: Desc)])
 }

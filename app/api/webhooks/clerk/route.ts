@@ -86,6 +86,37 @@ export async function POST(req: Request) {
     switch (event.type) {
       // --- User events ---
       case 'user.created':
+        await upsertUserFromClerk(event.data);
+        // Sales alert — notify the owner so they can follow up.
+        // Best-effort: failures here don't break the webhook (we still
+        // return 200 to Clerk so the user isn't re-delivered).
+        try {
+          const data = event.data as unknown as {
+            id?: string;
+            first_name?: string;
+            last_name?: string;
+            email_addresses?: Array<{ email_address?: string }>;
+            unsafe_metadata?: Record<string, unknown>;
+          };
+          const email = data.email_addresses?.[0]?.email_address ?? null;
+          const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || null;
+          const utm = (data.unsafe_metadata ?? {}) as Record<string, unknown>;
+          if (email && data.id) {
+            const { sendNewSignupAlert } = await import('@/lib/email/owner-alerts');
+            await sendNewSignupAlert({
+              email,
+              name,
+              clerkUserId: data.id,
+              referer: req.headers.get('referer'),
+              utmSource: (utm.utm_source as string) ?? null,
+              utmMedium: (utm.utm_medium as string) ?? null,
+              utmCampaign: (utm.utm_campaign as string) ?? null,
+            });
+          }
+        } catch (alertErr) {
+          console.warn('[clerk-webhook] signup-alert failed (non-fatal)', alertErr);
+        }
+        break;
       case 'user.updated':
         await upsertUserFromClerk(event.data);
         break;

@@ -227,6 +227,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
         { label: 'Help center', href: '/help', icon: ICONS.help, description: 'FAQs + guides' },
         { label: 'Documentation', href: '/docs', icon: ICONS.docs, description: 'Setup, API, integrations' },
         { label: 'Changelog', href: '/changelog', icon: ICONS.changelog, description: 'What is new' },
+        { label: 'Contact', href: '/contact', icon: ICONS.help, description: 'Talk to us' },
         { label: 'System status', href: 'https://status.udgok.com', icon: ICONS.status, description: 'All systems operational', external: true },
       ],
     },

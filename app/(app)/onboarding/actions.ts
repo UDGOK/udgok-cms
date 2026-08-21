@@ -30,9 +30,24 @@ export async function createWorkspaceAction(
   const name = String(formData.get('name') ?? '').trim();
   const industry = String(formData.get('industry') ?? '').trim() || null;
   const invitesRaw = String(formData.get('invites') ?? '').trim();
+  const planRaw = String(formData.get('plan') ?? '').trim().toUpperCase();
 
   if (!name) return { error: 'Workspace name is required' };
   if (name.length > 60) return { error: 'Name must be 60 characters or less' };
+
+  // Trial handling: if the user came in via /sign-up?plan=pro (or
+  // ?plan=enterprise) we create the workspace on the corresponding
+  // plan with a 14-day trialEndsAt. The plan stays set to PRO so the
+  // feature gating (lib/workspace/tier.ts) keeps Pro unlocked until
+  // the trial ends. The /api/cron/send-trial-emails cron job will
+  // email them 3 days before the trial ends and 1 day after.
+  const TRIAL_DAYS = 14;
+  const initialPlan: 'STARTER' | 'PRO' | 'ENTERPRISE' =
+    planRaw === 'PRO' || planRaw === 'ENTERPRISE' ? (planRaw as 'PRO' | 'ENTERPRISE') : 'STARTER';
+  const trialEndsAt =
+    initialPlan === 'STARTER'
+      ? null
+      : new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
   // Slugify — include a short random suffix so two workspaces with the same
   // name can coexist, and so retries never hit a unique-slug conflict.
@@ -86,6 +101,8 @@ export async function createWorkspaceAction(
           name,
           slug,
           industry,
+          plan: initialPlan,
+          trialEndsAt,
           members: {
             create: {
               userId,

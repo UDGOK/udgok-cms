@@ -26,6 +26,7 @@ const isPublicRoute = createRouteMatcher([
   '/dpa',
   '/pricing',
   '/features',
+  '/contact',
   // Public pay app share links (token-based, no auth)
   '/pay-apps/(.*)',
   // Public estimate approval links (token-based, no auth)
