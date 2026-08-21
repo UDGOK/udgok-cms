@@ -428,3 +428,5 @@ export async function getWorkspaceFinancialRollup(
     projectsWithOverdueAr,
   };
 }
+
+// Re-trigger Vercel deploy — webhook subscription was lost when the repo went private.
