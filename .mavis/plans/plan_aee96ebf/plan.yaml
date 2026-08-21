@@ -1,0 +1,347 @@
+version: 1
+plan:
+  name: fix udgok cms upload progress (drawings + photos)
+  max_concurrency: 3
+  max_consecutive_failures: 2
+  max_cycles: 6
+  auto_accept: false
+  auto_reject_retries: 1
+tasks:
+  - id: track-a-photos-upload
+    title: refactor project photo upload to direct client-side with progress
+    prompt: >
+      ## Context
+
+      UDGOK CMS at /workspace. Next.js 14 + Tailwind + Prisma + Vercel Blob.
+
+      Live URL: https://cms.udgok.com
+
+
+      User report: "tried to attach drawings again it doesnt upload or show me
+
+      any progress of uploading - i need to know how many percent uploaded -
+      there
+
+      is nop way for me to verify it". The photos page is one of the affected
+
+      surfaces. Photos are uploaded via `uploadProjectPhotoAction` in
+
+      `lib/photos/actions.ts`, which calls server-side `put()` from
+
+      `@vercel/blob` — this goes through the 4.5MB function body limit AND
+
+      produces ZERO progress events for the user.
+
+
+      The files upload already does it right: it uses the shared
+
+      `useBlobUpload` hook in `lib/blob/client-upload.ts` which talks
+
+      directly from the browser to Vercel Blob with progress events. Mirror
+
+      that pattern for photos.
+
+
+      ## What to build
+
+
+      1. **New API route `app/api/projects/[id]/photos/upload/route.ts`** —
+         a Vercel Blob `handleUpload` route that mirrors the pattern in
+         `app/api/files/upload/route.ts`:
+            - `onBeforeGenerateToken`: call `auth()` to get the user,
+              `requireRole(workspaceId, [...])` to gate it, validate
+              `clientPayload` JSON contains `projectId`, `folderId`,
+              `room`, `area`, `phase`, `caption`, `takenAt`, `latitude`,
+              `longitude` (same shape as `lib/photos/actions.ts` uploadSchema),
+              return `allowedContentTypes: ['image/jpeg','image/png','image/heic',
+              'image/webp','image/gif','application/octet-stream']` and
+              `maximumSizeInBytes: 50*1024*1024`.
+            - `onUploadCompleted`: create the `ProjectPhoto` row (same
+              fields as `lib/photos/actions.ts` lines 97-116), call
+              `logActivity`, revalidate the project page and photos page.
+              Mirror the defensive `prisma.user.upsert` and
+              `prisma.workspace.upsert` from `app/api/files/upload/route.ts`
+              (lines 124-144) so a missing Clerk webhook doesn't silently
+              drop the row.
+            - Add the route to `middleware.ts` `isPublicRoute` so the
+              Vercel no-cookie callback isn't 307-redirected to /sign-in.
+            - Add the route to `vercel.json` `crons` exclusion list? No —
+              only add to `isPublicRoute` (no cron config needed).
+
+      2. **Refactor `components/photos/ProjectPhotosClient.tsx`** to use
+         `useBlobUpload` from `lib/blob/client-upload.ts` instead of the
+         server action. The form already has the right metadata fields
+         (caption, room, area, phase, folder). Build a `clientPayload`
+         JSON string with the same shape the route expects.
+         - Mobile upload sheet AND desktop upload form should both use it.
+         - Keep the existing validation (file is image, <50MB) — but
+           move the size check to BEFORE setting `phase: 'uploading'`
+           so the user gets an instant error.
+         - The form's `onSubmit` should call `upload(file, payload)` and
+           wait for it. On success, close the sheet (existing useEffect
+           pattern). On error, show the error in red.
+
+      3. **Add a prominent progress display** in the upload sheet:
+            - While `state.phase === 'uploading'`, show a large
+              progress card: file name, total size, percentage, and a
+              fat progress bar (h-3 or h-4). Center it in the sheet.
+            - On `state.phase === 'done'`, show a green "Uploaded ✓"
+              card with the file name, the new row id, and a "View
+              photo" button (closes sheet + scrolls to the new
+              photo).
+            - On `state.phase === 'error'`, show a red error card
+              with the message + a "Try again" button.
+         - Use the same Tailwind tokens as the rest of the app
+           (`bg-paper border-2 border-ink`, etc).
+         - Don't make the progress card a modal — keep it inside the
+           sheet.
+
+      4. **Remove `uploadProjectPhotoAction`** from the form flow
+         (but keep the function exported in case future callers want
+         it). Update the imports in `ProjectPhotosClient.tsx`.
+
+      5. **Add tests** in `lib/photos/__tests__/photos-upload-progress.test.ts`:
+            - clientPayload shape is correct for happy path
+            - size validation runs before phase change
+            - non-image MIME rejected
+            - progress events mirror percentage 0-100
+            - success state includes the new photo id
+            - error state shows message
+         (Use vitest with jsdom, follow existing patterns in
+         `lib/blob/__tests__/client-upload.test.tsx`.)
+
+      ## Files you will likely touch
+        - app/api/projects/[id]/photos/upload/route.ts (NEW)
+        - components/photos/ProjectPhotosClient.tsx (refactor)
+        - lib/photos/actions.ts (keep, but make `uploadProjectPhotoAction` not auto-called)
+        - middleware.ts (add new route to isPublicRoute)
+        - lib/photos/__tests__/photos-upload-progress.test.ts (NEW)
+
+      ## Constraints
+        - Do NOT hardcode API keys anywhere (GitHub push protection).
+        - Reuse `lib/blob/client-upload.ts` — do not duplicate the
+          XHR logic. Pass `clientPayload` as a JSON string.
+        - Use `lib/activity/log`'s `logActivity` for the activity entry.
+        - Follow existing Tailwind tokens and the Atelier design
+          (the "neo-brutalist" look — sharp 2px borders, mono labels,
+          orange-d accent). Match the visual style of the existing
+          files upload form's progress bar (just bigger and centered).
+        - All existing tests must keep passing.
+
+      ## When you're done
+        1. `git -c user.name="Mavis" -c user.email="Mavis@udgok.dev"
+           commit -q -F -` with a multi-line message describing the
+           change. Then `git -c http.sslVerify=false push origin main`.
+        2. Run the full test suite:
+           `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm test 2>&1 | tail -10`
+        3. Run a build:
+           `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm build 2>&1 | tail -10`
+        4. Report the commit hash, test pass count, and build result.
+    verify_prompt: |
+      Read-only verification of the photos upload refactor.
+
+      1. Confirm `/api/projects/[id]/photos/upload` exists and follows
+         the same pattern as `app/api/files/upload/route.ts`:
+            - `auth()` happens INSIDE `onBeforeGenerateToken`, NOT at
+              the top of POST.
+            - Role check uses `requireRole(workspaceId, [...])`.
+            - `clientPayload` is parsed JSON with the same fields as
+              `lib/photos/actions.ts` `uploadSchema`.
+            - `onUploadCompleted` creates the `ProjectPhoto` row with
+              the same fields as the old server action (line 97-116
+              of `lib/photos/actions.ts`).
+            - Defensive `prisma.user.upsert` and
+              `prisma.workspace.upsert` are present.
+            - The route is added to `middleware.ts` `isPublicRoute`.
+
+      2. Confirm `ProjectPhotosClient.tsx`:
+            - Uses `useBlobUpload` from `lib/blob/client-upload.ts`.
+            - Does NOT call `uploadProjectPhotoAction` directly.
+            - Progress card has: file name, total size, percentage,
+              prominent bar, h-3 or larger.
+            - Success state has a "View photo" link.
+            - Error state has a "Try again" button.
+
+      3. Re-run the test suite:
+         `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm test 2>&1 | tail -20`
+         Confirm all pass, including the new
+         `lib/photos/__tests__/photos-upload-progress.test.ts`.
+
+      4. Adversarial probe — write a tiny script in /tmp that hits
+         `https://cms.udgok.com/api/projects/cmsy8efyr0003jr047tt1o1k1/photos/upload`
+         with a token-gen POST and check that:
+            - Unauthenticated: 400/401 with "Not signed in" message
+            - Authenticated (live Clerk session): returns a token JSON
+              (do NOT actually upload a real file — just the token step)
+            - Invalid projectId in clientPayload: returns 4xx with a
+              clear error
+
+      5. Run the build:
+         `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm build 2>&1 | tail -10`
+         Must be clean.
+
+      6. Report PASS/FAIL with the exact gap if FAIL. Do not modify
+         project files. If something is missing or wrong, name the
+         exact file + line range that needs to change.
+    assigned_to: Coder
+    role: produce
+    verified_by: Verifier
+    depends_on: []
+    gates: []
+    max_retries: 2
+    timeout_ms: 1800000
+  - id: track-b-files-upload-ui
+    title: upgrade files upload form to prominent progress + verification
+    prompt: |
+      ## Context
+      UDGOK CMS at /workspace. The files upload at
+      `app/(app)/w/[workspace]/files/UploadForm.tsx` already has progress
+      events flowing through `useBlobUpload`, but the UI is too subtle:
+      6px progress bar, 10px text, "Uploading… X%" only in the button
+      label. The user reports: "no way for me to verify it" — they
+      can't tell if the upload succeeded or is hung. The progress bar
+      is also not persistent — it disappears as soon as the upload
+      finishes, and there's no link to the file they just uploaded.
+
+      Files (drawings, floorplans, etc.) are uploaded by selecting a
+      file in `UploadForm`, picking a category, and clicking "Upload
+      file". The user already navigates to /w/[workspace]/files, picks
+      a file, and triggers the upload.
+
+      ## What to build
+
+      1. **Prominent upload card in `UploadForm.tsx`** — when
+         `state.phase === 'uploading'`, show a large card with:
+            - File name (truncate gracefully)
+            - Total size (formatted)
+            - Large percentage (e.g. "47%")
+            - Progress bar at `h-3` or `h-4` with `bg-ink` fill
+            - Spinner or "Uploading…" label
+         The card should be inside the form panel, replacing the
+         current small progress block. Keep the existing
+         `state.uploadedBytes` / `state.totalBytes` formatted
+         display (it's useful for big files).
+
+      2. **Verification card on `state.phase === 'done'`** — show a
+         green success card for ~3 seconds with:
+            - "✓ Uploaded [filename]" in green
+            - "View file" link that opens the blob URL in a new tab
+            - "Upload another" button to reset the form
+         After 3 seconds, the form should auto-reset to idle
+         (existing reset useEffect handles this — extend the
+         timeout from 1800ms to 3000ms).
+
+      3. **Error card on `state.phase === 'error'`** — show a red
+         error card with:
+            - The full error message (truncated to 200 chars)
+            - "Try again" button that calls `reset()` and
+               re-focuses the file input
+            - "Copy error" button that copies the error to
+               clipboard for support tickets
+
+      4. **Recent uploads verification strip** — at the top of the
+         upload form (before the existing form fields), add a
+         "Recent uploads" strip showing the last 3 files uploaded
+         in this session. State-only, doesn't persist across
+         navigations. Each item shows:
+            - File name
+            - Category badge
+            - Size
+            - Time (e.g. "just now", "2 min ago")
+            - A small "View" link to the blob URL
+         This gives the user immediate verification that their
+         upload landed in Vercel Blob.
+
+      5. **File size warning** — if `file.size > 100 * 1024 * 1024`
+         (100MB), show a yellow warning: "Large file — upload may
+         take a few minutes. Keep this tab open." before showing
+         the progress bar.
+
+      6. **Add tests** in
+         `app/(app)/w/[workspace]/files/__tests__/UploadForm.test.tsx`:
+            - Recent uploads strip is empty on mount
+            - After a successful upload, the strip shows the file
+            - After 3 seconds the form auto-resets (use vitest fake
+              timers)
+            - Error card shows the error message
+            - File size warning shows for files > 100MB
+            - View link uses the blob URL from upload result
+         (Use vitest with jsdom. Follow existing patterns.)
+
+      ## Files you will likely touch
+        - app/(app)/w/[workspace]/files/UploadForm.tsx (visual + state
+          overhaul — add recent uploads tracking)
+        - app/(app)/w/[workspace]/files/__tests__/UploadForm.test.tsx (NEW)
+        - lib/format/time.ts (NEW, if not exists — for "just now" /
+          "2 min ago" relative time)
+
+      ## Constraints
+        - Use existing `useBlobUpload` hook — do not duplicate the
+          XHR logic.
+        - Match the Atelier design: 2px borders, mono labels, orange-d
+          accent, no rounded corners.
+        - Don't break the existing 1500ms `SERVER_CALLBACK_SETTLE_MS`
+          pattern that waits for `onUploadCompleted` before calling
+          `router.refresh()`. The verification card appears
+          immediately on `state.phase === 'done'`; the router refresh
+          continues to fire after the delay.
+        - All existing tests must keep passing.
+
+      ## When you're done
+        1. `git -c user.name="Mavis" -c user.email="Mavis@udgok.dev"
+           commit -q -F -` with a multi-line message. Then
+           `git -c http.sslVerify=false push origin main`.
+        2. Run the test suite:
+           `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm test 2>&1 | tail -10`
+        3. Run a build:
+           `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm build 2>&1 | tail -10`
+        4. Report the commit hash, test pass count, build result.
+    verify_prompt: |
+      Read-only verification of the files upload UI upgrade.
+
+      1. Open `app/(app)/w/[workspace]/files/UploadForm.tsx`. Confirm:
+            - Progress card on `state.phase === 'uploading'` has
+              file name, total size, percentage, large bar (h-3 or
+              larger).
+            - Verification card on `state.phase === 'done'` has
+              "View file" link with `target="_blank"` and the
+              blob URL from `state.result.url`.
+            - Error card on `state.phase === 'error'` has "Try
+              again" and "Copy error" buttons.
+            - Recent uploads strip is at the top of the form,
+              empty on mount, populated after success.
+            - File size warning fires for files > 100MB.
+            - The 1500ms `SERVER_CALLBACK_SETTLE_MS` pattern is
+              preserved.
+
+      2. Re-run the test suite:
+         `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm test 2>&1 | tail -20`
+         Confirm all pass, including
+         `app/(app)/w/[workspace]/files/__tests__/UploadForm.test.tsx`.
+
+      3. Visual probe — start the dev server, navigate to
+         `/w/udgok/files`, and use Playwright (path:
+         `/root/.cache/ms-playwright/chromium-1223/chrome-linux/chrome`)
+         to:
+            - Programmatically dispatch a file selection
+            - Click "Upload file"
+            - Take a screenshot at 50% upload (mock progress event)
+            - Take a screenshot on done state
+            - Confirm the verification card and recent uploads
+              strip render
+         (Use page.evaluate to mock `useBlobUpload` state if needed,
+         or upload a real tiny file. The point is to confirm the
+         visual hierarchy — large percentage, big bar, view link.)
+
+      4. Run the build:
+         `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm build 2>&1 | tail -10`
+         Must be clean.
+
+      5. Report PASS/FAIL with the exact gap if FAIL.
+    assigned_to: Coder
+    role: produce
+    verified_by: Verifier
+    depends_on: []
+    gates: []
+    max_retries: 2
+    timeout_ms: 1800000

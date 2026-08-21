@@ -1,0 +1,48 @@
+{
+  "plan_id": "plan_52c97021",
+  "status": "cancelled",
+  "owner_session_id": "431618536747119",
+  "cycle": 2,
+  "phase": "evaluating",
+  "results": [
+    {
+      "task_id": "scan-gc-uses-research",
+      "status": "ready",
+      "attempt": 3,
+      "producer_session_id": "432686544494792",
+      "producer_agent": "General",
+      "verifier_results": [
+        {
+          "agent": "Verifier",
+          "session_id": "432687577374931",
+          "passed": false,
+          "summary": "No explicit VERDICT found"
+        }
+      ],
+      "verdict_summary": "Dispatch failed: Transient delivery failure to \"432686544494792\". Wait 1-2 seconds and retry once; give up if it still fails.",
+      "gate_results": [],
+      "started_at": 1787189474495,
+      "timeout_extended_ms": 0,
+      "timeout_deadline_at": 1787191274495
+    }
+  ],
+  "dynamic_tasks": [],
+  "task_overrides": {},
+  "consecutive_failures": 1,
+  "engine_sessions": {
+    "432686544494792": {
+      "task_id": "scan-gc-uses-research",
+      "role": "producer",
+      "agent_name": "General",
+      "spawned_at": 1787189172307
+    },
+    "432687577374931": {
+      "task_id": "scan-gc-uses-research",
+      "role": "verifier",
+      "agent_name": "Verifier",
+      "spawned_at": 1787189464222
+    }
+  },
+  "created_at": 1787189170753,
+  "updated_at": 1787189494814
+}

@@ -1,0 +1,162 @@
+version: 1
+plan:
+  name: scan feature — what should a GC actually do with it
+  max_concurrency: 2
+  max_consecutive_failures: 2
+  max_cycles: 3
+  auto_accept: false
+  auto_reject_retries: 1
+tasks:
+  - id: scan-gc-uses-research
+    title: 'research: what a GC does with a barcode scanner on-site'
+    prompt: |
+      ## Context
+      UDGOK CMS at /workspace is a construction management platform
+      for UDGOK Construction (a Tulsa GC). They use it as their
+      internal CMS. One feature is barcode/QR scanning at
+      `/w/[workspace]/scan` — the user scans a code (camera or
+      manual paste), and the system looks it up against subs,
+      projects, clients, then product catalogs (UPCitemdb / Open
+      Food Facts), and either navigates to a match or lets them
+      add a new Material/Equipment to a project's inventory.
+
+      ## What the user is asking
+      "The scan scans the barcodes but there is no proper way to
+      populate it. How should we get a use of this on construction
+      as a GC?"
+
+      The user is a GC (General Contractor). They want to know:
+      1. What concrete on-site workflows would make scanning a
+         daily tool for a project manager / field engineer / foreman
+         at UDGOK, not a curiosity?
+      2. What should the scan-to-populate flow do end-to-end so
+         it's actually load-bearing, not a side-quest?
+
+      ## Your job — research + recommend
+
+      Spend the budget thinking and writing. Do NOT touch any
+      project source code. This is a strategy + product-design
+      deliverable.
+
+      ### Step 1 — read the existing scan code (10 min budget)
+        - components/scan/BarcodeScanner.tsx (the camera UI)
+        - app/(app)/w/[workspace]/scan/page.tsx (the page that
+          handles the ?code= query)
+        - app/(app)/w/[workspace]/scan/CreateInventoryFromScan.tsx
+          (the "create from scan" form)
+        - lib/products/lookup.ts (UPCitemdb / Open Food Facts)
+        - lib/scans/queries.ts (recent scans history)
+        - prisma/schema.prisma — the Material, Equipment,
+          ProductCatalogItem, ScanEvent, Subcontractor, Project
+          models. Skim what's already there so your
+          recommendations don't suggest duplicate models.
+        - app/(app)/w/[workspace]/projects/[id]/InventoryTab.tsx
+          (where Material/Equipment rows get used)
+
+      ### Step 2 — research real construction GC workflows
+      Use web_search to look at how GCs in the field actually use
+      barcode / QR scanning today. Specifically investigate:
+        - Material receiving workflows at commercial GCs
+          (delivery, count, cost allocation to a project / cost code)
+        - Tool/equipment check-in/out for shared tool inventories
+          at small-to-mid construction firms
+        - Time tracking via scanned badges or QR codes on job sites
+        - Daily field reports with auto-population from scans
+        - OSHA / safety inspection check-ins
+        - Concrete, rebar, lumber, fixtures — which trades have
+          scannable materials and how do GCs handle the receiving
+        - Procore, Buildertrend, CoConstruct — what do they offer
+          for mobile scanning? What's their killer flow?
+
+      ### Step 3 — write the deliverable
+
+      Produce a single markdown file at
+      `/workspace/docs/scan-gc-uses.md` with these sections:
+
+      1. **Executive summary (3-4 sentences)**
+         - What's the single highest-value scan flow for a GC
+           today, and why.
+
+      2. **Top 3 recommended flows** (ranked)
+         For each, write:
+         - **Name** (1-2 words)
+         - **The trigger** (when does the GC scan in real life?)
+         - **The flow** (step-by-step: scan → ?→ persisted
+           where → visible where)
+         - **Why a GC cares** (time saved / errors prevented /
+           audit trail)
+         - **Data model impact** (does it need a new model, a
+           new column, a new route, or just a new view of
+           existing data?)
+         - **Effort estimate** (S / M / L)
+         - **Competitive reference** (does Procore / Buildertrend
+           / etc. do this? what do they call it?)
+
+      Aim for flows that:
+         - Are daily, not monthly. The user opens the scanner
+           app 5+ times a day, not 5 times a month.
+         - Pay for themselves on day 1. A GC can quantify the
+           win in minutes saved or errors caught.
+         - Don't require new hardware. Phone camera is enough.
+         - Don't require expensive integrations. Use what's
+           already in the system (Material, Equipment,
+           Project, Subcontractor, ScanEvent).
+         - Have a clear audit trail. GCs are paranoid about
+           "who scanned what when" for liability and disputes.
+
+      3. **Quick wins (M-effort or less)**
+         - Bullet list of 2-3 small improvements to the current
+           flow that don't require new models. Things like:
+           better default form prefill, "scan history by
+           project" view, "scan to add to an existing material
+           count" instead of always "create new", etc.
+
+      4. **What I'd build first if it were my call**
+         - One flow, chosen from the top 3, with the strongest
+           argument for why. End with a 1-paragraph "ship in
+           one week" sketch — what files change, what models
+           move, what the user sees.
+
+      ### Tone
+      Direct, opinionated, specific. No hedging. The user is
+      asking what to build next — give them a concrete answer,
+      not a list of options that ends in "depends on your
+      priorities". Pick one and recommend it.
+
+      ### Constraints
+      - Do not modify any project source files.
+      - Do not commit anything.
+      - Do not push to git.
+      - Only create the deliverable file at
+        `/workspace/docs/scan-gc-uses.md`.
+      - Cite at least 2 web sources per flow so the
+        recommendations are grounded.
+    verify_prompt: |
+      Read-only QA. Do not edit the deliverable.
+
+      1. Open `/workspace/docs/scan-gc-uses.md`.
+      2. Confirm:
+         - Executive summary is 3-4 sentences with a clear
+           single recommendation.
+         - Top 3 flows are each documented with the 7 fields
+           in the producer's prompt (Name / Trigger / Flow /
+           Why / Data / Effort / Competitive ref).
+         - Each flow has at least 2 cited web sources.
+         - The "ship in one week" sketch names specific files
+           and models, not vague abstractions.
+         - Tone is direct, opinionated, specific — no "depends
+           on your priorities" cop-out.
+      3. Re-check the cited sources by clicking them (use
+         web_fetch on at least 2 of them) to confirm they
+         actually say what the deliverable claims.
+      4. If the producer recommended building a flow that
+         already exists in the codebase, FAIL with the
+         specific overlap.
+      5. Report PASS or FAIL with specific gaps.
+    assigned_to: General
+    role: produce
+    verified_by: Verifier
+    depends_on: []
+    gates: []
+    max_retries: 2
+    timeout_ms: 1800000

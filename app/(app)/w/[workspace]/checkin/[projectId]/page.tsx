@@ -9,7 +9,7 @@ import {
   listRecentCheckInsForProject,
 } from '@/lib/checkins/queries';
 import { deactivateCheckInCodeAction } from '@/lib/checkins/actions';
-import { buildCheckInUrl, buildQrImageUrl } from '@/lib/checkins/qr';
+import { buildCheckInUrl, buildQrImageUrl } from '@/lib/checkins/qr-urls';
 import { DeactivateCodeButton } from './DeactivateCodeButton';
 
 export const dynamic = 'force-dynamic';

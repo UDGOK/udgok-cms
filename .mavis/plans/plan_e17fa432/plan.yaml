@@ -1,0 +1,402 @@
+version: 1
+plan:
+  name: build QR check-in/out + barcode material populate
+  max_concurrency: 2
+  max_consecutive_failures: 2
+  max_cycles: 4
+  auto_accept: false
+  auto_reject_retries: 1
+tasks:
+  - id: track-a-qr-checkin
+    title: admin QR code generator + employee/sub check-in/out at site
+    prompt: |
+      ## Context
+      UDGOK CMS at /workspace. Next.js 14 + Tailwind + Prisma + Vercel Blob.
+      Live: https://cms.udgok.com
+
+      User feature request (verbatim):
+      "QR check in check out with a site specific QR code... and even
+      a area where we can generate as a admin site specific QR codes
+      generator by admins where employees or subs can check in and
+      then checkout."
+
+      The user is a GC (General Contractor). They want:
+        1. An admin area to GENERATE site-specific QR codes (one
+           per project, optionally more than one per project for
+           different areas like "gate" / "laydown" / "shop").
+        2. Employees and subcontractors to SCAN those QRs to
+           check in and out of a project. The system records
+           who is on-site in real time, with timestamps, and
+           shows a history per project.
+
+      ## What to build
+
+      ### 1. Data model (prisma/schema.prisma)
+
+      Two new models + a relation:
+
+      ```prisma
+      // One per project, optionally more. A project can have
+      // multiple "check-in points" (e.g. "main gate", "shop
+      // entrance", "north laydown"). Each SiteCheckInCode row
+      // is one printable QR sticker.
+      model SiteCheckInCode {
+        id          String   @id @default(cuid())
+        workspaceId String
+        projectId   String
+        // Optional friendly label so the admin can tell them
+        // apart ("main gate", "shop door", etc.). Uniqueness
+        // is per-project, not per-workspace.
+        label       String   @default("Main entrance")
+        // The random token encoded in the QR. Unique. Used in
+        // the public scan URL so the public route can resolve
+        // back to a project without revealing the project id.
+        token       String   @unique
+        createdById String
+        // Soft-disable so an admin can retire a sticker without
+        // breaking the FK chain on a ScanEvent that points at
+        // it. Existing rows still resolve; new scans reject.
+        isActive    Boolean  @default(true)
+        createdAt   DateTime @default(now())
+
+        workspace Workspace @relation(...)
+        project   Project   @relation(...)
+        createdBy User      @relation(...)
+
+        @@index([workspaceId, projectId])
+        @@index([token])
+      }
+
+      // One row per check-in event. closed on check-out.
+      // Either the signed-in workspace member (employee) or the
+      // subcontractor (foreman) starts the entry.
+      model CheckInEvent {
+        id              String    @id @default(cuid())
+        workspaceId     String
+        siteCheckInCodeId String
+        projectId       String
+        // The "who" — exactly one of these two is set. The
+        // signed-in user can always be inferred from the Clerk
+        // session; the sub is selected from a list at check-in
+        // time (since subs don't sign in to the CMS).
+        userId          String?   // workspace member (employee)
+        subcontractorId String?   // sub foreman checking in
+        // Open until checked out.
+        checkedInAt     DateTime  @default(now())
+        checkedOutAt    DateTime?
+        // Optional note for the visit (e.g. "delivering tile",
+        // "rough-in inspection").
+        note            String?
+        // Geolocation at check-in time, if the user grants
+        // permission. The browser asks for it; we don't block
+        // the scan if the user denies.
+        checkInLat      Float?
+        checkInLng      Float?
+        checkOutLat     Float?
+        checkOutLng     Float?
+
+        workspace        Workspace        @relation(...)
+        siteCheckInCode  SiteCheckInCode  @relation(...)
+        project          Project          @relation(...)
+        user             User?            @relation(...)
+        subcontractor    Subcontractor?   @relation(...)
+
+        @@index([workspaceId, projectId, checkedInAt])
+        @@index([workspaceId, checkedInAt])
+        @@index([subcontractorId, checkedInAt])
+        @@index([userId, checkedInAt])
+        // No FK from ScanEvent to CheckInEvent — ScanEvent
+        // is the universal audit log; we don't want a single
+        // orphan check-in to break the chain. The CheckIn
+        // page writes its own ScanEvent via the existing
+        // ScanEvent.create path.
+      }
+      ```
+
+      Add the necessary back-relations to existing models
+      (Workspace, Project, User, Subcontractor).
+
+      ### 2. New routes
+        - `app/(app)/w/[workspace]/checkin/page.tsx` — admin
+          dashboard: list projects, list their QR codes, who's
+          currently on site across all projects, recent
+          check-in history.
+        - `app/(app)/w/[workspace]/checkin/[projectId]/page.tsx`
+          — per-project detail: list QR codes for the project
+          (with their tokens + a "Print" button that opens a
+          print-friendly page with the QR image), list of open
+          check-ins, history of closed ones.
+        - `app/(app)/w/[workspace]/checkin/[projectId]/codes/new/page.tsx`
+          — generate a new QR code for the project. Form:
+          label (e.g. "main gate").
+        - `app/(app)/w/[workspace]/projects/[id]/checkins/page.tsx`
+          — a quick "who is on site now" panel embedded in the
+          project's INVENTORY or OVERVIEW tab. Server-rendered
+          (use requireMembership) for a fast initial paint.
+        - `app/c/[token]/page.tsx` — PUBLIC route (no auth
+          required) that the QR encodes. Resolves the token
+          to a project, shows a friendly "Check in at <project
+          name>" page with two paths:
+            (a) signed-in workspace member → auto-attributed,
+               single "Check in / Check out" button
+            (b) anonymous (sub foreman) → pick subcontractor
+               from a list, then check in / out
+        - `app/c/[token]/actions.ts` (server actions): handle
+          the check-in/check-out mutations.
+
+      ### 3. Add to middleware isPublicRoute
+        - `/c/:token` — public, the QR code is the credential.
+          Anyone with the sticker can scan it (that's the
+          point), and the system trusts the on-site phone to
+          attribute the scan. Add this to isPublicRoute.
+        - `/api/checkins/(.*)` — public so the anonymous
+          sub-foreman path can post without a session cookie.
+
+      ### 4. New lib files
+        - `lib/checkins/queries.ts` — listOpenCheckInsForProject,
+          listRecentCheckInsForProject, listCheckInsForWorkspace,
+          listCheckInCodesForProject.
+        - `lib/checkins/actions.ts` — generateCheckInCode,
+          deactivateCheckInCode, checkIn, checkOut.
+        - `lib/checkins/qr.ts` — small helper to generate a
+          24-byte random token (use crypto.randomBytes) and
+          produce a URL like `${env.NEXT_PUBLIC_APP_URL}/c/<token>`.
+        - `lib/checkins/printable.tsx` — server component that
+          renders a print-friendly sheet of QR codes for a
+          project (one QR per row, label, project name, code
+          token in tiny mono font for the admin to read off
+          and hand-type if the camera fails).
+
+      ### 5. QR image generation
+      Use a free, no-API-key QR encoder endpoint for the image
+      src:
+        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`
+      Wrap it in a `<a href={url}>` for a "tap to scan" fallback
+      (works on phones that have a QR scanner in the camera app
+      anyway). The print page uses the image src; the public
+      check-in page links to the URL directly.
+
+      ### 6. Tests (vitest + jsdom where needed)
+        - `lib/checkins/__tests__/qr.test.ts` — token is 24 bytes
+          hex, URL is well-formed, label uniqueness per project.
+        - `lib/checkins/__tests__/actions.test.ts` — happy path
+          (check in, check out), can't check in twice, can't
+          check out without checking in, anonymous sub path
+          resolves correctly, the SiteCheckInCode.isActive
+          guard rejects new scans when the code is retired.
+        - `app/c/[token]/__tests__/page.test.tsx` — renders
+          correctly for an active code, shows "code retired"
+          for a deactivated one.
+
+      ### 7. UI
+        - Match the Atelier design (2px borders, mono labels,
+          orange-d accent). No rounded corners.
+        - The admin pages should be desktop-first with a clear
+          "print this sheet" CTA.
+        - The mobile check-in page must work on a 360px-wide
+          phone. The "Pick your subcontractor" dropdown should
+          be touch-friendly (min-h-[48px] for the picker, larger
+          type).
+
+      ### 8. Constraints
+        - No hardcoded API keys (GitHub push protection).
+        - Reuse existing Tailwind tokens and the existing
+          PageHeader / FeatureGate / BottomSheet components
+          where they fit.
+        - Reuse the auth() from @clerk/nextjs/server for the
+          signed-in path.
+        - Anonymous sub-foreman path doesn't require auth — the
+          token IS the auth. Make this clear in the UI.
+        - Reuse the existing ScanEvent.create pattern to log the
+          scan at check-in time (matched: 'checkin',
+          matchedId: siteCheckInCodeId).
+        - All existing tests must still pass. Build must be
+          clean.
+
+      ### When you're done
+        1. `git -c user.name="Mavis" -c user.email="Mavis@udgok.dev"
+           commit -q -F -` with a multi-line message. Then
+           `git -c http.sslVerify=false push origin main`.
+        2. Run tests:
+           `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm test 2>&1 | tail -10`
+        3. Run build:
+           `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm build 2>&1 | tail -10`
+        4. Report the commit hash, test pass count, build result.
+    verify_prompt: |
+      Read-only verification.
+
+      1. Confirm the new SiteCheckInCode and CheckInEvent models
+         are in prisma/schema.prisma with all the fields the
+         producer was asked to add (workspaceId, projectId, token
+         (unique), isActive, etc.). Re-derive the schema — don't
+         just read the producer's diff.
+
+      2. Confirm middleware.ts has the public route for /c/:token.
+
+      3. Re-run the test suite:
+         `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm test 2>&1 | tail -20`
+         Confirm all pass including
+         `lib/checkins/__tests__/qr.test.ts` and
+         `lib/checkins/__tests__/actions.test.ts`.
+
+      4. Run the build:
+         `cd /workspace && /usr/local/lib/node_modules/corepack/shims/pnpm build 2>&1 | tail -10`
+         Must be clean.
+
+      5. Adversarial probe — start the dev server, hit
+         `https://cms.udgok.com/c/INVALID_TOKEN` and confirm
+         the page handles an unknown token gracefully (not a
+         500). A "code not found" message is the expected
+         behavior.
+
+      6. Confirm the printable QR sheet renders correctly —
+         use Playwright (path
+         `/root/.cache/ms-playwright/chromium-1223/chrome-linux/chrome`)
+         to take a screenshot of the print page. Verify the
+         QR image source is reachable.
+
+      7. Report PASS/FAIL with the exact gap if FAIL.
+    assigned_to: Coder
+    role: produce
+    verified_by: Verifier
+    depends_on: []
+    gates: []
+    max_retries: 2
+    timeout_ms: 1800000
+  - id: track-b-material-populate
+    title: barcode → project material populate with vendor + price
+    prompt: |
+      ## Context
+      UDGOK CMS at /workspace. The user wants the barcode scanner
+      to populate the project material list with name, vendor,
+      and price, project-specific.
+
+      Current state: `app/(app)/w/[workspace]/scan/page.tsx`
+      handles scans. If the code is not found, the
+      `CreateInventoryFromScan` form lets the user create a
+      Material or Equipment on a chosen project. The form has
+      name, description, unit, qty, unitCost — but no VENDOR
+      field. The user wants vendor captured at scan time.
+
+      ## What to build
+
+      ### 1. Schema additions (prisma/schema.prisma)
+
+      Add to Material:
+        - `vendor String?` — free text (e.g. "Home Depot",
+          "Acme Lumber Co."). Per-project field — same vendor
+          can be different on different projects.
+        - `vendorPartNumber String?` — vendor's own SKU
+          (different from the universal UPC/EAN we already
+          store in `code`).
+        - `vendorContact String?` — optional phone / email /
+          contact name, single field, free text.
+
+      No model changes to Equipment for this track. Tools are
+      typically purchased once and used many times; vendor
+      info is captured at Equipment level via the existing
+      `vendor` relationship through `purchasedFrom` notes
+      (we'll skip for now).
+
+      ### 2. Cache vendor in ProductCatalogItem (lib/products/lookup.ts)
+
+      Extend the ProductInfo interface and the
+      ProductCatalogItem model to carry vendor / brand
+      (separate fields, in case UPCitemdb and the brand
+      diverge):
+        - `vendor String?`
+        - `brand String?` (already there on ProductCatalogItem
+          in the existing schema; keep)
+
+      When lookupProduct hits UPCitemdb or Open Food Facts,
+      pull the brand/manufacturer into `vendor` if not
+      already set. Persist to ProductCatalogItem so cache
+      hits return the vendor on the next scan.
+
+      ### 3. Update CreateInventoryFromScan form
+        - Add a "Vendor" input (free text, defaultValue from
+          `prefilled.vendor` if the catalog hit).
+        - Add a "Vendor part #" input (defaultValue from
+          `prefilled.vendorPartNumber`).
+        - Add a "Vendor contact" input (defaultValue from
+          `prefilled.vendorContact`).
+        - Add a "Unit cost" hint that shows the cached
+          product's price if known, with a "Use this price"
+          one-tap button.
+        - Pre-fill from ProductCatalogItem when matched.
+
+      ### 4. Update createMaterialAction (lib/inventory/actions.ts)
+
+      Accept the new fields in the form schema, write them
+      to Material. Add a duplicate guard that's friendlier
+      than the current "code already exists" error: when a
+      re-scan hits a project that already has this code,
+      show an inline "Add ___ to quantity" form (no full
+      page reload). The form should detect the duplicate
+      on submit and offer the increment-qty path.
+
+      ### 5. Surface vendor in the project's INVENTORY tab
+        - `app/(app)/w/[workspace]/projects/[id]/InventoryTab.tsx`
+          — add a "Vendor" column to the materials table.
+        - Allow filtering by vendor.
+
+      ### 6. Tests
+        - `lib/inventory/__tests__/material-vendor.test.ts` —
+          happy path with vendor, duplicate code triggers
+          increment-qty (not error), vendor-less create works.
+        - `lib/products/__tests__/lookup-vendor.test.ts` —
+          vendor is pulled from UPCitemdb response and
+          persisted to ProductCatalogItem on the first
+          successful lookup.
+
+      ### 7. Constraints
+        - No hardcoded API keys.
+        - Match the existing Atelier design (2px borders, mono
+          labels, orange-d accent).
+        - The duplicate-code path is the killer improvement.
+          Today it errors at the worst possible moment (a
+          foreman re-scanning the same 2x4 bundle on a
+          delivery). After this change it should offer "Add
+          ___ to quantity" as a one-tap inline form.
+        - Reuse the existing `lookupProduct` and the
+          `ProductCatalogItem` cache. Don't introduce a new
+          vendor API.
+        - All existing tests must still pass. Build must be
+          clean.
+
+      ### When you're done
+        1. `git -c user.name="Mavis" -c user.email="Mavis@udgok.dev"
+           commit -q -F -` with a multi-line message. Then
+           `git -c http.sslVerify=false push origin main`.
+        2. Run tests + build (same pattern as Track A).
+        3. Report commit hash, test pass count, build result.
+    verify_prompt: |
+      Read-only verification.
+
+      1. Confirm prisma/schema.prisma has the new Material
+         fields: `vendor`, `vendorPartNumber`, `vendorContact`,
+         all optional. Re-derive from the schema, not from the
+         diff summary.
+
+      2. Confirm ProductCatalogItem (or equivalent) carries
+         vendor + brand, and that lib/products/lookup.ts
+         persists them to the cache on a successful lookup.
+
+      3. Confirm the CreateInventoryFromScan form has Vendor /
+         Vendor part # / Vendor contact inputs that pre-fill
+         from the catalog hit.
+
+      4. Confirm the duplicate-code path on a Material create
+         no longer errors — it offers "Add ___ to quantity"
+         as an inline form.
+
+      5. Re-run tests + build, confirm clean.
+
+      6. Report PASS/FAIL with the exact gap if FAIL.
+    assigned_to: Coder
+    role: produce
+    verified_by: Verifier
+    depends_on: []
+    gates: []
+    max_retries: 2
+    timeout_ms: 1800000

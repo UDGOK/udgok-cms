@@ -1,0 +1,56 @@
+{
+  "plan_id": "plan_e17fa432",
+  "status": "cancelled",
+  "owner_session_id": "431618536747119",
+  "cycle": 1,
+  "phase": "evaluating",
+  "results": [
+    {
+      "task_id": "track-a-qr-checkin",
+      "status": "ready",
+      "attempt": 1,
+      "producer_session_id": "432688279072880",
+      "producer_agent": "Coder",
+      "verifier_results": [],
+      "verdict_summary": "Task killed: exceeded 45min runtime (base max 30min + 15m owner extension)",
+      "gate_results": [],
+      "started_at": 1787189910690,
+      "finished_at": 1787192611010,
+      "timeout_extended_ms": 900000,
+      "timeout_deadline_at": 1787192610707
+    },
+    {
+      "task_id": "track-b-material-populate",
+      "status": "ready",
+      "attempt": 1,
+      "producer_session_id": "432688279072881",
+      "producer_agent": "Coder",
+      "verifier_results": [],
+      "verdict_summary": "Task killed: exceeded 45min runtime (base max 30min + 15m owner extension)",
+      "gate_results": [],
+      "started_at": 1787189910991,
+      "finished_at": 1787192613632,
+      "timeout_extended_ms": 900000,
+      "timeout_deadline_at": 1787192611006
+    }
+  ],
+  "dynamic_tasks": [],
+  "task_overrides": {},
+  "consecutive_failures": 0,
+  "engine_sessions": {
+    "432688279072880": {
+      "task_id": "track-a-qr-checkin",
+      "role": "producer",
+      "agent_name": "Coder",
+      "spawned_at": 1787189910681
+    },
+    "432688279072881": {
+      "task_id": "track-b-material-populate",
+      "role": "producer",
+      "agent_name": "Coder",
+      "spawned_at": 1787189910982
+    }
+  },
+  "created_at": 1787189909158,
+  "updated_at": 1787192744003
+}

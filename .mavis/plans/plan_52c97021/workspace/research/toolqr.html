@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="x-ua-compatible" content="ie=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="index,follow">
+
+  <title>toolQR - Track Tools with QR Codes (Fast Check-Out/In)</title>
+  <meta name="description" content="Stick a QR on each tool, scan to check out/in, and always see who has what. Works on any phone — no app, no spreadsheets, no chasing.">
+
+  <link rel="icon" href="images/ico.png" sizes="32x32" />
+  <style>
+    :root{
+      --ink:#1D2E43; --ink-sub:#485569; --brand:#1095c1; --brand-2:#0d7fa5;
+      --bg:#f7fbff; --card:#ffffff; --card-soft:#f4f8fb; --border:rgba(16,149,193,.12);
+      --radius:14px; --shadow:0 10px 28px rgba(20,40,60,.06);
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{margin:0;padding:0;font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+    body{color:var(--ink); background:var(--bg)}
+    a{color:var(--brand); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+    header{background:#fff;border-bottom:1px solid #e8eff5; position:sticky; top:0; z-index:10}
+    .nav{height:64px; display:flex; align-items:center; justify-content:space-between}
+    .brand{display:flex; align-items:center; gap:.6rem; font-weight:800; color:var(--ink)}
+    .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#5fd1ff,#79ffa8)}
+    .menu{display:flex; gap:18px}
+    .menu a{color:var(--ink); opacity:.9}
+    .btn{display:inline-block; padding:12px 18px; border-radius:10px; font-weight:800; background:var(--brand); color:#fff}
+    .btn:hover{background:var(--brand-2); text-decoration:none}
+    .btn-outline{background:#fff; border:1px solid var(--border); color:var(--ink)}
+    .hero{background:linear-gradient(180deg,#fff 0%, #edf6fb 100%); border-bottom:1px solid #e8eff5}
+    .hero .inner{display:grid; grid-template-columns:1.05fr .95fr; gap:28px; align-items:center; padding:48px 0}
+    h1{font-size:42px; line-height:1.1; margin:0 0 10px}
+    .sub{color:var(--ink-sub); font-size:18px; margin:0 0 18px}
+    .badges{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+    .badge{display:inline-flex; align-items:center; gap:.45rem; background:var(--card-soft); border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-weight:600; color:var(--ink)}
+    .mock{background:#fff; border:1px solid #e8eff5; border-radius:16px; box-shadow:var(--shadow); overflow:hidden}
+    .mock img{display:block; width:100%; height:auto}
+    section{padding:46px 0}
+    h2{font-size:28px; margin:0 0 8px}
+    .muted{color:var(--ink-sub)}
+    .grid{display:grid; gap:16px}
+    .grid-3{grid-template-columns:repeat(3,1fr)}
+    .grid-2{grid-template-columns:repeat(2,1fr)}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; box-shadow:var(--shadow)}
+    /* Contrast (Before/After) */
+    .contrast .col{background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px}
+    .contrast ul{margin:.2rem 0 0 1rem; color:var(--ink-sub)}
+    /* How it works */
+    .steps .media{width:100%; aspect-ratio:16/10; border-radius:10px; overflow:hidden; background:#eef6fb; border:1px solid var(--border); margin-bottom:.7rem}
+    .steps .media img{width:100%; height:100%; object-fit:cover; display:block}
+    .kicker{font-size:.9rem; color:var(--brand-2); text-transform:uppercase; letter-spacing:.15em; font-weight:800; margin-bottom:.3rem}
+    /* Pricing */
+    .plans{display:flex; flex-wrap:wrap; gap:16px; justify-content:center}
+    .plan{flex:1 1 300px; max-width:340px}
+    .plan .price{font-size:34px; font-weight:900}
+    .plan ul{margin:.3rem 0 0 0; padding:0 0 0 1rem; color:var(--ink-sub)}
+    .plan li{margin:.2rem 0}
+    .note{font-size:.9rem; color:var(--ink-sub)}
+    /* Testimonials */
+    .quotes{display:flex; flex-wrap:wrap; gap:16px}
+    .quote{flex:1 1 280px}
+    .quote p{margin:.2rem 0}
+    .quote small{color:var(--ink-sub)}
+    /* FAQ */
+    .faq .box{background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px}
+    .faq dt{font-weight:800; color:var(--ink); margin-top:1rem}
+    .faq dd{margin:.35rem 0 0 0; color:var(--ink-sub)}
+    /* Final CTA */
+    .final{text-align:center}
+    /* Footer */
+    footer{border-top:1px solid #e8eff5; padding:20px 0 48px; color:var(--ink-sub)}
+    .links{display:flex; gap:12px; flex-wrap:wrap}
+    .links a{color:var(--ink-sub)}
+    /* Responsive */
+    @media (max-width: 980px){
+      .hero .inner{grid-template-columns:1fr}
+      .grid-3{grid-template-columns:1fr}
+      .grid-2{grid-template-columns:1fr}
+      h1{font-size:34px}
+    }
+    /* ===== MOBILE FIX PACK ===== */
+    @media (max-width: 700px){
+      header .nav{height:auto !important; padding:10px 0; flex-direction:column; gap:8px}
+      .menu{flex-wrap:wrap; justify-content:center; gap:12px}
+      .hero .inner{padding:28px 16px !important}
+      .hero .inner .btn, .hero .inner .btn.btn-outline{width:100%; text-align:center}
+      #how .grid{grid-template-columns:1fr !important}
+      h1{ font-size:32px !important; line-height:1.15 }
+      .wrap{ padding:0 16px !important }
+      .card{ padding:16px !important; border-radius:12px !important }
+      .mock img{ width:100%; height:auto; display:block }
+      .badges{ gap:8px !important }
+      .plans .btn{ width:100%; text-align:center }
+    }
+  </style>
+
+  <!-- Organization JSON-LD (matches gettoolqr.com) -->
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"Organization",
+    "name":"toolQR",
+    "url":"https://www.gettoolqr.com",
+    "logo":"https://www.gettoolqr.com/logo.png",
+    "contactPoint": [{
+      "@type":"ContactPoint",
+      "contactType":"customer support",
+      "email":"support@gettoolqr.com",
+      "availableLanguage": ["en"]
+    }]
+  }
+  </script>
+
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-17064323438"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'AW-17064323438');
+</script>
+
+
+</head>
+<body>
+
+  <!-- NAV -->
+  <header>
+    <div class="wrap nav">
+      <div class="brand">
+        <img src="images/logo.png" alt="toolQR logo" width="120" height="auto">
+      </div>
+      <nav class="menu" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero" id="home">
+    <div class="wrap inner">
+      <div>
+        <h1>Tag, Scan, Done.</h1>
+        <p class="sub">Put a QR on each tool, scan to check-out or check-in, and always know who’s got what - from any phone.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 8px;">
+          <a class="btn" href="/register">Go to Dashboard</a>
+          <a class="btn btn-outline" href="#features">Explore Features</a>
+        </div>
+        <div class="badges" aria-hidden="true">
+          <span class="badge">Works on any phone</span>
+          <span class="badge">Zero training</span>
+          <span class="badge">No app required</span>
+        </div>
+      </div>
+      <div class="mock" role="img" aria-label="toolQR dashboard preview">
+        <img src="images/hero.webp" alt="toolQR dashboard screenshot">
+      </div>
+    </div>
+  </section>
+
+  <!-- BEFORE / AFTER -->
+  <section>
+    <div class="wrap">
+      <div class="grid grid-2 contrast">
+        <div class="col">
+          <h3 style="margin:0 0 .3rem 0; color:#b23b3b">Without toolQR</h3>
+          <ul>
+            <li>“Who had it last?” back-and-forth</li>
+            <li>Lost drivers, dead batteries, delays</li>
+            <li>Sheets and boards that go stale</li>
+          </ul>
+        </div>
+        <div class="col" style="background:#f9fcff;">
+          <h3 style="margin:0 0 .3rem 0; color:#0d7fa5">With toolQR</h3>
+          <ul>
+            <li>Two-tap check-out / in on site</li>
+            <li>Live holder + due-back time</li>
+            <li>Fewer losses, faster hand-offs</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" class="steps">
+    <div class="wrap">
+      <div class="kicker">How it works</div>
+      <h2>From QR to accountability</h2>
+      <div class="grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
+        <div class="card">
+          <div class="media"><img src="images/step1.webp" alt="Create a tool in toolQR"></div>
+          <div class="kicker">Step 1</div>
+          <h3 style="margin:.2rem 0">Create a tool</h3>
+          <p class="muted">Add name and details. toolQR generates a unique QR instantly.</p>
+        </div>
+        <div class="card">
+          <div class="media"><img src="images/step2.webp" alt="Print QR label"></div>
+          <div class="kicker">Step 2</div>
+          <h3 style="margin:.2rem 0">Print a label</h3>
+          <p class="muted">Use regular paper or weather-proof stock. Batch print for many tools.</p>
+        </div>
+        <div class="card">
+          <div class="media"><img src="images/step3.webp" alt="Stick label on the tool"></div>
+          <div class="kicker">Step 3</div>
+          <h3 style="margin:.2rem 0">Stick it on</h3>
+          <p class="muted">Apply to the tool (and case/charger if needed). You’re live.</p>
+        </div>
+        <div class="card">
+          <div class="media"><img src="images/step4.webp" alt="Scan to check-out/in"></div>
+          <div class="kicker">Step 4</div>
+          <h3 style="margin:.2rem 0">Scan to check-out/in</h3>
+          <p class="muted">Crew scans with any phone to log who has it - fast and accountable.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="text-align:center; padding:0px 0;">
+    <a class="btn" href="/register" style="font-size:18px;">Go to Dashboard</a>
+    <p class="muted" style="margin-top:8px;">Instant access - no app needed</p>
+  </section>
+
+  <!-- OUTCOMES -->
+  <section>
+    <div class="wrap">
+      <div class="kicker">Outcomes</div>
+      <h2>What teams notice first</h2>
+      <div class="grid grid-3">
+        <div class="card">
+          <h3>Accountability</h3>
+          <p class="muted">Every scan ties to a person with a time stamp and due-back.</p>
+          <ul>
+            <li>Names on every action</li>
+            <li>Clean return history</li>
+            <li>Clear ownership</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Productivity</h3>
+          <p class="muted">Two taps beats paper logs and stale spreadsheets.</p>
+          <ul>
+            <li>Seconds, not minutes</li>
+            <li>Paperless logging</li>
+            <li>Fast onboarding</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Loss prevention</h3>
+          <p class="muted">Unique QR per tool makes it easy to find and return gear.</p>
+          <ul>
+            <li>Instant identification</li>
+            <li>Who had it & when</li>
+            <li>Reduced downtime</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="wrap">
+      <div class="kicker">Features</div>
+      <h2>Built for field crews</h2>
+      <div class="grid grid-3">
+        <div class="card">
+          <h3>Scan & quick lookup</h3>
+          <p class="muted">See details and last activity the moment you scan a code.</p>
+        </div>
+        <div class="card">
+          <h3>Check-out / Check-in</h3>
+          <p class="muted">Log who has the tool and when it comes back. Clear, searchable history.</p>
+        </div>
+        <div class="card">
+          <h3>Usage insights</h3>
+          <p class="muted">Spot busy or idle tools at a glance and plan purchases better.</p>
+        </div>
+        <div class="card">
+          <h3>Team members</h3>
+          <p class="muted">Add workers so hand-offs are tracked by name, not guesswork.</p>
+        </div>
+        <div class="card">
+          <h3>Any phone</h3>
+          <p class="muted">Use the built-in camera - no special app required.</p>
+        </div>
+        <div class="card">
+          <h3>Email support</h3>
+          <p class="muted">Get help when you need it. Priority for paid plans.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="wrap">
+      <div class="kicker">Simple plans</div>
+      <h2>Pick a plan that fits</h2>
+      <div class="plans">
+        <div class="card plan">
+          <h3>Starter</h3>
+          <div class="price">$15<span style="font-size:16px;font-weight:600">/mo</span></div>
+          <ul>
+            <li>Up to 30 tools</li>
+            <li>Unlimited QR scans</li>
+            <li>Full check-out/in history</li>
+            <li>Insights dashboard</li>
+          </ul>
+          <p style="margin:.9rem 0 0"><a class="btn" href="/register">Choose Starter</a></p>
+          <p class="note">&nbsp;</p>
+        </div>
+        <div class="card plan">
+          <h3>Team</h3>
+          <div class="price">$29<span style="font-size:16px;font-weight:600">/mo</span></div>
+          <ul>
+            <li>Up to 100 tools</li>
+            <li>Unlimited QR scans</li>
+            <li>Full check-out/in history</li>
+            <li>Insights dashboard</li>
+          </ul>
+          <p style="margin:.9rem 0 0"><a class="btn" href="/register">Choose Team</a></p>
+          <p class="note">&nbsp;</p>
+        </div>
+        <div class="card plan">
+          <h3>Company</h3>
+          <div class="price">$59<span style="font-size:16px;font-weight:600">/mo</span></div>
+          <ul>
+            <li>Up to 500 tools</li>
+            <li>Unlimited QR scans</li>
+            <li>Full check-out/in history</li>
+            <li>Insights dashboard</li>
+          </ul>
+          <p style="margin:.9rem 0 0"><a class="btn" href="/register">Choose Company</a></p>
+          <p class="note">&nbsp;</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <section>
+    <div class="wrap">
+      <h2>What crews say</h2>
+      <div class="quotes">
+        <div class="card quote">
+          <p>“We stopped losing drivers and batteries. The scan log ends the ‘who had it last’ debate.”</p>
+          <small>— Alex M., Site Lead</small>
+        </div>
+        <div class="card quote">
+          <p>“Setup took an afternoon. Now everyone actually checks things out.”</p>
+          <small>— Rita P., Shop Manager</small>
+        </div>
+        <div class="card quote">
+          <p>“toolQR paid for itself in gear we didn’t replace.”</p>
+          <small>— Dan S., Contractor</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="faq">
+    <div class="wrap">
+      <h2>Frequently asked</h2>
+      <div class="box">
+        <dl>
+          <dt>Do I need special QR labels?</dt>
+          <dd>No. Start with regular printer labels. For heavy use, pick weather-resistant stock.</dd>
+          <dt>Can my team use their phones?</dt>
+          <dd>Yes. Any modern smartphone camera works - no app.</dd>
+          <dt>Can I change plans later?</dt>
+          <dd>Anytime. Upgrades or downgrades apply immediately.</dd>
+          <dt>What payment methods do you accept?</dt>
+          <dd>All major credit/debit cards. Invoicing available for larger accounts.</dd>
+          <dt>How is my data handled?</dt>
+          <dd>We store records securely and do not sell data. See Privacy for details.</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final">
+    <div class="wrap">
+      <h2>Ready to stop losing tools?</h2>
+      <p class="muted">Join toolQR and keep track of your gear with ease.</p>
+      <p style="margin-top:12px;"><a class="btn" href="/register">Start Here</a></p>
+    </div>
+  </section>
+
+  <!-- CONTACT / POLICIES -->
+  <section id="contact">
+    <div class="wrap">
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>Contact</h3>
+          <p>Email: <a href="mailto:support@gettoolqr.com">support@gettoolqr.com</a></p>
+          <p class="muted" style="margin-top:-6px;">We usually reply within 1–2 business days.</p>
+        </div>
+        <div class="card">
+          <h3>Privacy & Terms</h3>
+          <p class="muted">We collect the minimum required to run the service (account email, usage logs). We don’t sell data.</p>
+          <p class="muted">Read our full policies here:</p>
+          <p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <div>© <span id="y"></span> toolQR. All rights reserved</div>
+      <div class="links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="#contact">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Year -->
+  <script>document.getElementById('y').textContent=new Date().getFullYear();</script>
+  <noscript>Your experience is fully supported without JavaScript.</noscript>
+
+
+<!-- Default Statcounter code for US | gettoolqr.com
+https://www.gettoolqr.com/ -->
+<script type="text/javascript">
+var sc_project=13175660; 
+var sc_invisible=1; 
+var sc_security="09272c52"; 
+</script>
+<script type="text/javascript"
+src="https://www.statcounter.com/counter/counter.js"
+async></script>
+<noscript><div class="statcounter"><a title="Web Analytics"
+href="https://statcounter.com/" target="_blank"><img
+class="statcounter"
+src="https://c.statcounter.com/13175660/0/09272c52/1/"
+alt="Web Analytics"
+referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>
+<!-- End of Statcounter Code -->
+
+</body>
+</html>

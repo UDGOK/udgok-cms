@@ -1,0 +1,56 @@
+{
+  "plan_id": "plan_aee96ebf",
+  "status": "cancelled",
+  "owner_session_id": "431618536747119",
+  "cycle": 1,
+  "phase": "evaluating",
+  "results": [
+    {
+      "task_id": "track-a-photos-upload",
+      "status": "ready",
+      "attempt": 1,
+      "producer_session_id": "432665822425187",
+      "producer_agent": "Coder",
+      "verifier_results": [],
+      "verdict_summary": "Task killed: exceeded 49min runtime (base max 30min + 15m owner extension)",
+      "gate_results": [],
+      "started_at": 1787184320823,
+      "finished_at": 1787187274428,
+      "timeout_extended_ms": 900000,
+      "timeout_deadline_at": 1787187020838
+    },
+    {
+      "task_id": "track-b-files-upload-ui",
+      "status": "ready",
+      "attempt": 1,
+      "producer_session_id": "432665822425188",
+      "producer_agent": "Coder",
+      "verifier_results": [],
+      "verdict_summary": "Task killed: exceeded 49min runtime (base max 30min + 15m owner extension)",
+      "gate_results": [],
+      "started_at": 1787184321049,
+      "finished_at": 1787187282470,
+      "timeout_extended_ms": 900000,
+      "timeout_deadline_at": 1787187021064
+    }
+  ],
+  "dynamic_tasks": [],
+  "task_overrides": {},
+  "consecutive_failures": 0,
+  "engine_sessions": {
+    "432665822425187": {
+      "task_id": "track-a-photos-upload",
+      "role": "producer",
+      "agent_name": "Coder",
+      "spawned_at": 1787184320807
+    },
+    "432665822425188": {
+      "task_id": "track-b-files-upload-ui",
+      "role": "producer",
+      "agent_name": "Coder",
+      "spawned_at": 1787184321039
+    }
+  },
+  "created_at": 1787184319335,
+  "updated_at": 1787187294321
+}

@@ -1799,7 +1799,7 @@ model Vendor {
   quotes      VendorQuote[]
   pos         PurchaseOrder[]
   vendorItems VendorItem[]
-  defaultFor  Item[]    @relation("ItemDefaultVendor")
+  defaultFor  Item[]             @relation("ItemDefaultVendor")
   prices      PriceObservation[]
 
   createdAt DateTime  @default(now())
@@ -1848,10 +1848,10 @@ model Item {
   defaultVendorId String?
   active          Boolean @default(true)
 
-  defaultVendor   Vendor? @relation("ItemDefaultVendor", fields: [defaultVendorId], references: [id])
-  vendorItems VendorItem[]
-  listLines   MaterialListLine[]
-  prices      PriceObservation[]
+  defaultVendor Vendor?            @relation("ItemDefaultVendor", fields: [defaultVendorId], references: [id])
+  vendorItems   VendorItem[]
+  listLines     MaterialListLine[]
+  prices        PriceObservation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1947,9 +1947,9 @@ model Rfq {
   number      String // "RFQ-2026-0001"
 
   listId      String
-  list        MaterialList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  list        MaterialList   @relation(fields: [listId], references: [id], onDelete: Cascade)
   vendorId    String
-  vendor      Vendor       @relation(fields: [vendorId], references: [id])
+  vendor      Vendor         @relation(fields: [vendorId], references: [id])
   contactId   String?
   contact     VendorContact? @relation("RfqContact", fields: [contactId], references: [id])
   sentToEmail String?
@@ -1976,13 +1976,13 @@ model Rfq {
   // The vendor's old link is dead but routes to a polite
   // "revised" page that links to the new one.
   parentRfqId String?
-  parentRfq   Rfq?   @relation("RfqRevisions", fields: [parentRfqId], references: [id])
-  childRfqs   Rfq[]  @relation("RfqRevisions")
+  parentRfq   Rfq?    @relation("RfqRevisions", fields: [parentRfqId], references: [id])
+  childRfqs   Rfq[]   @relation("RfqRevisions")
   // Sequential per logical RFQ lifetime. The first Rfq
   // is 1, first revision is 2, etc. Stamped on the row +
   // surfaced in the email subject so the vendor can tell
   // "this is RFQ-2026-0001 rev 2" at a glance.
-  revision Int @default(1)
+  revision    Int     @default(1)
 
   // ---- SOFT DELETE ----
   // Only set on DRAFT RFQs that the buyer deletes. SENT+
@@ -2152,11 +2152,11 @@ model PurchaseOrder {
   //   jobsite addresses don't fit a structured schema).
   // deliveryContactName/Phone/Email: who's at the
   //   delivery site to receive + sign for the load.
-  deliveryName           String?
-  deliveryAddress        String?
-  deliveryContactName    String?
-  deliveryContactPhone   String?
-  deliveryContactEmail   String?
+  deliveryName         String?
+  deliveryAddress      String?
+  deliveryContactName  String?
+  deliveryContactPhone String?
+  deliveryContactEmail String?
 
   // Approval: PM or ADMIN signs off before ISSUED.
   // We store the approver + when for audit; the
@@ -2175,12 +2175,6 @@ model PurchaseOrder {
   createdBy String?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@unique([workspaceId, number])
-  @@index([workspaceId, status])
-  @@index([workspaceId, vendorId])
-  @@index([workspaceId, projectId])
-  @@index([workspaceId, approvedAt])
   // Activity log of everything that happens to a PO.
   // Mirrors the RfqEvent pattern — append-only, with an
   // actor (clerk userId) and a JSON meta blob for
@@ -2189,19 +2183,25 @@ model PurchaseOrder {
   // store { added, removed, modified: [lineIds] } so the
   // buyer can see "Bob added 2 lines, removed 1, changed
   // qty on 3" without diffing the line table.
-  events PoEvent[]
+  events    PoEvent[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([workspaceId, vendorId])
+  @@index([workspaceId, projectId])
+  @@index([workspaceId, approvedAt])
 }
 
 model PoEvent {
-  id          String       @id @default(cuid())
+  id          String        @id @default(cuid())
   workspaceId String
   poId        String
   po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
 
   // CREATED EDITED ISSUED RESENT CANCELLED ACKNOWLEDGED RECEIVED CLOSED
-  type    String
-  actor   String? // clerk userId
-  meta    Json?
+  type      String
+  actor     String? // clerk userId
+  meta      Json?
   createdAt DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -2211,22 +2211,22 @@ model PoEvent {
 }
 
 model POLine {
-  id          String        @id @default(cuid())
-  workspaceId String
-  poId        String
-  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
-  position    Int
-  itemId      String?
-  description String
-  vendorSku   String?
-  quantity    Decimal       @db.Decimal(19, 4)
-  uom         String        @default("EA")
-  unitPrice   Decimal       @db.Decimal(19, 4)
-  lineTotal   Decimal       @db.Decimal(19, 4)
+  id             String        @id @default(cuid())
+  workspaceId    String
+  poId           String
+  po             PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  position       Int
+  itemId         String?
+  description    String
+  vendorSku      String?
+  quantity       Decimal       @db.Decimal(19, 4)
+  uom            String        @default("EA")
+  unitPrice      Decimal       @db.Decimal(19, 4)
+  lineTotal      Decimal       @db.Decimal(19, 4)
   // A vendor-quote line can be marked as a substitute for the
   // original list line. We carry the note through to the PO
   // so the buyer remembers why this isn't the spec they sent.
-  isSubstitute   Boolean @default(false)
+  isSubstitute   Boolean       @default(false)
   substituteNote String?
   notes          String?
 
