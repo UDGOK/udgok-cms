@@ -58,13 +58,15 @@ const isPublicRoute = createRouteMatcher([
   '/api/projects/(.*)/bim',
   '/api/projects/(.*)/photos/upload',
   // ---- PROCUREMENT / VENDOR PORTAL ----
-  // Public, token-based vendor RFQ portal. The token in
-  // /q/:token is the credential — no Clerk session.
+  // Public, token-based vendor RFQ + PO portal. The token in
+  // /q/:token or /p/:token is the credential — no Clerk session.
   // Same-origin + frame-ancestors 'none' + form-action 'self'
-  // are already in the CSP. The /api/q/ namespace is the
-  // vendor's view + submit endpoints (token-authed).
+  // are already in the CSP. The /api/q/ and /api/p/ namespaces
+  // are the vendor's view + submit endpoints (token-authed).
   '/q/(.*)',
   '/api/q/(.*)',
+  '/p/(.*)',
+  '/api/p/(.*)',
   // ---- DEBUG / HEALTH ----
   // The blob-health endpoint only returns { ok, storeId, blobs }
   // — no PII, no auth needed, useful for the user to verify
