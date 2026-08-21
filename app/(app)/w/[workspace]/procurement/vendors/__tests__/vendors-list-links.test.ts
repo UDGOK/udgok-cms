@@ -45,4 +45,9 @@ describe('VendorsList — link patterns', () => {
     const src = readFileSync(vendorsListPath, 'utf-8');
     expect(src).toMatch(/workspaceSlug:\s*string/);
   });
+
+  it('links to the per-vendor payment-methods page', () => {
+    const src = readFileSync(vendorsListPath, 'utf-8');
+    expect(src).toMatch(/\/procurement\/vendors\/\$\{[^}]+\}\/payment-methods/);
+  });
 });

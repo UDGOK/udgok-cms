@@ -368,7 +368,7 @@ export function PoResponseForm({ po, token }: { po: FormData; token: string }) {
         {outcome !== 'REJECTED' ? (
           <div className="bg-paper border-2 border-ink p-5 mb-6">
             <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-3">
-              {'// Payment method'}
+              {'// How would you like to be paid?'}
             </div>
             <div className="space-y-2">
               {po.vendor.paymentMethods.length > 0 && s?.allowAch !== false ? (
@@ -382,8 +382,9 @@ export function PoResponseForm({ po, token }: { po: FormData; token: string }) {
                     className="mt-1"
                   />
                   <span>
-                    <b>Use payment on file</b>
+                    <b>Pay me on file (ACH / card / check details we have)</b>
                     <div className="text-[11px] text-ink-50 mt-0.5">
+                      We&apos;ll pay using one of the methods you have on file with us:
                       {po.vendor.paymentMethods.map((m) => {
                         const desc =
                           m.methodType === 'ACH'
@@ -416,7 +417,7 @@ export function PoResponseForm({ po, token }: { po: FormData; token: string }) {
                   <span>
                     <b>Send me a payment link</b>
                     <div className="text-[11px] text-ink-50 mt-0.5">
-                      We&apos;ll email you a secure checkout link (Stripe).
+                      We&apos;ll email you a secure checkout link (Stripe) so you can be paid instantly.
                     </div>
                     {paymentMethod === 'PAYMENT_LINK' ? (
                       <div className="mt-1.5">
@@ -445,9 +446,10 @@ export function PoResponseForm({ po, token }: { po: FormData; token: string }) {
                     className="mt-1"
                   />
                   <span>
-                    <b>I&apos;ll send an invoice to {s.invoiceEmail}</b>
+                    <b>Pay me by invoice — send the invoice to {s.invoiceEmail}</b>
                     <div className="text-[11px] text-ink-50 mt-0.5">
                       Email the final invoice (PDF or photo) to {s.invoiceEmail} with the PO number in the subject.
+                      We&apos;ll pay once the invoice is received and approved.
                       {s.invoiceEmailCc ? ` CC: ${s.invoiceEmailCc}.` : ''}
                     </div>
                   </span>
@@ -464,10 +466,10 @@ export function PoResponseForm({ po, token }: { po: FormData; token: string }) {
                     className="mt-1"
                   />
                   <span>
-                    <b>Pay by check</b>
+                    <b>Pay me by check</b>
                     <div className="text-[11px] text-ink-50 mt-0.5">
-                      Make payable to {s.checkPayableTo ?? 'UDGOK Construction'}
-                      {s.checkMailTo ? ` and mail to ${s.checkMailTo}` : ''}.
+                      We&apos;ll make the check payable to {s.checkPayableTo ?? 'the name on your W-9'}
+                      {s.checkMailTo ? ` and mail it to ${s.checkMailTo}` : ' (we&apos;ll confirm the mailing address with you)'}.
                     </div>
                   </span>
                 </label>

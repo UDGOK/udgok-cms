@@ -48,6 +48,9 @@ export function VendorsList({
               POs
             </th>
             <th className="text-left px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.12em]">
+              Pay methods
+            </th>
+            <th className="text-left px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.12em]">
               Last quoted
             </th>
           </tr>
@@ -84,6 +87,16 @@ export function VendorsList({
               <td className="px-3 py-2 text-right font-mono">{v.contactCount}</td>
               <td className="px-3 py-2 text-right font-mono">{v.quoteCount}</td>
               <td className="px-3 py-2 text-right font-mono">{v.poCount}</td>
+              <td className="px-3 py-2 text-[10px]">
+                <Link
+                  href={`/w/${workspaceSlug}/procurement/vendors/${v.id}/payment-methods`}
+                  className="text-ink-50 hover:text-orange-d font-mono"
+                >
+                  {(v as { paymentMethodCount?: number }).paymentMethodCount
+                    ? `${(v as { paymentMethodCount?: number }).paymentMethodCount} on file`
+                    : '+ add'}
+                </Link>
+              </td>
               <td className="px-3 py-2 text-[10px] text-ink-50">
                 {v.lastQuotedAt
                   ? new Date(v.lastQuotedAt).toLocaleDateString()

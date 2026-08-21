@@ -71,8 +71,19 @@ export default async function PaymentsSettingsPage({
       />
 
       <div className="mt-6">
-        <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50 mb-2">
-          {'// Vendor payment methods'}
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
+            {'// Vendor payment methods'}
+          </div>
+          <div className="text-[10px] text-ink-50 font-mono">
+            per-vendor:{' '}
+            <Link
+              href={`/w/${workspace.slug}/procurement/vendors`}
+              className="text-orange-d hover:underline"
+            >
+              open vendor →
+            </Link>
+          </div>
         </div>
         <VendorPaymentMethodsTable
           workspaceSlug={workspace.slug}

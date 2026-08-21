@@ -18,6 +18,7 @@ export interface VendorListItem {
   contactCount: number;
   quoteCount: number;
   poCount: number;
+  paymentMethodCount: number;
   lastQuotedAt: Date | null;
   createdAt: Date;
 }
@@ -32,6 +33,7 @@ export async function listVendors(workspaceId: string): Promise<VendorListItem[]
           contacts: { where: {} as never },
           quotes: true,
           pos: true,
+          paymentMethods: { where: { isActive: true } },
         },
       },
       quotes: {
@@ -50,6 +52,7 @@ export async function listVendors(workspaceId: string): Promise<VendorListItem[]
     contactCount: v._count.contacts,
     quoteCount: v._count.quotes,
     poCount: v._count.pos,
+    paymentMethodCount: v._count.paymentMethods,
     lastQuotedAt: v.quotes[0]?.submittedAt ?? null,
     createdAt: v.createdAt,
   }));
@@ -71,6 +74,18 @@ export interface VendorDetail {
   postalCode: string | null;
   defaultTerms: string | null;
   taxExempt: boolean;
+  paymentMethods: Array<{
+    id: string;
+    methodType: 'ACH' | 'CARD' | 'CHECK';
+    isDefault: boolean;
+    nickname: string | null;
+    last4: string | null;
+    achBankName: string | null;
+    achRoutingLast4: string | null;
+    achAccountLast4: string | null;
+    cardBrand: string | null;
+    isActive: boolean;
+  }>;
   notes: string | null;
   subcontractorId: string | null;
   contacts: Array<{
@@ -107,6 +122,10 @@ export async function getVendorDetail(
     where: { id: vendorId, workspaceId, deletedAt: null },
     include: {
       contacts: { orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] },
+      paymentMethods: {
+        where: { isActive: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      },
       quotes: {
         orderBy: { submittedAt: 'desc' },
         take: 10,
@@ -146,6 +165,18 @@ export async function getVendorDetail(
       phone: c.phone,
       role: c.role,
       isPrimary: c.isPrimary,
+    })),
+    paymentMethods: v.paymentMethods.map((m) => ({
+      id: m.id,
+      methodType: m.methodType,
+      isDefault: m.isDefault,
+      nickname: m.nickname,
+      last4: m.last4,
+      achBankName: m.achBankName,
+      achRoutingLast4: m.achRoutingLast4,
+      achAccountLast4: m.achAccountLast4,
+      cardBrand: m.cardBrand,
+      isActive: m.isActive,
     })),
     recentQuotes: v.quotes.map((q) => ({
       id: q.id,

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { archiveVendorAction } from '@/lib/procurement/actions';
@@ -213,6 +214,61 @@ export function VendorDetailView({
             existingCount={vendor.contacts.length}
           />
         </div>
+      </div>
+
+      {/* Payment methods — short summary + link to per-vendor
+          page where the buyer manages ACH/card/check details. */}
+      <div className="bg-paper border-2 border-ink p-4 mb-6">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
+            Payment methods on file
+          </div>
+          <Link
+            href={`/w/${workspaceSlug}/procurement/vendors/${vendor.id}/payment-methods`}
+            className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink hover:text-orange-d"
+          >
+            Manage →
+          </Link>
+        </div>
+        {vendor.paymentMethods.length === 0 ? (
+          <div className="text-[11px] text-ink-50">
+            No payment methods on file yet. The vendor portal
+            will hide the &ldquo;Pay me on file&rdquo;
+            option until at least one is added.
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {vendor.paymentMethods.map((m) => {
+              const desc =
+                m.methodType === 'ACH'
+                  ? `ACH${m.achBankName ? ` · ${m.achBankName}` : ''}${m.achAccountLast4 ? ` ending ${m.achAccountLast4}` : ''}`
+                  : m.methodType === 'CARD'
+                    ? `${m.cardBrand ?? 'Card'}${m.last4 ? ` ending ${m.last4}` : ''}`
+                    : `Check${m.last4 ? ` #${m.last4}` : ''}`;
+              return (
+                <li
+                  key={m.id}
+                  className="flex items-center gap-2 text-[12px] text-ink-70 font-mono"
+                >
+                  {m.isDefault ? (
+                    <span className="px-1.5 py-0.5 bg-orange/15 text-orange text-[9px] font-extrabold uppercase tracking-[0.1em]">
+                      Default
+                    </span>
+                  ) : null}
+                  <span>
+                    {m.nickname ? `${m.nickname} — ` : ''}
+                    {desc}
+                  </span>
+                  {!m.isActive ? (
+                    <span className="px-1.5 py-0.5 bg-ink-50/15 text-ink-50 text-[9px] font-extrabold uppercase tracking-[0.1em]">
+                      Inactive
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       {vendor.notes ? (
