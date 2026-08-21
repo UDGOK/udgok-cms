@@ -293,3 +293,82 @@ export async function deleteContactAction(
   revalidatePath(`/w/_/procurement/vendors/${contact.vendorId}`);
   return { ok: true };
 }
+
+// ---- Vendor contact update ----
+//
+// Updates name / email / phone / role / isPrimary on an
+// existing contact. Tenant-scoped via the contact's
+// workspaceId. If isPrimary flips to true, all other
+// primary contacts for that vendor are unset (one primary
+// per vendor).
+
+const contactUpdateSchema = z.object({
+  contactId: z.string().min(1),
+  name: z.string().min(1, 'Name is required').max(200),
+  email: z.string().email('Valid email required'),
+  phone: z.string().max(40).optional().or(z.literal('')),
+  role: z.string().max(80).optional().or(z.literal('')),
+  isPrimary: z.boolean().default(false),
+});
+
+export async function updateContactAction(
+  workspaceId: string,
+  _prev: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    await assertRole(workspaceId, ['OWNER', 'ADMIN', 'PM']);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Forbidden' };
+  }
+
+  const parsed = contactUpdateSchema.safeParse({
+    contactId: formData.get('contactId'),
+    name: formData.get('name'),
+    email: formData.get('email'),
+    phone: formData.get('phone') ?? '',
+    role: formData.get('role') ?? '',
+    isPrimary: formData.get('isPrimary') === 'on',
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const k = String(issue.path[0]);
+      if (!fieldErrors[k]) fieldErrors[k] = issue.message;
+    }
+    return { ok: false, error: 'Please fix the errors below', fieldErrors };
+  }
+
+  // Tenant scope: confirm the contact belongs to this workspace.
+  const existing = await prisma.vendorContact.findFirst({
+    where: { id: parsed.data.contactId, workspaceId },
+    select: { id: true, vendorId: true },
+  });
+  if (!existing) return { ok: false, error: 'Contact not found' };
+
+  // If we're flipping this contact to primary, unset the
+  // other primary contacts on the same vendor first.
+  if (parsed.data.isPrimary) {
+    await prisma.vendorContact.updateMany({
+      where: {
+        vendorId: existing.vendorId,
+        workspaceId,
+        id: { not: parsed.data.contactId },
+      },
+      data: { isPrimary: false },
+    });
+  }
+
+  await prisma.vendorContact.update({
+    where: { id: parsed.data.contactId },
+    data: {
+      name: parsed.data.name,
+      email: parsed.data.email,
+      phone: parsed.data.phone || null,
+      role: parsed.data.role || null,
+      isPrimary: parsed.data.isPrimary,
+    },
+  });
+  revalidatePath(`/w/_/procurement/vendors/${existing.vendorId}`);
+  return { ok: true };
+}

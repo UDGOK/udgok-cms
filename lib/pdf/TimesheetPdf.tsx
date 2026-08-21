@@ -1,22 +1,24 @@
 /**
- * TimesheetPdf — weekly timesheet template.
+ * TimesheetPdf — borderless weekly timesheet.
  *
- * Used by both the per-employee and per-sub PDF
- * routes. The shape is the same; only the "who"
- * label and the data source differ.
+ * Design: Atelier-themed, US Letter (8.5" × 11"), borderless.
+ * Section dividers are single 1pt lines, not boxes. Typography
+ * is Helvetica (body) + Times-Bold (display). Colors come from
+ * the shared `styles` module so the printed page matches the
+ * rest of the app.
  *
- * Layout:
- *   - Header: name, period, total hours
- *   - Daily grid table (Mon-Sun)
- *   - Event list (each check-in/out with hours)
- *   - Per-project summary
- *   - Signature line at the bottom
+ * Sections:
+ *   1. Top meta row: brand · workspace | period | total hours
+ *   2. Person block: name (h1), role, ID
+ *   3. Daily hours strip: 7 days + total, single thin rule under
+ *   4. Event list: date / project (notes) / hours, minimal separators
+ *   5. Per-project summary table
+ *   6. Signature row
+ *   7. Footer
  *
- * The signature line is the legally-significant
- * part of a timesheet — foremen sign to confirm
- * their hours; admins sign to approve. This v1
- * just shows a placeholder; v2 could capture the
- * signature inline.
+ * All content width is 504pt (8.5" minus 0.75" margins × 2).
+ * No element exceeds 504pt; long project names wrap inside
+ * the event row instead of forcing horizontal overflow.
  */
 
 import {
@@ -55,43 +57,108 @@ export interface TimesheetPdfData {
   generatedAt: Date;
 }
 
+// 504pt = 8.5" page − 0.75" × 2 margins.
+const CONTENT_WIDTH = 612 - 108;
+
+// Column widths within the daily strip. 7 flex days share
+// the remaining space after the fixed total column.
+const DAILY_TOTAL_COL = 56;
+const DAILY_DAY_COL = (CONTENT_WIDTH - DAILY_TOTAL_COL) / 7;
+
+// Event row column widths. Date 64, time 78, project flex, hours 50.
+const EVENT_DATE_COL = 64;
+const EVENT_TIME_COL = 78;
+const EVENT_HOURS_COL = 50;
+
 const styles = StyleSheet.create({
   page: {
     ...page,
     backgroundColor: colors.paper,
-    paddingTop: page.marginTop,
-    paddingBottom: page.marginBottom,
-    paddingHorizontal: page.marginLeft,
+    paddingTop: 56,        // slightly tighter top margin
+    paddingBottom: 56,
+    paddingHorizontal: 54,
+    color: colors.ink,
+    fontFamily: 'Helvetica',
+    fontSize: font.sizeBase,
   },
-  header: {
+
+  // ─── Top meta row: brand left, period/total right ────────────
+  topRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    borderBottomWidth: 1.5,
-    borderBottomColor: colors.ink,
-    paddingBottom: 10,
-    marginBottom: 14,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   brand: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  brandName: {
     fontSize: font.sizeLg,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink,
+    letterSpacing: 0.5,
   },
   brandAccent: {
     fontSize: font.sizeLg,
     fontFamily: 'Helvetica-Bold',
     color: colors.orange,
   },
-  workspaceLabel: {
+  brandSub: {
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica',
     color: colors.ink50,
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    marginLeft: 8,
+  },
+  periodStack: {
+    alignItems: 'flex-end',
+  },
+  periodLabel: {
+    fontSize: font.sizeXs,
+    fontFamily: 'Helvetica-Bold',
+    color: colors.ink50,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  periodDates: {
+    fontSize: font.sizeMd,
+    fontFamily: 'Helvetica-Bold',
+    color: colors.ink,
+    marginTop: 2,
+  },
+
+  // ─── Top divider — single thick rule ─────────────────────────
+  thickRule: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.ink,
+    marginTop: 6,
+    marginBottom: 14,
+  },
+  thinRule: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.line,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  dottedRule: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.line,
+    borderBottomStyle: 'dashed',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+
+  // ─── Person block ────────────────────────────────────────────
+  personRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 14,
+  },
+  personBlock: {
+    flex: 1,
   },
   eyebrow: {
     fontSize: font.sizeXs,
@@ -100,172 +167,147 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
-  title: {
-    fontSize: font.sizeSubsection + 4,
-    fontFamily: 'Helvetica-Bold',
+  personName: {
+    fontSize: 24,                    // large display size
+    fontFamily: 'Times-Bold',
     color: colors.ink,
-    marginTop: 2,
+    marginTop: 4,
   },
-  sub: {
+  personSub: {
     fontSize: font.sizeBase,
     fontFamily: 'Helvetica',
     color: colors.ink70,
     marginTop: 2,
   },
-  period: {
-    fontSize: font.sizeSm,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.ink,
-    textAlign: 'right',
-  },
-  periodLabel: {
-    fontSize: font.sizeXs,
-    fontFamily: 'Helvetica',
-    color: colors.ink50,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    textAlign: 'right',
-  },
-  totalBox: {
+  totalBlock: {
     alignItems: 'flex-end',
   },
   totalNumber: {
-    fontSize: font.sizeCoverMeta,
+    fontSize: 32,                    // big orange total
     fontFamily: 'Helvetica-Bold',
     color: colors.orange,
     lineHeight: 1,
   },
   totalUnit: {
-    fontSize: font.sizeBase,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.ink,
-    marginTop: 2,
-  },
-  summary: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  summaryChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.paper2,
-  },
-  summaryLabel: {
     fontSize: font.sizeXs,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 1,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+
+  // ─── Section title (eyebrow style) ──────────────────────────
+  sectionTitle: {
+    fontSize: font.sizeXs,
+    fontFamily: 'Helvetica-Bold',
+    color: colors.ink50,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    marginTop: 14,
+    marginBottom: 6,
+  },
+
+  // ─── Daily hours strip ───────────────────────────────────────
+  dailyStrip: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+  },
+  dailyCell: {
+    width: DAILY_DAY_COL,
+    alignItems: 'center',
+  },
+  dailyLabel: {
+    fontSize: font.sizeXs,
+    fontFamily: 'Helvetica-Bold',
+    color: colors.ink50,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  summaryValue: {
+  dailyDate: {
+    fontSize: 8,
+    fontFamily: 'Helvetica',
+    color: colors.ink30,
+    marginTop: 1,
+  },
+  dailyHours: {
     fontSize: font.sizeLg,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink,
-    marginTop: 1,
+    marginTop: 4,
   },
-  sectionTitle: {
-    fontSize: font.sizeMd,
+  dailyHoursMuted: {
+    color: colors.ink30,
+  },
+  dailyTotalCell: {
+    width: DAILY_TOTAL_COL,
+    alignItems: 'center',
+    borderLeftWidth: 0.5,
+    borderLeftColor: colors.line,
+    paddingLeft: 4,
+  },
+  dailyTotalHours: {
+    fontSize: 13,
     fontFamily: 'Helvetica-Bold',
-    color: colors.ink,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginTop: 12,
-    marginBottom: 6,
+    color: colors.orange,
+    marginTop: 4,
   },
-  dailyTable: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    marginBottom: 14,
-  },
-  dailyRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.lineSoft,
-  },
-  dailyRowLast: {
-    flexDirection: 'row',
-  },
-  dailyHeader: {
-    flexDirection: 'row',
-    backgroundColor: colors.paper2,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.ink,
-  },
-  dailyHeaderCell: {
-    flex: 1,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    fontSize: font.sizeXs,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.ink,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  dailyHeaderCellNarrow: {
-    width: 56,
-  },
-  dailyCell: {
-    flex: 1,
-    paddingVertical: 5,
-    paddingHorizontal: 4,
-    fontSize: font.sizeMd,
-    fontFamily: 'Helvetica',
-    color: colors.ink,
-    textAlign: 'center',
-    borderRightWidth: 0.5,
-    borderRightColor: colors.lineSoft,
-  },
-  dailyCellNarrow: {
-    width: 56,
-    paddingVertical: 5,
-    paddingHorizontal: 4,
-    fontSize: font.sizeMd,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.ink,
-    textAlign: 'center',
-    backgroundColor: colors.paper2,
-  },
+
+  // ─── Event list ──────────────────────────────────────────────
   eventRow: {
     flexDirection: 'row',
+    paddingVertical: 6,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.lineSoft,
-    paddingVertical: 4,
+    alignItems: 'flex-start',
   },
-  eventDate: {
-    width: 60,
-    fontSize: font.sizeSm,
+  eventDateCol: {
+    width: EVENT_DATE_COL,
+  },
+  eventTimeCol: {
+    width: EVENT_TIME_COL,
+  },
+  eventDateText: {
+    fontSize: font.sizeBase,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink,
   },
-  eventTime: {
-    fontSize: font.sizeXs,
+  eventTimeText: {
+    fontSize: 8,
     fontFamily: 'Helvetica',
     color: colors.ink50,
     marginTop: 1,
   },
   eventProject: {
     flex: 1,
-    fontSize: font.sizeSm,
+    paddingRight: 6,
+  },
+  eventProjectName: {
+    fontSize: font.sizeBase,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink,
-    paddingHorizontal: 6,
+  },
+  eventProjectMeta: {
+    fontSize: 8,
+    fontFamily: 'Helvetica',
+    color: colors.ink50,
+    marginTop: 1,
+  },
+  eventNote: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Oblique',
+    color: colors.ink70,
+    marginTop: 1,
   },
   eventHours: {
-    width: 60,
-    fontSize: font.sizeMd,
+    width: EVENT_HOURS_COL,
+    fontSize: font.sizeBase,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink,
     textAlign: 'right',
   },
-  eventNote: {
-    fontSize: font.sizeXs,
-    fontFamily: 'Helvetica-Oblique',
-    color: colors.ink70,
-    marginTop: 1,
+  eventHoursMuted: {
+    color: colors.ink30,
   },
   badge: {
     fontSize: 6,
@@ -277,63 +319,118 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  signature: {
-    marginTop: 28,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
+
+  // ─── Per-project summary ────────────────────────────────────
+  projRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 24,
+    paddingVertical: 4,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.lineSoft,
+    alignItems: 'baseline',
   },
-  signatureBlock: {
+  projName: {
+    flex: 1,
+    fontSize: font.sizeBase,
+    color: colors.ink,
+  },
+  projEv: {
+    width: 48,
+    fontSize: 8,
+    fontFamily: 'Helvetica',
+    color: colors.ink50,
+    textAlign: 'right',
+  },
+  projHours: {
+    width: 50,
+    fontSize: font.sizeBase,
+    fontFamily: 'Helvetica-Bold',
+    color: colors.ink,
+    textAlign: 'right',
+  },
+
+  // ─── Signature row ──────────────────────────────────────────
+  sigRow: {
+    flexDirection: 'row',
+    gap: 24,
+    marginTop: 28,
+  },
+  sigBlock: {
     flex: 1,
   },
-  signatureLine: {
-    borderBottomWidth: 1,
+  sigLine: {
+    borderBottomWidth: 0.75,
     borderBottomColor: colors.ink,
-    height: 22,
+    height: 26,
   },
-  signatureLabel: {
-    fontSize: font.sizeXs,
+  sigLabel: {
+    fontSize: 7,
     fontFamily: 'Helvetica-Bold',
     color: colors.ink50,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
     marginTop: 4,
   },
+
+  // ─── Footer ─────────────────────────────────────────────────
   footer: {
     position: 'absolute',
-    left: page.marginLeft,
-    right: page.marginRight,
+    left: 54,
+    right: 54,
     bottom: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    fontSize: font.sizeXs,
+    fontSize: 7,
     fontFamily: 'Helvetica',
     color: colors.ink50,
+    letterSpacing: 0.8,
   },
+
+  // ─── Empty state ────────────────────────────────────────────
   noEvents: {
-    paddingVertical: 12,
-    fontSize: font.sizeSm,
+    paddingVertical: 14,
+    fontSize: font.sizeBase,
     fontFamily: 'Helvetica-Oblique',
-    color: colors.ink50,
+    color: colors.ink30,
     textAlign: 'center',
   },
 });
 
+// Format helpers — kept here so the PDF doesn't depend on
+// lib/timesheets/hours (which is a server module and would
+// pull in Prisma if re-imported). Pure functions only.
+function fmtTime(d: Date): string {
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function fmtDateShort(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function fmtDayLabel(label: string): string {
+  // 'short' day label is already "Mon" / "Tue" etc. Uppercase
+  // it to match the eyebrow treatment used elsewhere.
+  return label.toUpperCase();
+}
+
 export function TimesheetPdf({ data }: { data: TimesheetPdfData }) {
-  // Per-day summary
+  // Per-day totals
   const dailyTotals = data.days.map((day) => {
-    const dayEvents = data.events.filter(
-      (e) => e.checkedInAt.toDateString() === new Date(day.dateLabel).toDateString(),
-    );
-    const total = dayEvents.reduce((sum, e) => sum + (e.hours ?? 0), 0);
+    const dayKey = new Date(day.dateLabel).toDateString();
+    const total = data.events
+      .filter((e) => e.checkedInAt.toDateString() === dayKey)
+      .reduce((sum, e) => sum + (e.hours ?? 0), 0);
     return Math.round(total * 100) / 100;
   });
 
-  // Per-project summary
-  const projectMap = new Map<string, { name: string; code: string | null; hours: number; events: number }>();
+  // Per-project totals
+  const projectMap = new Map<
+    string,
+    { name: string; code: string | null; hours: number; events: number }
+  >();
   for (const e of data.events) {
     let p = projectMap.get(e.projectName);
     if (!p) {
@@ -347,182 +444,189 @@ export function TimesheetPdf({ data }: { data: TimesheetPdfData }) {
     .map((p) => ({ ...p, hours: Math.round(p.hours * 100) / 100 }))
     .sort((a, b) => b.hours - a.hours);
 
+  const generated = data.generatedAt.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
   return (
     <Document
       title={`Timesheet — ${data.name} — ${data.weekStartLabel}`}
       author="UDGOK CMS"
     >
-      <Page size={page.size} style={styles.page}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <View style={styles.brandRow}>
-              <Text style={styles.brand}>UDG</Text>
-              <Text style={styles.brandAccent}>OK</Text>
-              <Text style={styles.workspaceLabel}>· {data.workspaceName}</Text>
-            </View>
-            <Text style={{ ...styles.eyebrow, marginTop: 8 }}>
+      <Page size="LETTER" style={styles.page}>
+        {/* ── Top meta row ──────────────────────────────────── */}
+        <View style={styles.topRow}>
+          <View style={styles.brand}>
+            <Text style={styles.brandName}>UDG</Text>
+            <Text style={styles.brandAccent}>OK</Text>
+            <Text style={styles.brandSub}>{data.workspaceName}</Text>
+          </View>
+          <View style={styles.periodStack}>
+            <Text style={styles.periodLabel}>Week of</Text>
+            <Text style={styles.periodDates}>
+              {data.weekStartLabel} – {data.weekEndLabel}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.thickRule} />
+
+        {/* ── Person block ──────────────────────────────────── */}
+        <View style={styles.personRow}>
+          <View style={styles.personBlock}>
+            <Text style={styles.eyebrow}>
               {data.kind === 'employee' ? 'Employee timesheet' : 'Subcontractor timesheet'}
             </Text>
-            <Text style={styles.title}>{data.name}</Text>
+            <Text style={styles.personName}>{data.name}</Text>
             {data.secondaryLabel ? (
-              <Text style={styles.sub}>{data.secondaryLabel}</Text>
+              <Text style={styles.personSub}>{data.secondaryLabel}</Text>
             ) : null}
           </View>
-          <View style={styles.totalBox}>
-            <Text style={styles.periodLabel}>Period</Text>
-            <Text style={styles.period}>{data.weekStartLabel}</Text>
-            <Text style={{ ...styles.periodLabel, marginTop: 6 }}>Total hours</Text>
-            <Text style={styles.totalNumber}>{data.totalHours.toFixed(2).replace(/\.?0+$/, '')}</Text>
-            <Text style={styles.totalUnit}>hours</Text>
+          <View style={styles.totalBlock}>
+            <Text style={styles.eyebrow}>Total hours</Text>
+            <Text style={styles.totalNumber}>
+              {data.totalHours.toFixed(2).replace(/\.?0+$/, '')}
+            </Text>
+            <Text style={styles.totalUnit}>this week</Text>
           </View>
         </View>
+        <View style={styles.thinRule} />
 
-        {/* Summary chips */}
-        <View style={styles.summary}>
-          <View style={styles.summaryChip}>
-            <Text style={styles.summaryLabel}>Events</Text>
-            <Text style={styles.summaryValue}>{data.totalEvents}</Text>
-          </View>
-          {data.openCount > 0 ? (
-            <View style={{ ...styles.summaryChip, backgroundColor: colors.paper }}>
-              <Text style={styles.summaryLabel}>Open</Text>
-              <Text style={{ ...styles.summaryValue, color: colors.warning }}>
-                {data.openCount}
+        {/* ── Daily hours strip ─────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Daily hours</Text>
+        <View style={styles.dailyStrip}>
+          {data.days.map((day, i) => (
+            <View key={i} style={styles.dailyCell}>
+              <Text style={styles.dailyLabel}>{fmtDayLabel(day.label)}</Text>
+              <Text style={styles.dailyDate}>{day.dateLabel}</Text>
+              <Text
+                style={
+                  dailyTotals[i] > 0 ? styles.dailyHours : styles.dailyHoursMuted
+                }
+              >
+                {dailyTotals[i] > 0 ? dailyTotals[i].toString() : '—'}
               </Text>
             </View>
-          ) : null}
-        </View>
-
-        {/* Daily grid */}
-        <Text style={styles.sectionTitle}>Daily hours</Text>
-        <View style={styles.dailyTable}>
-          <View style={styles.dailyHeader}>
-            {data.days.map((day, i) => (
-              <Text key={i} style={styles.dailyHeaderCell}>
-                {day.label}
-                {'\n'}
-                <Text style={{ fontSize: 7, fontFamily: 'Helvetica', color: colors.ink50 }}>
-                  {day.dateLabel}
-                </Text>
-              </Text>
-            ))}
-            <Text style={{ ...styles.dailyHeaderCell, ...styles.dailyHeaderCellNarrow, backgroundColor: colors.paper2 }}>
-              Total
-            </Text>
-          </View>
-          <View style={styles.dailyRowLast}>
-            {dailyTotals.map((h, i) => (
-              <Text key={i} style={styles.dailyCell}>
-                {h > 0 ? h.toString() : '—'}
-              </Text>
-            ))}
-            <Text style={{ ...styles.dailyCell, ...styles.dailyCellNarrow }}>
-              {data.totalHours.toString()}
+          ))}
+          <View style={styles.dailyTotalCell}>
+            <Text style={styles.dailyLabel}>Total</Text>
+            <Text style={{ height: 9 }} />
+            <Text style={styles.dailyTotalHours}>
+              {data.totalHours.toFixed(2).replace(/\.?0+$/, '')}
             </Text>
           </View>
         </View>
+        <View style={styles.thinRule} />
 
-        {/* Events list */}
-        <Text style={styles.sectionTitle}>Check-in / Check-out detail</Text>
+        {/* ── Event list ────────────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Check-in / check-out detail</Text>
         {data.events.length === 0 ? (
           <Text style={styles.noEvents}>No check-ins recorded for this week.</Text>
         ) : (
-          <View style={{ borderWidth: 1, borderColor: colors.line }}>
+          <>
             {data.events.map((e) => (
               <View key={e.id} style={styles.eventRow}>
-                <View style={{ width: 90, paddingHorizontal: 4 }}>
-                  <Text style={styles.eventDate}>
-                    {e.checkedInAt.toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                  </Text>
-                  <Text style={styles.eventTime}>
-                    {e.checkedInAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                <View style={styles.eventDateCol}>
+                  <Text style={styles.eventDateText}>{fmtDateShort(e.checkedInAt)}</Text>
+                </View>
+                <View style={styles.eventTimeCol}>
+                  <Text style={styles.eventTimeText}>
+                    {fmtTime(e.checkedInAt)}
                     {' → '}
-                    {e.checkedOutAt
-                      ? e.checkedOutAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-                      : 'open'}
+                    {e.checkedOutAt ? fmtTime(e.checkedOutAt) : 'open'}
                   </Text>
                 </View>
                 <View style={styles.eventProject}>
-                  <Text>
+                  <Text style={styles.eventProjectName}>
                     {e.projectName}
-                    {e.projectCode ? ` (${e.projectCode})` : ''}
-                    {e.siteLabel ? ` · ${e.siteLabel}` : ''}
+                    {e.projectCode ? `  ·  ${e.projectCode}` : ''}
                     {e.isOpen ? (
-                      <Text style={{ ...styles.badge, backgroundColor: colors.warning }}>OPEN</Text>
+                      <Text style={{ ...styles.badge, backgroundColor: colors.warning }}>
+                        OPEN
+                      </Text>
                     ) : null}
                     {e.isEdited ? (
-                      <Text style={{ ...styles.badge, backgroundColor: colors.info }}>EDITED</Text>
+                      <Text style={{ ...styles.badge, backgroundColor: colors.info }}>
+                        EDITED
+                      </Text>
                     ) : null}
                   </Text>
+                  {e.siteLabel ? (
+                    <Text style={styles.eventProjectMeta}>📍 {e.siteLabel}</Text>
+                  ) : null}
                   {e.note ? <Text style={styles.eventNote}>{e.note}</Text> : null}
                   {e.editNote && e.isEdited ? (
-                    <Text style={styles.eventNote}>Override note: &ldquo;{e.editNote}&rdquo;</Text>
+                    <Text style={styles.eventNote}>
+                      Override note: &ldquo;{e.editNote}&rdquo;
+                    </Text>
                   ) : null}
                 </View>
-                <Text style={styles.eventHours}>
+                <Text
+                  style={
+                    e.hours !== null ? styles.eventHours : styles.eventHoursMuted
+                  }
+                >
                   {e.hours !== null ? `${e.hours}h` : '—'}
                 </Text>
               </View>
             ))}
-          </View>
+            {/* close the implicit top border on the first row */}
+            <View style={{ borderTopWidth: 0.5, borderTopColor: colors.line }} />
+          </>
         )}
 
-        {/* Per-project summary */}
+        {/* ── Per-project summary ──────────────────────────── */}
         {projectSummary.length > 0 ? (
           <>
             <Text style={styles.sectionTitle}>By project</Text>
-            <View style={{ borderWidth: 1, borderColor: colors.line }}>
-              {projectSummary.map((p, i) => (
-                <View
-                  key={i}
-                  style={{
-                    flexDirection: 'row',
-                    paddingVertical: 4,
-                    paddingHorizontal: 6,
-                    borderBottomWidth: i === projectSummary.length - 1 ? 0 : 0.5,
-                    borderBottomColor: colors.lineSoft,
-                  }}
-                >
-                  <Text style={{ flex: 1, fontSize: font.sizeSm, color: colors.ink }}>
-                    {p.name}
-                    {p.code ? ` (${p.code})` : ''}
-                  </Text>
-                  <Text style={{ width: 50, fontSize: font.sizeXs, color: colors.ink50, fontFamily: 'Helvetica' }}>
-                    {p.events} ev
-                  </Text>
-                  <Text style={{ width: 60, fontSize: font.sizeSm, fontFamily: 'Helvetica-Bold', color: colors.ink, textAlign: 'right' }}>
-                    {p.hours}h
-                  </Text>
-                </View>
-              ))}
-            </View>
+            {projectSummary.map((p, i) => (
+              <View key={i} style={styles.projRow}>
+                <Text style={styles.projName}>
+                  {p.name}
+                  {p.code ? `  (${p.code})` : ''}
+                </Text>
+                <Text style={styles.projEv}>
+                  {p.events} {p.events === 1 ? 'ev' : 'ev'}
+                </Text>
+                <Text style={styles.projHours}>{p.hours}h</Text>
+              </View>
+            ))}
+            <View style={{ borderTopWidth: 0.5, borderTopColor: colors.line }} />
           </>
         ) : null}
 
-        {/* Signature lines */}
-        <View style={styles.signature}>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>{data.kind === 'employee' ? 'Employee signature' : 'Subcontractor signature'}</Text>
+        {/* ── Signature row ────────────────────────────────── */}
+        <View style={styles.sigRow}>
+          <View style={styles.sigBlock}>
+            <View style={styles.sigLine} />
+            <Text style={styles.sigLabel}>
+              {data.kind === 'employee' ? 'Employee signature' : 'Subcontractor signature'}
+            </Text>
           </View>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Approved by</Text>
+          <View style={styles.sigBlock}>
+            <View style={styles.sigLine} />
+            <Text style={styles.sigLabel}>Approved by</Text>
           </View>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Date</Text>
+          <View style={styles.sigBlock}>
+            <View style={styles.sigLine} />
+            <Text style={styles.sigLabel}>Date</Text>
           </View>
         </View>
 
-        {/* Footer */}
+        {/* ── Footer ───────────────────────────────────────── */}
         <View style={styles.footer} fixed>
           <Text>
-            {data.kind === 'employee' ? 'Employee timesheet' : 'Subcontractor timesheet'} · {data.workspaceName}
+            {data.kind === 'employee' ? 'Employee timesheet' : 'Subcontractor timesheet'}
+            {' · '}
+            {data.workspaceName}
+            {' · generated '}
+            {generated}
           </Text>
           <Text
-            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            render={({ pageNumber, totalPages }) =>
+              `Page ${pageNumber} of ${totalPages}`
+            }
           />
         </View>
       </Page>

@@ -4,6 +4,9 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { archiveVendorAction } from '@/lib/procurement/actions';
 import { NewContactForm } from './NewContactForm';
+import { EditVendorForm, type EditableVendor } from './EditVendorForm';
+import { EditContactForm, type EditableContact } from './EditContactForm';
+import { DeleteContactButton } from './DeleteContactButton';
 import type { VendorDetail } from '@/lib/procurement/queries';
 
 export function VendorDetailView({
@@ -18,6 +21,8 @@ export function VendorDetailView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [editingVendor, setEditingVendor] = useState(false);
+  const [editingContact, setEditingContact] = useState<EditableContact | null>(null);
 
   function archive() {
     if (
@@ -71,6 +76,13 @@ export function VendorDetailView({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setEditingVendor(true)}
+            className="px-3 py-2 bg-ink text-cream border-2 border-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d hover:border-orange-d"
+          >
+            Edit vendor
+          </button>
           {vendor.status === 'ACTIVE' ? (
             <button
               type="button"
@@ -168,6 +180,29 @@ export function VendorDetailView({
                       </div>
                     )}
                   </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingContact({
+                          id: c.id,
+                          name: c.name,
+                          email: c.email,
+                          phone: c.phone,
+                          role: c.role,
+                          isPrimary: c.isPrimary,
+                        })
+                      }
+                      className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink underline-offset-2 hover:text-orange-d hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <DeleteContactButton
+                      workspaceId={workspaceId}
+                      contactId={c.id}
+                      contactName={c.name}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
@@ -239,8 +274,45 @@ export function VendorDetailView({
       {error ? (
         <div className="mt-3 text-[12px] text-error font-semibold">⚠ {error}</div>
       ) : null}
+
+      {editingVendor ? (
+        <EditVendorForm
+          workspaceId={workspaceId}
+          vendor={vendorToEditable(vendor)}
+          onClose={() => setEditingVendor(false)}
+        />
+      ) : null}
+
+      {editingContact ? (
+        <EditContactForm
+          workspaceId={workspaceId}
+          contact={editingContact}
+          onClose={() => setEditingContact(null)}
+        />
+      ) : null}
     </div>
   );
+}
+
+function vendorToEditable(v: VendorDetail): EditableVendor {
+  return {
+    id: v.id,
+    name: v.name,
+    legalName: v.legalName,
+    accountNumber: v.accountNumber,
+    capability: v.capability,
+    status: v.status,
+    defaultTerms: v.defaultTerms,
+    phone: v.phone,
+    website: v.website,
+    addressLine1: v.addressLine1,
+    addressLine2: v.addressLine2,
+    city: v.city,
+    state: v.state,
+    postalCode: v.postalCode,
+    taxExempt: v.taxExempt,
+    notes: v.notes,
+  };
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

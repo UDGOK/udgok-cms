@@ -74,7 +74,7 @@ export function TaskBoard({
                     </div>
                   ) : (
                     list.map((t) => (
-                      <div key={t.id} className="bg-paper border border-line p-3">
+                      <div key={t.id} className="bg-paper border border-line p-3 group">
                         <div className="flex items-start gap-2 mb-2">
                           <span className={`inline-block px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] ${PRIORITY_COLOR[t.priority]}`}>
                             {t.priority}
@@ -87,10 +87,10 @@ export function TaskBoard({
                           <button
                             type="button"
                             onClick={() => setEditing(t)}
-                            className="ml-auto text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50 hover:text-ink"
+                            className="ml-auto text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink underline-offset-2 hover:text-orange-d hover:underline"
                             title="Edit task"
                           >
-                            edit
+                            Edit
                           </button>
                         </div>
                         <div className="font-extrabold text-[13px] leading-snug mb-2">
