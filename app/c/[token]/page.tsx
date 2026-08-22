@@ -123,23 +123,39 @@ export default async function PublicCheckInPage({
       : null;
 
   return (
-    <PublicCheckInView
-      token={params.token}
-      project={{
-        id: code.project.id,
-        name: code.project.name,
-        code: code.project.code,
-        address: projectAddress || null,
-        workspaceId: code.workspaceId,
-        workspaceName: code.project.workspace.name,
-        workspaceSlug: code.project.workspace.slug,
-      }}
-      codeLabel={code.label}
-      isActive={code.isActive}
-      signedInUser={signedInUser}
-      currentOpenEvent={currentOpenEvent}
-      subs={subs}
-      codeGeofence={codeGeofence}
-    />
+    <>
+      {/*
+        Server-time stamp for the ClockSkewReadout inside
+        the result shell. The /c/[token] route doesn't sit
+        under the workspace layout, so we have to provide
+        the stamp ourselves. (See also the matching div in
+        app/(app)/w/[workspace]/layout.tsx — same idea,
+        different layout tree.)
+      */}
+      <div
+        id="server-now"
+        data-server-now={Date.now()}
+        aria-hidden="true"
+        className="hidden"
+      />
+      <PublicCheckInView
+        token={params.token}
+        project={{
+          id: code.project.id,
+          name: code.project.name,
+          code: code.project.code,
+          address: projectAddress || null,
+          workspaceId: code.workspaceId,
+          workspaceName: code.project.workspace.name,
+          workspaceSlug: code.project.workspace.slug,
+        }}
+        codeLabel={code.label}
+        isActive={code.isActive}
+        signedInUser={signedInUser}
+        currentOpenEvent={currentOpenEvent}
+        subs={subs}
+        codeGeofence={codeGeofence}
+      />
+    </>
   );
 }

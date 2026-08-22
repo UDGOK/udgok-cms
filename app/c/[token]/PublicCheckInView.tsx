@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { toggleCheckInAction, type CheckInResult } from './actions';
 import { haversineMeters, formatDistance, googleMapsUrl } from '@/lib/geo/distance';
+import { ClockSkewReadout } from '@/components/ClockSkewIndicator';
 
 interface PublicCheckInViewProps {
   token: string;
@@ -579,6 +580,7 @@ function ResultShell({
             />
           ) : null}
         </div>
+        <ClockSkewReadout recordedAt={result.when} userTimezone={visitorTimezone} />
         {ok === false && isCheckIn ? (
           <div className="mt-4 bg-warning/15 border-2 border-warning p-3 text-[12px] text-ink leading-snug">
             <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-warning-d font-extrabold mb-1">

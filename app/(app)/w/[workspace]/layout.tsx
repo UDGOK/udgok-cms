@@ -8,6 +8,7 @@ import { PresenceShell } from '@/components/workspace/PresenceShell';
 import { MobileShellClient } from '@/components/workspace/MobileShellClient';
 import { AppFooter } from '@/components/workspace/AppFooter';
 import { TrialBanner } from '@/components/workspace/TrialBanner';
+import { ClockSkewIndicator } from '@/components/ClockSkewIndicator';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 
 export default async function WorkspaceLayout({
@@ -96,6 +97,21 @@ export default async function WorkspaceLayout({
           allWorkspaces={allWorkspaces}
           isMasterAdmin={master}
         >
+          {/*
+            Server time stamp — read by the ClockSkewIndicator
+            client component to surface "your phone clock is
+            off from our server" before the visitor trusts a
+            timestamp they see on the page. Stamped fresh on
+            every server render so it's the actual time the
+            response started being generated, not the time the
+            user clicked a link.
+          */}
+          <div
+            id="server-now"
+            data-server-now={Date.now()}
+            aria-hidden="true"
+            className="hidden"
+          />
           <div className="flex min-h-screen bg-cream">
             {/* Desktop sidebar — hidden on mobile (md:flex) */}
             <div className="hidden md:flex">
@@ -107,6 +123,7 @@ export default async function WorkspaceLayout({
                 plan={workspace.plan}
                 trialEndsAt={workspace.trialEndsAt}
               />
+              <ClockSkewIndicator />
               <TopbarWithDrawer
                 allWorkspaces={allWorkspaces}
                 isMasterAdmin={master}
