@@ -2,10 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarcodeScanner } from '@/components/scan/BarcodeScanner';
+import { BarcodeScanner, formatName } from '@/components/scan/BarcodeScanner';
 import { Plan } from '@prisma/client';
 import { FeatureGate } from '@/components/ui/UpgradePrompt';
-import { BottomSheet } from '@/components/ui/BottomSheet';
 import { RelativeTime } from '@/components/ui/RelativeTime';
 
 interface RecentScan {
@@ -23,22 +22,15 @@ interface ScanPageClientProps {
   isMasterAdmin: boolean;
   recentScans: RecentScan[];
   /**
-   * Whether the mobile scanner sheet should be open on
-   * initial render. Defaults to `true` for the bare /scan
-   * page (the user is here to scan) and `false` when the
-   * URL already has a `?code=...` or `?hint=...` query
-   * param (the user has either just scanned and wants to
-   * see the result, or is on a "create inventory from
-   * scan" deep link and wants to fill the form).
-   *
-   * Why this matters: the sheet locks body scroll while
-   * it's open (so the camera viewport stays anchored).
-   * On a `?code=` URL the body content below the result
-   * card is unreachable on mobile until the user manually
-   * dismisses the sheet — a footgun the user reported
-   * ("cant scroll on these pages to bottom").
+   * Whether the camera viewport should start collapsed on
+   * mobile. Set to `true` on the bare /scan URL when the
+   * user is here to scan — camera is up immediately. Set
+   * to `true` even on the result URL (?code= / ?hint=)
+   * so the user can scan another code without re-mounting
+   * the page. Defaults to false (collapsed) to keep the
+   * page compact when shown from a "Scan again" link.
    */
-  initialSheetOpen: boolean;
+  defaultCameraOpen?: boolean;
 }
 
 export function ScanPageClient({
@@ -46,10 +38,10 @@ export function ScanPageClient({
   plan,
   isMasterAdmin,
   recentScans,
-  initialSheetOpen,
+  defaultCameraOpen = true,
 }: ScanPageClientProps) {
   const router = useRouter();
-  const [sheetOpen, setSheetOpen] = useState(initialSheetOpen);
+  const [cameraOpen, setCameraOpen] = useState(defaultCameraOpen);
   const [manualCode, setManualCode] = useState('');
 
   // Stable callbacks — IMPORTANT. The BarcodeScanner's useEffect
@@ -66,55 +58,72 @@ export function ScanPageClient({
   // Wrapping in useCallback gives the callback a stable
   // reference, so the effect only re-runs when the workspace
   // actually changes (never, for the lifetime of this page).
+  //
+  // The format arg is the html5-qrcode format slug
+  // ("qr_code", "ean_13", "code_128", etc.) — we forward it
+  // in the URL so the result page can show what kind of code
+  // was scanned ("📷 QR code", "📷 UPC", etc.).
   const handleScanResult = useCallback(
-    (text: string) => {
-      router.push(`/w/${workspaceSlug}/scan?code=${encodeURIComponent(text)}`);
+    (text: string, format: string) => {
+      router.push(
+        `/w/${workspaceSlug}/scan?code=${encodeURIComponent(text)}&format=${encodeURIComponent(format)}`,
+      );
     },
     [router, workspaceSlug],
   );
-  const handleSheetClose = useCallback(() => {
-    setSheetOpen(false);
-    // /w/[workspaceSlug] (no subpath) is a 404 — there's no
-    // top-level page for a workspace. Send the user to the
-    // workspace dashboard instead.
-    router.push(`/w/${workspaceSlug}/dashboard`);
-  }, [router, workspaceSlug]);
 
   return (
     <FeatureGate plan={plan} feature="barcode_scan" isMasterAdmin={isMasterAdmin}>
-      <div className="md:hidden">
-        <BottomSheet
-          open={sheetOpen}
-          onClose={handleSheetClose}
-          title="Scan"
-          maxHeightClass="max-h-[85vh]"
-        >
-          <BarcodeScanner
-            onResult={handleScanResult}
-            onClose={handleSheetClose}
-          />
-        </BottomSheet>
-      </div>
-
       <div className="max-w-2xl mx-auto space-y-6">
-        {/* Camera + manual input — the "two ways to look up" card */}
-        <div className="hidden md:block bg-paper border-2 border-ink p-4 md:p-6">
-          <BarcodeScanner
-            onResult={handleScanResult}
-          />
+        {/* ─── Camera viewport ──────────────────────────────────
+            Previously this was a BottomSheet on mobile (locked
+            body scroll, covered the result, no list visible).
+            Now it's an inline card on every viewport, with a
+            sticky variant on mobile so the camera stays
+            visible while the user scrolls the rest of the
+            page. The user can tap "Hide" to collapse the
+            viewport and get more vertical space. */}
+        <div className="md:relative md:z-auto sticky top-0 z-30 bg-cream md:bg-transparent -mx-4 md:mx-0 px-4 md:px-0 pt-2 md:pt-0 pb-3 md:pb-0">
+          {cameraOpen ? (
+            <div className="relative">
+              <BarcodeScanner
+                onResult={handleScanResult}
+                showLastResult={false}
+              />
+              <button
+                type="button"
+                onClick={() => setCameraOpen(false)}
+                className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-paper border-2 border-ink text-ink-50 hover:text-ink"
+                aria-label="Hide camera"
+              >
+                {/* ↓ arrow — collapse the camera down */}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCameraOpen(true)}
+              className="w-full px-4 py-3 bg-ink text-paper text-[12px] font-extrabold uppercase tracking-[0.12em] border-2 border-ink hover:bg-orange-d flex items-center justify-center gap-2"
+            >
+              📷 Open camera
+            </button>
+          )}
+        </div>
 
-          <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px bg-line" />
-            <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50">or</span>
-            <div className="flex-1 h-px bg-line" />
+        {/* ─── Manual code entry ───────────────────────────────── */}
+        <div className="bg-paper border-2 border-ink p-4 md:p-6">
+          <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50 mb-2">
+            {'// Or type / paste a code'}
           </div>
-
           <form
             onSubmit={(e) => {
               e.preventDefault();
               const v = manualCode.trim();
               if (!v) return;
-              router.push(`/w/${workspaceSlug}/scan?code=${encodeURIComponent(v)}`);
+              router.push(`/w/${workspaceSlug}/scan?code=${encodeURIComponent(v)}&format=manual`);
             }}
           >
             <label
@@ -147,11 +156,16 @@ export function ScanPageClient({
           </form>
         </div>
 
-        {/* Recent scans — visible only on desktop (mobile users get
-         *  the bottom sheet which doesn't have room for a list).
-         *  This is the audit trail: every scan is persisted so the
-         *  user can see what they (or a teammate) scanned and when. */}
-        <div className="hidden md:block bg-paper border-2 border-line p-4">
+        {/* ─── Recent scans list ────────────────────────────────
+            Was desktop-only because the mobile bottom sheet
+            covered the whole viewport. Now that the camera is
+            inline + collapsible, the list is visible on every
+            viewport — this is the "what did each scan do"
+            view the user asked for. The format slug from
+            html5-qrcode is in the URL we redirected from; for
+            a freshly-loaded page we don't have it on hand, so
+            we show "code" as the fallback. */}
+        <div className="bg-paper border-2 border-line p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50">
               {'// Recent scans'}
@@ -167,18 +181,20 @@ export function ScanPageClient({
           ) : (
             <ul className="divide-y divide-line">
               {recentScans.map((s) => (
-                <li key={s.id} className="py-2 flex items-center gap-3 text-[12px]">
-                  <span
-                    className="font-mono text-ink-70 truncate flex-1 min-w-0"
-                    title={s.code}
-                  >
+                <li
+                  key={s.id}
+                  className="py-2 flex items-start gap-2 text-[12px]"
+                >
+                  <span className="font-mono text-ink-70 break-all flex-1 min-w-0">
                     {s.code}
                   </span>
-                  <span className="text-ink-50 shrink-0 text-[10px] uppercase tracking-[0.1em]">
-                    {s.source === 'camera' ? '📷 camera' : '⌨ manual'}
-                  </span>
-                  <span className="text-ink-50 shrink-0 text-[10px]">
-                    <RelativeTime iso={s.createdAt} />
+                  <span className="text-ink-50 shrink-0 text-[10px] uppercase tracking-[0.1em] flex flex-col items-end gap-0.5">
+                    <span>
+                      {s.source === 'camera' ? '📷 camera' : '⌨ manual'}
+                    </span>
+                    <span className="text-ink-30 normal-case tracking-normal">
+                      <RelativeTime iso={s.createdAt} />
+                    </span>
                   </span>
                   <span className="text-ink-70 shrink-0 max-w-[180px] truncate">
                     {s.matched && s.matchedLabel
@@ -191,9 +207,14 @@ export function ScanPageClient({
               ))}
             </ul>
           )}
+          <p className="mt-3 text-[10px] font-mono text-ink-50 leading-relaxed">
+            Tip: scan QR codes AND 1D barcodes (UPC, EAN, CODE-128).
+            The camera decodes whatever{'\u2019'}s in front of it
+            {'—'}no need to switch modes.
+          </p>
         </div>
 
-        {/* Try scanning hints — always visible */}
+        {/* ─── Try scanning hints ────────────────────────────── */}
         <div className="bg-paper border-2 border-line p-4">
           <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50 mb-2">
             {'// Try scanning'}
@@ -202,26 +223,14 @@ export function ScanPageClient({
             <li>• A QR code on equipment (look up the asset)</li>
             <li>• A barcode on a material delivery (log the receipt)</li>
             <li>• A code on a subcontractor badge (jump to their profile)</li>
+            <li>• A UPC on a material box (auto-catalog via product lookup)</li>
           </ul>
-        </div>
-
-        {/* Mobile-only "Scan another" button. On mobile the
-            scanner sheet is closed by default when the page
-            is loaded with a ?code= or ?hint= in the URL, so
-            the user can actually scroll the result. To scan
-            again they need a way to bring the sheet back.
-            This button is the mobile-side equivalent of the
-            inline scanner card the desktop layout has above. */}
-        <div className="md:hidden">
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className="w-full px-4 py-3 bg-ink text-paper text-[12px] font-extrabold uppercase tracking-[0.12em] border-2 border-ink hover:bg-orange-d"
-          >
-            📷 Scan another code
-          </button>
         </div>
       </div>
     </FeatureGate>
   );
 }
+
+// re-export so the page can use the formatter when showing
+// the format slug from the URL on the result page.
+export { formatName };

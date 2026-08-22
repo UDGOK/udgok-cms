@@ -15,7 +15,20 @@ export default async function ScanPage({
   searchParams,
 }: {
   params: { workspace: string };
-  searchParams: { code?: string; hint?: 'material' | 'equipment'; projectId?: string };
+  searchParams: {
+    code?: string;
+    hint?: 'material' | 'equipment';
+    projectId?: string;
+    /**
+     * The barcode/QR format slug from html5-qrcode
+     * ("qr_code", "ean_13", "code_128", etc.) — passed
+     * by the scanner via the URL redirect. We display
+     * the human form ("QR code", "EAN-13", …) on the
+     * result card so the foreman can confirm "I scanned
+     * a QR code" vs "I scanned a UPC".
+     */
+    format?: string;
+  };
 }) {
   const { workspace, userId } = await requireMembership(params.workspace);
   const master = await isMasterAdmin(userId);
@@ -122,6 +135,11 @@ export default async function ScanPage({
         <div className="mb-6 max-w-2xl mx-auto">
           <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-ink-50 mb-2">
             {'// Last scan result'}
+            {searchParams.format ? (
+              <span className="ml-2 text-ink-30 normal-case tracking-normal">
+                {humanFormat(searchParams.format)}
+              </span>
+            ) : null}
           </div>
           <div className="bg-paper border-2 border-line p-4">
             <div className="text-[12px] font-mono break-all bg-cream-2 px-3 py-2 mb-3">
@@ -174,16 +192,15 @@ export default async function ScanPage({
         workspaceSlug={workspace.slug}
         plan={workspace.plan}
         isMasterAdmin={master}
-        // The mobile scanner sheet locks body scroll while
-        // open (so the camera viewport stays put). On a
-        // bare /scan URL the user wants to scan — open the
-        // sheet. On a ?code= or ?hint= URL the user has
-        // either just scanned (and wants to see the result
-        // card) or is on a deep link to create inventory —
-        // start the sheet CLOSED so they can scroll the
-        // page. There's a "Scan another" button below to
-        // re-open it.
-        initialSheetOpen={!searchParams.code && !searchParams.hint}
+        // The camera viewport is now inline + sticky on
+        // every viewport (not a bottom sheet). It opens
+        // by default so the user can scan immediately —
+        // the page scrolls freely because nothing is
+        // locked. Tapping the ↓ button on the camera card
+        // collapses it to a "📷 Open camera" button so
+        // the user can get more vertical space if they
+        // want to read the list below.
+        defaultCameraOpen
         recentScans={recentScans.map((s) => ({
           id: s.id,
           code: s.code,
@@ -199,6 +216,32 @@ export default async function ScanPage({
       />
     </div>
   );
+}
+
+/**
+ * Map html5-qrcode's internal format slugs to human labels
+ * for the result card. Kept local to this file (small, only
+ * one consumer) — the client component has its own copy for
+ * the scanner viewport via the BarcodeScanner re-export.
+ */
+function humanFormat(slug: string): string {
+  const known: Record<string, string> = {
+    qr_code: 'QR code',
+    ean_13: 'EAN-13',
+    ean_8: 'EAN-8',
+    upc_a: 'UPC-A',
+    upc_e: 'UPC-E',
+    code_128: 'CODE-128',
+    code_39: 'CODE-39',
+    code_93: 'CODE-93',
+    itf: 'ITF',
+    aztec: 'Aztec',
+    data_matrix: 'DataMatrix',
+    pdf417: 'PDF417',
+    codabar: 'Codabar',
+    manual: 'typed',
+  };
+  return known[slug] ?? slug.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**

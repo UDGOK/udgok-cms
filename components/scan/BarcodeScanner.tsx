@@ -8,6 +8,13 @@ interface BarcodeScannerProps {
   onClose?: () => void;
   /** Optional area to render the scanner in. Defaults to "udgok-scanner-region". */
   regionId?: string;
+  /**
+   * Show the live "✓ scanned" confirmation below the camera.
+   * Defaults to true. Disable on dense mobile layouts where
+   * space is at a premium (the URL redirect after a scan
+   * already gives feedback via the result page).
+   */
+  showLastResult?: boolean;
 }
 
 type Status = 'idle' | 'starting' | 'scanning' | 'error' | 'denied' | 'unavailable';
@@ -16,12 +23,26 @@ type Status = 'idle' | 'starting' | 'scanning' | 'error' | 'denied' | 'unavailab
  * Camera-based barcode/QR scanner. Wraps html5-qrcode which handles
  * all the camera permission + format detection. The component stops
  * the camera on unmount to release it.
+ *
+ * Format support: html5-qrcode's default config decodes both 2D
+ * codes (QR, Aztec, DataMatrix) AND 1D barcodes (UPC-A, UPC-E,
+ * EAN-13, EAN-8, CODE-128, CODE-39, ITF, etc.). We pass the raw
+ * format name (e.g. "qr_code", "ean_13", "code_128") up via the
+ * onResult callback so the caller can display the format in the
+ * result list — useful when the foreman wants to verify "this was
+ * a UPC barcode" vs "this was a project QR sticker".
  */
-export function BarcodeScanner({ onResult, onClose, regionId = 'udgok-scanner-region' }: BarcodeScannerProps) {
+export function BarcodeScanner({
+  onResult,
+  onClose,
+  regionId = 'udgok-scanner-region',
+  showLastResult = true,
+}: BarcodeScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [errMsg, setErrMsg] = useState('');
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [lastFormat, setLastFormat] = useState<string | null>(null);
 
   useEffect(() => {
     if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) {
@@ -43,11 +64,23 @@ export function BarcodeScanner({ onResult, onClose, regionId = 'udgok-scanner-re
       try {
         await scanner.start(
           { facingMode: 'environment' },
+          // Default formatsToSupport includes both 2D (QR,
+          // Aztec, DataMatrix) and 1D (UPC, EAN, CODE-128,
+          // CODE-39, ITF) — html5-qrcode's `formatsToSupport`
+          // param defaults to "all" if omitted. We omit
+          // intentionally so the camera decodes whatever's in
+          // front of it without us having to maintain the
+          // format list.
           { fps: 10, qrbox: { width: 280, height: 200 } },
           (decodedText, decodedResult) => {
             if (cancelled) return;
+            // formatName is the slug the library reports —
+            // "qr_code", "ean_13", "code_128", etc. We pass
+            // it through to the caller verbatim; the list
+            // view formats it as "QR code" / "EAN-13" etc.
             const format = decodedResult.result.format?.formatName ?? 'unknown';
             setLastResult(decodedText);
+            setLastFormat(format);
             onResult(decodedText, format);
           },
           () => {
@@ -150,10 +183,10 @@ export function BarcodeScanner({ onResult, onClose, regionId = 'udgok-scanner-re
         <p className="text-center text-[12px] text-ink-50 mt-3">Starting camera…</p>
       ) : null}
 
-      {status === 'scanning' && lastResult ? (
+      {status === 'scanning' && lastResult && showLastResult ? (
         <div className="mt-4 p-3 bg-success/10 border border-success">
           <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-success font-extrabold mb-1">
-            ✓ Scanned
+            ✓ Scanned · {formatName(lastFormat)}
           </div>
           <div className="text-[13px] font-mono break-all">{lastResult}</div>
         </div>
@@ -179,4 +212,33 @@ export function BarcodeScanner({ onResult, onClose, regionId = 'udgok-scanner-re
       ) : null}
     </div>
   );
+}
+
+/**
+ * Map html5-qrcode's internal format slugs to human labels.
+ * "qr_code" → "QR code", "ean_13" → "EAN-13", etc.
+ *
+ * Falls back to a title-cased version of the slug if the
+ * format isn't in the known list — defensive against new
+ * formats being added by the library without us updating
+ * this map.
+ */
+export function formatName(slug: string | null | undefined): string {
+  if (!slug) return 'code';
+  const known: Record<string, string> = {
+    qr_code: 'QR code',
+    ean_13: 'EAN-13',
+    ean_8: 'EAN-8',
+    upc_a: 'UPC-A',
+    upc_e: 'UPC-E',
+    code_128: 'CODE-128',
+    code_39: 'CODE-39',
+    code_93: 'CODE-93',
+    itf: 'ITF',
+    aztec: 'Aztec',
+    data_matrix: 'DataMatrix',
+    pdf417: 'PDF417',
+    codabar: 'Codabar',
+  };
+  return known[slug] ?? slug.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
