@@ -60,7 +60,7 @@ export default async function NewCheckInCodePage({
         breadcrumbs={[
           { label: workspace.name, href: `/w/${workspace.slug}` },
           { label: 'Check-in', href: `/w/${workspace.slug}/checkin` },
-          { label: project.name, href: `/w/${workspace.slug}/checkin/${project.id}` },
+          { label: project.name, href: `/w/${workspace.slug}/projects/${project.id}/checkins` },
           { label: 'New code' },
         ]}
       />

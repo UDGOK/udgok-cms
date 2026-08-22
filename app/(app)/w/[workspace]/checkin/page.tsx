@@ -125,13 +125,13 @@ export default async function CheckInDashboardPage({
                       <td className="px-3 py-3 text-right">
                         <div className="flex gap-2 justify-end flex-wrap">
                           <Link
-                            href={`/w/${workspace.slug}/checkin/${p.id}`}
+                            href={`/w/${workspace.slug}/projects/${p.id}/checkins`}
                             className="px-2.5 py-1.5 bg-ink text-cream text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange border-2 border-ink"
                           >
                             Open
                           </Link>
                           <Link
-                            href={`/w/${workspace.slug}/checkin/${p.id}/codes/new`}
+                            href={`/w/${workspace.slug}/projects/${p.id}/checkins/codes/new`}
                             className="px-2.5 py-1.5 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange-d border-2 border-orange"
                           >
                             + Code

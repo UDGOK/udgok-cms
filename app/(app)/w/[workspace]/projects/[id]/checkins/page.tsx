@@ -1,98 +1,222 @@
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { requireMembership } from '@/lib/auth/require-membership';
+import { prisma } from '@/lib/db/client';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { googleMapsUrl, formatDistance } from '@/lib/geo/distance';
 import {
+  listCheckInCodesForProject,
   listOpenCheckInsForProject,
   listRecentCheckInsForProject,
 } from '@/lib/checkins/queries';
-import { listCheckInCodesForProject } from '@/lib/checkins/queries';
+import { deactivateCheckInCodeAction } from '@/lib/checkins/actions';
+import { buildCheckInUrl, buildQrImageUrl } from '@/lib/checkins/qr-urls';
+import { DeactivateCodeButton } from './DeactivateCodeButton';
+
+export const dynamic = 'force-dynamic';
 
 /**
- * Embedded "who is on site now" panel for a project.
- *
- * Server-rendered via requireMembership for a fast
- * initial paint — no client JS, no useEffect flicker.
- * Shown as a dedicated /projects/[id]/checkins route
- * so the project tab bar can link to it (badge is
- * the open check-in count).
- *
- * The full per-project check-in admin (with QR codes
- * + history) lives at /checkin/[projectId]. This page
- * is the read-only "today" view.
+ * Per-project check-in detail. Three sections:
+ *   1. QR codes for this project (label, token, image,
+ *      retire button, print button)
+ *   2. Currently on site at this project
+ *   3. Recent check-in history for this project
  */
-export default async function ProjectCheckInsPage({
+export default async function ProjectCheckInPage({
   params,
 }: {
-  params: { workspace: string; id: string };
+  params: { workspace: string; projectId: string };
 }) {
   const { workspace } = await requireMembership(params.workspace);
 
-  // Reuse the per-project detail query to confirm the
-  // project is in this workspace, then load the
-  // check-in panels in parallel.
-  const project = await (
-    await import('@/lib/db/client')
-  ).prisma.project.findFirst({
-    where: { id: params.id, workspaceId: workspace.id },
-    select: { id: true, name: true, code: true },
+  // Verify the project belongs to this workspace before
+  // rendering — defense in depth on top of the parent
+  // layout's auth check.
+  const project = await prisma.project.findFirst({
+    where: { id: params.projectId, workspaceId: workspace.id },
+    select: { id: true, name: true, code: true, address: true, city: true, state: true, zip: true },
   });
   if (!project) notFound();
 
-  const [open, recent, codes] = await Promise.all([
-    listOpenCheckInsForProject(project.id),
-    listRecentCheckInsForProject(project.id, 10),
+  const [codes, openCheckIns, recentHistory] = await Promise.all([
     listCheckInCodesForProject(project.id),
+    listOpenCheckInsForProject(project.id),
+    listRecentCheckInsForProject(project.id, 50),
   ]);
 
   const activeCodes = codes.filter((c) => c.isActive);
 
   return (
-    <div className="max-w-3xl">
-      <div className="mb-4 flex items-baseline justify-between flex-wrap gap-2">
-        <div>
-          <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-ink-50">
-            {'// '}{project.name}
-          </div>
-          <h1 className="text-2xl font-black mt-0.5">Who&apos;s on site</h1>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Link
-            href={`/w/${workspace.slug}/checkin/${project.id}`}
-            className="px-3 py-2 bg-ink text-cream text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-ink hover:bg-orange"
-          >
-            Manage QR codes
-          </Link>
-          {activeCodes.length > 0 ? (
+    <div>
+      <PageHeader
+        title={`${project.name} — check-in`}
+        subtitle={
+          project.address
+            ? `${project.address}${project.city ? `, ${project.city}` : ''}${project.state ? `, ${project.state}` : ''}`
+            : 'Print QR stickers for each check-in point on this site.'
+        }
+        breadcrumbs={[
+          { label: workspace.name, href: `/w/${workspace.slug}` },
+          { label: 'Check-in', href: `/w/${workspace.slug}/checkin` },
+          { label: project.name },
+        ]}
+        actions={
+          <div className="flex gap-2 flex-wrap">
             <Link
-              href={`/w/${workspace.slug}/checkin/${project.id}/print`}
+              href={`/w/${workspace.slug}/projects/${project.id}/checkins/codes/new`}
               className="px-3 py-2 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-orange hover:bg-orange-d"
-              target="_blank"
-              rel="noopener noreferrer"
             >
-              Print sheet
+              + Generate code
             </Link>
-          ) : null}
-        </div>
-      </div>
+            {activeCodes.length > 0 ? (
+              <Link
+                href={`/w/${workspace.slug}/projects/${project.id}/checkins/print`}
+                className="px-3 py-2 bg-ink text-cream text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-ink hover:bg-orange"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Print sheet
+              </Link>
+            ) : null}
+          </div>
+        }
+      />
 
-      {/* On site now */}
-      <section className="mb-6">
-        <div className="flex items-baseline justify-between mb-2">
+      {/* Section 1: codes */}
+      <section className="mb-10">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-[11px] font-mono uppercase tracking-[0.18em] text-ink-50">
+            {'// QR codes'}
+          </h2>
+          <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
+            {activeCodes.length} active · {codes.length - activeCodes.length} retired
+          </span>
+        </div>
+
+        {codes.length === 0 ? (
+          <div className="border-2 border-dashed border-line bg-cream-2 p-8 text-center">
+            <div className="text-3xl mb-2">📍</div>
+            <div className="font-extrabold text-[15px] mb-1">No check-in points yet</div>
+            <p className="text-[12px] text-ink-70 max-w-md mx-auto mb-4">
+              Generate a QR code for each check-in point on this
+              site — main gate, shop entrance, north laydown, etc.
+              Print the sticker, stick it at the location, and
+              anyone with a phone can scan to check in.
+            </p>
+            <Link
+              href={`/w/${workspace.slug}/projects/${project.id}/checkins/codes/new`}
+              className="inline-block px-4 py-2 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-orange hover:bg-orange-d"
+            >
+              + Generate the first code
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {codes.map((c) => {
+              const url = buildCheckInUrl(c.token);
+              return (
+                <div
+                  key={c.id}
+                  className={`bg-paper border-2 p-4 ${c.isActive ? 'border-ink' : 'border-line opacity-60'}`}
+                >
+                  <div className="flex gap-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={buildQrImageUrl(url, 200)}
+                      alt={`QR for ${c.label}`}
+                      width={120}
+                      height={120}
+                      className="shrink-0 border border-line"
+                      crossOrigin="anonymous"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <div className="font-extrabold text-[15px] break-words">{c.label}</div>
+                        {!c.isActive ? (
+                          <span className="bg-ink text-cream text-[9px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5">
+                            Retired
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mt-0.5">
+                        Created {c.createdAt.toLocaleDateString()} · {c.createdByName ?? 'admin'}
+                      </div>
+                      {c.lat != null && c.lng != null ? (
+                        <div className="mt-1.5 text-[10px] font-mono">
+                          <a
+                            href={googleMapsUrl(c.lat, c.lng)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-orange-d hover:underline"
+                          >
+                            📍 pinned at {c.lat.toFixed(4)}, {c.lng.toFixed(4)}
+                          </a>
+                          <div className="text-ink-50 text-[9px]">
+                            {c.geofenceMeters ?? 150} m radius
+                            {c.requireWithinGeofence ? ' · hard-enforced' : ' · soft warning'}
+                            {c.addressSnapshot ? ` · ${c.addressSnapshot}` : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 text-[10px] font-mono text-ink-30">
+                          no GPS pin (legacy)
+                        </div>
+                      )}
+                      <div className="text-[10px] font-mono break-all text-ink-70 mt-2 leading-tight">
+                        {url}
+                      </div>
+                      <div className="mt-3 flex gap-2 flex-wrap">
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1.5 bg-ink text-cream text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-orange border-2 border-ink"
+                        >
+                          Open
+                        </a>
+                        <a
+                          href={buildQrImageUrl(url, 600)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1.5 bg-paper text-ink text-[10px] font-extrabold uppercase tracking-[0.12em] hover:bg-cream-2 border-2 border-ink"
+                        >
+                          ↓ Big QR
+                        </a>
+                        {c.isActive ? (
+                          <DeactivateCodeButton
+                            workspaceSlug={workspace.slug}
+                            codeId={c.id}
+                            action={deactivateCheckInCodeAction}
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Section 2: open */}
+      <section className="mb-10">
+        <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-[11px] font-mono uppercase tracking-[0.18em] text-ink-50">
             {'// On site right now'}
           </h2>
           <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
-            {open.length} open
+            {openCheckIns.length} open
           </span>
         </div>
-        {open.length === 0 ? (
-          <div className="border-2 border-dashed border-line bg-cream-2 p-5 text-center text-[12px] text-ink-50">
-            Nobody is checked in right now.
+        {openCheckIns.length === 0 ? (
+          <div className="border-2 border-dashed border-line bg-cream-2 p-6 text-center text-[12px] text-ink-50">
+            No one is currently checked in at this project.
           </div>
         ) : (
           <ul className="border-2 border-ink bg-paper divide-y divide-line">
-            {open.map((c) => (
-              <li key={c.id} className="flex items-baseline justify-between gap-3 p-3 text-[12px]">
+            {openCheckIns.map((c) => (
+              <li key={c.id} className="flex items-baseline justify-between gap-3 p-3">
                 <div className="min-w-0">
                   <div className="font-extrabold text-[13px]">
                     {c.who.name}
@@ -101,10 +225,25 @@ export default async function ProjectCheckInsPage({
                     </span>
                   </div>
                   <div className="text-[11px] text-ink-70">at {c.codeLabel}</div>
+                  {c.checkInLat != null && c.checkInLng != null ? (
+                    <a
+                      href={googleMapsUrl(c.checkInLat, c.checkInLng)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-1 text-[10px] font-mono uppercase tracking-[0.1em] text-orange-d hover:underline"
+                    >
+                      📍 {formatCoords(c.checkInLat, c.checkInLng)}
+                      {c.geofenceDistanceMeters != null
+                        ? ` · ${formatDistance(c.geofenceDistanceMeters)}${
+                            c.geofenceOk === false ? ' ⚠ out of range' : ' ✓'
+                          }`
+                        : null}
+                    </a>
+                  ) : null}
                 </div>
-                <div className="text-right shrink-0 text-ink-70">
+                <div className="text-right shrink-0">
                   <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
-                    IN
+                    CHECKED IN
                   </div>
                   <div className="text-[11px] font-extrabold">
                     {timeAgo(c.checkedInAt)}
@@ -116,41 +255,81 @@ export default async function ProjectCheckInsPage({
         )}
       </section>
 
-      {/* History */}
+      {/* Section 3: history */}
       <section>
-        <div className="flex items-baseline justify-between mb-2">
+        <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-[11px] font-mono uppercase tracking-[0.18em] text-ink-50">
-            {'// Last 10 check-outs'}
+            {'// History'}
           </h2>
+          <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
+            last 50
+          </span>
         </div>
-        {recent.length === 0 ? (
-          <div className="border-2 border-dashed border-line bg-cream-2 p-5 text-center text-[12px] text-ink-50">
-            No check-out history yet.
+        {recentHistory.length === 0 ? (
+          <div className="border-2 border-dashed border-line bg-cream-2 p-6 text-center text-[12px] text-ink-50">
+            No completed check-outs yet.
           </div>
         ) : (
-          <ul className="border-2 border-ink bg-paper divide-y divide-line">
-            {recent.map((c) => (
-              <li key={c.id} className="flex items-baseline justify-between gap-3 p-3 text-[12px]">
-                <div className="min-w-0">
-                  <div className="font-extrabold">
-                    {c.who.name}
-                    <span className="ml-2 text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
-                      {c.who.kind === 'user' ? 'employee' : 'sub'}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-ink-70">at {c.codeLabel}</div>
-                </div>
-                <div className="text-right shrink-0 text-ink-70">
-                  <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
-                    DURATION
-                  </div>
-                  <div className="text-[11px] font-extrabold text-ink">
-                    {formatDuration(c.durationMs)}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="border-2 border-ink bg-paper overflow-x-auto">
+            <table className="w-full text-left text-[12px]">
+              <thead className="bg-ink text-cream text-[10px] font-mono uppercase tracking-[0.12em]">
+                <tr>
+                  <th className="px-3 py-2">Who</th>
+                  <th className="px-3 py-2">Point</th>
+                  <th className="px-3 py-2 hidden md:table-cell">Location</th>
+                  <th className="px-3 py-2 hidden sm:table-cell">In</th>
+                  <th className="px-3 py-2 hidden sm:table-cell">Out</th>
+                  <th className="px-3 py-2 text-right">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentHistory.map((c) => (
+                  <tr key={c.id} className="border-t border-line">
+                    <td className="px-3 py-2 font-extrabold">
+                      {c.who.name}
+                      <span className="ml-1.5 text-[9px] font-mono uppercase tracking-[0.12em] text-ink-50">
+                        {c.who.kind === 'user' ? 'emp' : 'sub'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-ink-70">{c.codeLabel}</td>
+                    <td className="px-3 py-2 hidden md:table-cell font-mono text-[10px]">
+                      {c.checkInLat != null && c.checkInLng != null ? (
+                        <a
+                          href={googleMapsUrl(c.checkInLat, c.checkInLng)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-orange-d hover:underline whitespace-nowrap"
+                        >
+                          {formatCoords(c.checkInLat, c.checkInLng)}
+                          {c.geofenceDistanceMeters != null ? (
+                            <span
+                              className={`ml-1.5 ${
+                                c.geofenceOk === false ? 'text-error font-extrabold' : 'text-ink-50'
+                              }`}
+                            >
+                              {c.geofenceOk === false ? '⚠' : '✓'}
+                              {formatDistance(c.geofenceDistanceMeters)}
+                            </span>
+                          ) : null}
+                        </a>
+                      ) : (
+                        <span className="text-ink-30">no GPS</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 hidden sm:table-cell text-ink-70 font-mono text-[11px]">
+                      {c.checkedInAt.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2 hidden sm:table-cell text-ink-70 font-mono text-[11px]">
+                      {c.checkedOutAt.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-[11px] font-extrabold">
+                      {formatDuration(c.durationMs)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>
@@ -178,4 +357,15 @@ function formatDuration(ms: number): string {
   const days = Math.floor(hours / 24);
   const remHours = hours % 24;
   return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
+/**
+ * Format a lat/lng pair to a short, tappable string.
+ * 4 decimal places is ~11m of precision — enough to
+ * locate a building on a map, short enough to fit in
+ * a tight table cell. We use the same precision Google
+ * Maps shows in its share dialog.
+ */
+function formatCoords(lat: number, lng: number): string {
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }

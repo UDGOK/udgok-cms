@@ -190,7 +190,7 @@ export async function generateCheckInCodeAction(
   });
 
   revalidatePath(`/w/${workspaceSlug}/checkin`);
-  revalidatePath(`/w/${workspaceSlug}/checkin/${project.id}`);
+  revalidatePath(`/w/${workspaceSlug}/projects/${project.id}/checkins`);
   revalidatePath(`/w/${workspaceSlug}/projects/${project.id}/checkins`);
 
   return { ok: true, id: id!, token: token! };
@@ -238,7 +238,7 @@ export async function deactivateCheckInCodeAction(
   });
 
   revalidatePath(`/w/${workspaceSlug}/checkin`);
-  revalidatePath(`/w/${workspaceSlug}/checkin/${code.projectId}`);
+  revalidatePath(`/w/${workspaceSlug}/projects/${code.projectId}/checkins`);
 
   return { ok: true };
 }

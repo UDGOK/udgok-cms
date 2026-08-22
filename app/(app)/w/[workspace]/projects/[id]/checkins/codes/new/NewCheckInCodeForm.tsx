@@ -100,7 +100,7 @@ export function NewCheckInCodeForm({
       const res = await action(workspaceSlug, state ?? undefined, formData);
       setState(res);
       if (res.ok) {
-        router.push(`/w/${workspaceSlug}/checkin/${projectId}`);
+        router.push(`/w/${workspaceSlug}/projects/${projectId}/checkins`);
       }
     });
   }
@@ -327,7 +327,7 @@ export function NewCheckInCodeForm({
       <div className="mt-6 flex gap-2 flex-wrap items-center">
         <SubmitButton pending={pending} />
         <Link
-          href={`/w/${workspaceSlug}/checkin/${projectId}`}
+          href={`/w/${workspaceSlug}/projects/${projectId}/checkins`}
           className="px-4 py-2.5 bg-paper text-ink text-[10px] font-extrabold uppercase tracking-[0.12em] border-2 border-ink hover:bg-cream-2"
         >
           Cancel

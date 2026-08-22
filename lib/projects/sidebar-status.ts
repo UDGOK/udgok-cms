@@ -313,7 +313,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     key: 'site',
     label: 'Site',
     items: [
-      { key: 'checkins', label: 'Check-in', subRoute: 'checkin' },
+      { key: 'checkins', label: 'Check-in', subRoute: 'checkins' },
       { key: 'permits', label: 'Permits', useTabParam: true },
     ],
   },
