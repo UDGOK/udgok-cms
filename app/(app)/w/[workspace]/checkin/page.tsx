@@ -3,6 +3,7 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { prisma } from '@/lib/db/client';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { listOpenCheckInsForWorkspace, listRecentCheckInsForWorkspace } from '@/lib/checkins/queries';
+import { formatInUserTz, userTimezone } from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,16 @@ export default async function CheckInDashboardPage({
   params: { workspace: string };
 }) {
   const { workspace, userId } = await requireMembership(params.workspace);
+
+  // Fetch the viewer's timezone so check-in / check-out
+  // timestamps render in their local time. Without this,
+  // a CST admin would see UTC times (e.g. "Aug 22, 14:00"
+  // when they checked in at 8 AM). See lib/timezone.ts.
+  const viewer = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true },
+  });
+  const viewerTz = userTimezone(viewer);
 
   // Pull projects, their QR codes, the open check-ins, and
   // recent history in parallel. Each query is small and
@@ -230,7 +241,15 @@ export default async function CheckInDashboardPage({
                     {formatDuration(c.durationMs)}
                   </div>
                   <div className="text-[10px] font-mono text-ink-50 mt-0.5">
-                    {c.checkedOutAt.toLocaleString()}
+                    {c.checkedOutAt
+                      ? formatInUserTz(c.checkedOutAt, viewer, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          timeZone: viewerTz,
+                        })
+                      : '—'}
                   </div>
                 </div>
               </li>

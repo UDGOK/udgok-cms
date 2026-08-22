@@ -47,17 +47,23 @@ export default async function PublicCheckInPage({
   // device, we can pre-resolve their name and offer the
   // "auto-attributed" path. Don't fail if the lookup
   // throws — a Clerk hiccup shouldn't block a sub.
-  let signedInUser: { id: string; name: string; email: string } | null = null;
+  let signedInUser: {
+    id: string;
+    name: string;
+    email: string;
+    timezone: string | null;
+  } | null = null;
   if (signedInAuth?.userId) {
     const u = await prisma.user.findUnique({
       where: { id: signedInAuth.userId },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, timezone: true },
     });
     if (u) {
       signedInUser = {
         id: u.id,
         name: u.name ?? u.email,
         email: u.email,
+        timezone: u.timezone,
       };
     }
   }
@@ -81,22 +87,40 @@ export default async function PublicCheckInPage({
       userId: signedInUser.id,
     });
     if (open) {
+      // "Since 2:14pm" — the server renders this label using
+      // the signed-in user's IANA timezone (User.timezone) so
+      // a CST user sees their local time, not Vercel's UTC.
+      // For anonymous (sub) check-ins the server doesn't know
+      // the visitor's timezone, so we fall back to the
+      // browser's local time on the client side. Either way,
+      // the rendered string should match the user's wall clock.
+      const tz = signedInUser.timezone ?? 'America/Chicago';
       const since = new Date(open.checkedInAt);
       currentOpenEvent = {
         id: open.id,
         checkedInAt: open.checkedInAt.toISOString(),
-        // Human label: "2:14pm" / "yesterday 9am" / "Mar 4 9:14am"
-        // — relative is nicer for "since X" copy. We compute
-        // a small label here rather than a full RelativeTime
-        // component because the form is mobile-first and a
-        // single line is enough.
-        checkedInAtLabel: since.toLocaleTimeString([], {
+        checkedInAtLabel: since.toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
+          timeZone: tz,
         }),
       };
     }
   }
+
+  // Geofence pin bound to this code. null when the code was
+  // generated without GPS (the legacy "no GPS" flow) — in
+  // that case the visitor form doesn't ask for location and
+  // the action doesn't compute a distance.
+  const codeGeofence =
+    code.lat != null && code.lng != null
+      ? {
+          lat: code.lat,
+          lng: code.lng,
+          radiusMeters: code.geofenceMeters ?? 150,
+          requireWithinGeofence: code.requireWithinGeofence,
+        }
+      : null;
 
   return (
     <PublicCheckInView
@@ -115,6 +139,7 @@ export default async function PublicCheckInPage({
       signedInUser={signedInUser}
       currentOpenEvent={currentOpenEvent}
       subs={subs}
+      codeGeofence={codeGeofence}
     />
   );
 }

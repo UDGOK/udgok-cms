@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { toggleCheckInAction, type CheckInResult } from './actions';
+import { haversineMeters, formatDistance, googleMapsUrl } from '@/lib/geo/distance';
 
 interface PublicCheckInViewProps {
   token: string;
@@ -17,7 +18,7 @@ interface PublicCheckInViewProps {
   };
   codeLabel: string;
   isActive: boolean;
-  signedInUser: { id: string; name: string; email: string } | null;
+  signedInUser: { id: string; name: string; email: string; timezone: string | null } | null;
   /**
    * The signed-in user's currently-open check-in on this
    * project, if any. When present, the page shows "You're
@@ -31,6 +32,18 @@ interface PublicCheckInViewProps {
    */
   currentOpenEvent: { id: string; checkedInAt: string; checkedInAtLabel: string } | null;
   subs: { id: string; name: string; primaryTrade: string | null }[];
+  /**
+   * Geofence pin bound to this code. null when the admin
+   * generated the code without a GPS location (the
+   * "no-GPS" legacy path) — the form then proceeds without
+   * any distance check.
+   */
+  codeGeofence: {
+    lat: number;
+    lng: number;
+    radiusMeters: number;
+    requireWithinGeofence: boolean;
+  } | null;
 }
 
 /**
@@ -55,34 +68,70 @@ export function PublicCheckInView({
   signedInUser,
   currentOpenEvent,
   subs,
+  codeGeofence,
 }: PublicCheckInViewProps) {
   const [result, setResult] = useState<CheckInResult | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [geoStatus, setGeoStatus] = useState<'idle' | 'asking' | 'granted' | 'denied'>('idle');
+  // 'unsupported' = no navigator.geolocation (old browser / iOS
+  // permissions denied at the OS level). 'denied' = user
+  // explicitly denied the prompt. 'unavailable' = browser
+  // could not determine position (timeout, no satellites, etc).
+  // All three end in "no coords" but the message we show the
+  // user is different — "unavailable" usually means move outside
+  // or wait for a GPS lock, "denied" means open settings.
+  const [geoStatus, setGeoStatus] = useState<
+    'idle' | 'asking' | 'granted' | 'denied' | 'unsupported' | 'unavailable'
+  >('idle');
   const [selectedSubId, setSelectedSubId] = useState<string>('');
   const formRef = useRef<HTMLFormElement | null>(null);
 
-  // Trigger geolocation on first user interaction. We wait
-  // for the click so the browser treats this as a "user
-  // gesture" — otherwise most browsers block the prompt.
+  // Request geolocation. Triggered by the explicit "Share my
+  // location" button click — a user gesture, which is what
+  // the browser requires before showing the permission prompt.
+  //
+  // Retry-friendly: unlike the previous version, calling this
+  // while the status is 'denied' / 'unavailable' will ask the
+  // browser to re-prompt. (On most browsers, denying once
+  // suppresses the prompt until the user re-grants via the
+  // site-settings UI, but trying again doesn't hurt and lets
+  // us recover from transient "unavailable" states.)
   function requestGeolocation() {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setGeoStatus('denied');
+      setGeoStatus('unsupported');
       return;
     }
-    if (geoStatus !== 'idle') return;
+    if (geoStatus === 'asking') return;
     setGeoStatus('asking');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setGeoStatus('granted');
       },
-      () => {
-        setGeoStatus('denied');
+      (err) => {
+        // err.code: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE,
+        // 3 = TIMEOUT. We collapse 2 + 3 to 'unavailable' so the
+        // visitor UI is a single retry path.
+        setGeoStatus(err.code === 1 ? 'denied' : 'unavailable');
       },
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   }
+
+  // Live distance to the bound geofence pin. Lets the visitor
+  // see "you're 47 m from the check-in point" before they tap,
+  // which (a) builds trust and (b) catches the case where the
+  // admin pinned the sticker to the wrong place.
+  const liveDistance: number | null = (() => {
+    if (!coords || !codeGeofence) return null;
+    return haversineMeters(
+      { lat: coords.lat, lng: coords.lng },
+      { lat: codeGeofence.lat, lng: codeGeofence.lng },
+    );
+  })();
+  const liveWithinGeofence =
+    liveDistance != null && codeGeofence
+      ? liveDistance <= codeGeofence.radiusMeters
+      : null;
 
   async function handleSubmit(formData: FormData) {
     formData.set('token', token);
@@ -107,6 +156,7 @@ export function PublicCheckInView({
         workspaceName={project.workspaceName}
         projectName={project.name}
         result={result}
+        visitorTimezone={signedInUser?.timezone ?? null}
         onReset={() => {
           setResult(null);
           setCoords(null);
@@ -166,7 +216,6 @@ export function PublicCheckInView({
           ref={formRef}
           action={handleSubmit}
           className="bg-paper border-2 border-ink p-5"
-          onFocus={requestGeolocation}
         >
           {currentOpenEvent ? (
             <div className="mb-4 bg-success/10 border-2 border-success p-3">
@@ -194,19 +243,104 @@ export function PublicCheckInView({
             />
           )}
 
-          {/* Geolocation status line — visible so the user
-              knows whether their location was captured. */}
-          <div className="mt-3 text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
-            Location:{' '}
-            {geoStatus === 'idle' ? (
-              <span>not yet requested</span>
-            ) : geoStatus === 'asking' ? (
-              <span className="text-ink-70">asking…</span>
-            ) : geoStatus === 'granted' ? (
-              <span className="text-success">✓ captured</span>
-            ) : (
-              <span>not shared (ok)</span>
-            )}
+          {/* ─── Geolocation capture ───────────────────────────
+              Explicit button (not onFocus) so the user sees a
+              clear "I asked for location" moment. The browser
+              only shows the permission prompt after a user
+              gesture, and onFocus on a form is fragile (form
+              may not be focused yet, may focus the button which
+              bubbles in an order browsers differ on).
+
+              The status line below the button gives a clear
+              feedback for each state. The "Try again" path
+              re-prompts by calling requestGeolocation again
+              after a denial / unavailability. */}
+          <div className="mt-4 pt-3 border-t border-line">
+            <div className="flex items-baseline justify-between">
+              <div className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-50">
+                Location
+              </div>
+              {coords ? (
+                <a
+                  href={googleMapsUrl(coords.lat, coords.lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-mono uppercase tracking-[0.12em] text-orange-d hover:underline"
+                >
+                  view on map ↗
+                </a>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={requestGeolocation}
+              disabled={geoStatus === 'asking'}
+              className="mt-2 w-full min-h-[44px] bg-cream text-ink text-[12px] font-extrabold uppercase tracking-[0.1em] border-2 border-ink hover:bg-cream-2 disabled:opacity-50"
+            >
+              {geoStatus === 'asking'
+                ? '📍 Getting your location…'
+                : geoStatus === 'granted'
+                ? '📍 Update location'
+                : coords
+                ? '📍 Re-capture location'
+                : codeGeofence
+                ? '📍 Share my location (required)'
+                : '📍 Share my location (optional)'}
+            </button>
+            <div className="mt-2 text-[11px] font-mono leading-snug">
+              {geoStatus === 'idle' ? (
+                <span className="text-ink-50">
+                  {codeGeofence
+                    ? 'Required to verify you\u2019re on site. Tap the button above to allow GPS.'
+                    : 'Tap the button above to attach your GPS to this check-in.'}
+                </span>
+              ) : geoStatus === 'asking' ? (
+                <span className="text-ink-70">Asking your browser for permission…</span>
+              ) : geoStatus === 'granted' && coords ? (
+                <span className="text-success">
+                  ✓ Captured {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+                  {liveDistance != null && codeGeofence ? (
+                    <>
+                      {' · '}
+                      {liveWithinGeofence ? (
+                        <span className="text-success">
+                          {formatDistance(liveDistance)} from check-in point
+                        </span>
+                      ) : (
+                        <span className="text-warning-d">
+                          {formatDistance(liveDistance)} away — outside the{' '}
+                          {codeGeofence.radiusMeters} m check-in zone
+                        </span>
+                      )}
+                    </>
+                  ) : null}
+                </span>
+              ) : geoStatus === 'denied' ? (
+                <span className="text-error">
+                  Permission denied. Open this site in your browser settings and allow
+                  location, then tap “Try again”.
+                </span>
+              ) : geoStatus === 'unavailable' ? (
+                <span className="text-warning-d">
+                  Couldn{'\u2019'}t get a GPS fix (timeout or no signal). Move outside
+                  or check your phone{'\u2019'}s location settings, then tap “Try again”.
+                </span>
+              ) : (
+                <span className="text-ink-50">
+                  Your browser doesn{'\u2019'}t support geolocation. You can still
+                  check in if GPS isn{'\u2019'}t required.
+                </span>
+              )}
+            </div>
+            {geoStatus === 'denied' || geoStatus === 'unavailable' ? (
+              <button
+                type="button"
+                onClick={requestGeolocation}
+                className="mt-2 text-[10px] font-mono uppercase tracking-[0.12em] text-ink-70 underline hover:text-ink"
+              >
+                ↻ Try again
+              </button>
+            ) : null}
           </div>
         </form>
 
@@ -388,11 +522,20 @@ function ResultShell({
   workspaceName,
   projectName,
   result,
+  visitorTimezone,
   onReset,
 }: {
   workspaceName: string;
   projectName: string;
   result: Extract<CheckInResult, { ok: true }>;
+  /**
+   * IANA timezone from the signed-in user's settings. null
+   * for the anonymous sub path (we don't know the visitor's
+   * tz). When null, we fall back to the browser's local
+   * timezone — the visitor's phone clock — which is the
+   * closest thing to "their local time" we have.
+   */
+  visitorTimezone: string | null;
   onReset: () => void;
 }) {
   const isCheckIn = result.action === 'checked_in';
@@ -403,6 +546,15 @@ function ResultShell({
   const radius = result.geofenceRadiusMeters;
   const ok = result.geofenceOk;
   const showDistance = distance != null && radius != null;
+  // Format the timestamp in the visitor's IANA timezone when
+  // we know it; otherwise let the browser pick the local tz.
+  const timeLabel = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    ...(visitorTimezone ? { timeZone: visitorTimezone } : {}),
+  }).format(new Date(result.when));
   return (
     <div className="min-h-screen bg-cream-2 flex items-center justify-center p-5">
       <div className="max-w-md w-full bg-paper border-2 border-ink p-6">
@@ -415,7 +567,7 @@ function ResultShell({
         <div className="mt-4 space-y-2">
           <Row label="Project" value={projectName} />
           <Row label="Who" value={result.whoName} />
-          <Row label="Time" value={new Date(result.when).toLocaleString()} />
+          <Row label="Time" value={timeLabel} />
           {showDistance ? (
             <Row
               label="Distance"

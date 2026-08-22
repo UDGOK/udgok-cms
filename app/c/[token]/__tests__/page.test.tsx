@@ -213,6 +213,80 @@ describe('PublicCheckInPage — active code', () => {
     // Button label flips to "Check out" when on site
     expect(screen.getByRole('button', { name: /^check out$/i })).toBeTruthy();
   });
+
+  it('formats the "since X" time in the signed-in user\u2019s IANA timezone', async () => {
+    // Signed-in user has America/Chicago set in their
+    // settings. The check-in happened at 14:00 UTC, which
+    // is 9:00 AM Chicago (CDT in August = UTC-5). The
+    // server-rendered "since" label MUST show 9:00 AM (or
+    // 09:00 / 9 AM, depending on the intl formatter) — not
+    // 14:00 / 2 PM (UTC) which is what the server would
+    // produce by default on Vercel.
+    authMock.mockResolvedValue({ userId: 'user_emp' });
+    userFindUnique.mockResolvedValue({
+      id: 'user_emp',
+      name: 'Bob Builder',
+      email: 'bob@acme.com',
+      timezone: 'America/Chicago',
+    });
+    codeFindUnique.mockResolvedValue({
+      id: 'code_1',
+      label: 'main gate',
+      isActive: true,
+      workspaceId: 'ws_1',
+      token: 'abc123token',
+      project: baseProject,
+    });
+    findOpenCheckInMock.mockResolvedValue({
+      id: 'evt_1',
+      checkedInAt: new Date('2026-08-19T14:00:00Z'),
+      checkedOutAt: null,
+    });
+
+    const el = await PublicCheckInPage(baseProps);
+    render(el);
+
+    // The label is rendered as a text node inside the
+    // "since" copy. We match 9 AM / 9:00 AM / 09:00 — the
+    // exact format depends on the intl formatter for the
+    // host locale, but 9 must be in the output.
+    const bannerText = (document.body.textContent || '').replace(/\s+/g, ' ');
+    expect(bannerText).toMatch(/9:00 AM|9 AM|09:00/);
+    // And it must NOT show the UTC time (14:00 / 2 PM).
+    expect(bannerText).not.toMatch(/2:00 PM/);
+  });
+
+  it('falls back to a sensible default tz when the user has no preference set', async () => {
+    // User signed in but never set a timezone preference.
+    // The page should still render a since-label (UTC is
+    // the documented fallback) without crashing.
+    authMock.mockResolvedValue({ userId: 'user_emp' });
+    userFindUnique.mockResolvedValue({
+      id: 'user_emp',
+      name: 'Bob Builder',
+      email: 'bob@acme.com',
+      timezone: null,
+    });
+    codeFindUnique.mockResolvedValue({
+      id: 'code_1',
+      label: 'main gate',
+      isActive: true,
+      workspaceId: 'ws_1',
+      token: 'abc123token',
+      project: baseProject,
+    });
+    findOpenCheckInMock.mockResolvedValue({
+      id: 'evt_1',
+      checkedInAt: new Date('2026-08-19T14:00:00Z'),
+      checkedOutAt: null,
+    });
+
+    const el = await PublicCheckInPage(baseProps);
+    render(el);
+
+    // Banner should still render with a time label.
+    expect(screen.getByText(/you.re on site/i)).toBeTruthy();
+  });
 });
 
 describe('PublicCheckInPage — retired code', () => {

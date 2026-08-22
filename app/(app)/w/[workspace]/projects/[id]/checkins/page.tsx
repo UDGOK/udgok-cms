@@ -4,6 +4,7 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { prisma } from '@/lib/db/client';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { googleMapsUrl, formatDistance } from '@/lib/geo/distance';
+import { formatInUserTz, userTimezone } from '@/lib/timezone';
 import {
   listCheckInCodesForProject,
   listOpenCheckInsForProject,
@@ -27,16 +28,30 @@ export default async function ProjectCheckInPage({
 }: {
   params: { workspace: string; projectId: string };
 }) {
-  const { workspace } = await requireMembership(params.workspace);
+  const ctx = await requireMembership(params.workspace);
+  const { workspace, userId: viewerId } = ctx;
 
   // Verify the project belongs to this workspace before
   // rendering — defense in depth on top of the parent
   // layout's auth check.
-  const project = await prisma.project.findFirst({
-    where: { id: params.projectId, workspaceId: workspace.id },
-    select: { id: true, name: true, code: true, address: true, city: true, state: true, zip: true },
-  });
+  const [project, viewer] = await Promise.all([
+    prisma.project.findFirst({
+      where: { id: params.projectId, workspaceId: workspace.id },
+      select: { id: true, name: true, code: true, address: true, city: true, state: true, zip: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: viewerId },
+      select: { timezone: true },
+    }),
+  ]);
   if (!project) notFound();
+
+  // All time displays in this page render in the viewer's
+  // IANA timezone (User.timezone). Without this, a CST
+  // admin looking at "Aug 22 14:00" would see UTC (which
+  // displays as 14:00 instead of 8:00 AM). With this, they
+  // see "Aug 22, 8:00 AM" matching their wall clock.
+  const viewerTz = userTimezone(viewer);
 
   const [codes, openCheckIns, recentHistory] = await Promise.all([
     listCheckInCodesForProject(project.id),
@@ -139,7 +154,14 @@ export default async function ProjectCheckInPage({
                         ) : null}
                       </div>
                       <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mt-0.5">
-                        Created {c.createdAt.toLocaleDateString()} · {c.createdByName ?? 'admin'}
+                        Created{' '}
+                        {formatInUserTz(c.createdAt, viewer, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          timeZone: viewerTz,
+                        })}{' '}
+                        · {c.createdByName ?? 'admin'}
                       </div>
                       {c.lat != null && c.lng != null ? (
                         <div className="mt-1.5 text-[10px] font-mono">
@@ -317,10 +339,24 @@ export default async function ProjectCheckInPage({
                       )}
                     </td>
                     <td className="px-3 py-2 hidden sm:table-cell text-ink-70 font-mono text-[11px]">
-                      {c.checkedInAt.toLocaleString()}
+                      {formatInUserTz(c.checkedInAt, viewer, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZone: viewerTz,
+                      })}
                     </td>
                     <td className="px-3 py-2 hidden sm:table-cell text-ink-70 font-mono text-[11px]">
-                      {c.checkedOutAt.toLocaleString()}
+                      {c.checkedOutAt
+                        ? formatInUserTz(c.checkedOutAt, viewer, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            timeZone: viewerTz,
+                          })
+                        : '—'}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-[11px] font-extrabold">
                       {formatDuration(c.durationMs)}
