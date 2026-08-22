@@ -174,6 +174,16 @@ export default async function ScanPage({
         workspaceSlug={workspace.slug}
         plan={workspace.plan}
         isMasterAdmin={master}
+        // The mobile scanner sheet locks body scroll while
+        // open (so the camera viewport stays put). On a
+        // bare /scan URL the user wants to scan — open the
+        // sheet. On a ?code= or ?hint= URL the user has
+        // either just scanned (and wants to see the result
+        // card) or is on a deep link to create inventory —
+        // start the sheet CLOSED so they can scroll the
+        // page. There's a "Scan another" button below to
+        // re-open it.
+        initialSheetOpen={!searchParams.code && !searchParams.hint}
         recentScans={recentScans.map((s) => ({
           id: s.id,
           code: s.code,

@@ -22,6 +22,23 @@ interface ScanPageClientProps {
   plan: Plan;
   isMasterAdmin: boolean;
   recentScans: RecentScan[];
+  /**
+   * Whether the mobile scanner sheet should be open on
+   * initial render. Defaults to `true` for the bare /scan
+   * page (the user is here to scan) and `false` when the
+   * URL already has a `?code=...` or `?hint=...` query
+   * param (the user has either just scanned and wants to
+   * see the result, or is on a "create inventory from
+   * scan" deep link and wants to fill the form).
+   *
+   * Why this matters: the sheet locks body scroll while
+   * it's open (so the camera viewport stays anchored).
+   * On a `?code=` URL the body content below the result
+   * card is unreachable on mobile until the user manually
+   * dismisses the sheet — a footgun the user reported
+   * ("cant scroll on these pages to bottom").
+   */
+  initialSheetOpen: boolean;
 }
 
 export function ScanPageClient({
@@ -29,9 +46,10 @@ export function ScanPageClient({
   plan,
   isMasterAdmin,
   recentScans,
+  initialSheetOpen,
 }: ScanPageClientProps) {
   const router = useRouter();
-  const [sheetOpen, setSheetOpen] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(initialSheetOpen);
   const [manualCode, setManualCode] = useState('');
 
   // Stable callbacks — IMPORTANT. The BarcodeScanner's useEffect
@@ -185,6 +203,23 @@ export function ScanPageClient({
             <li>• A barcode on a material delivery (log the receipt)</li>
             <li>• A code on a subcontractor badge (jump to their profile)</li>
           </ul>
+        </div>
+
+        {/* Mobile-only "Scan another" button. On mobile the
+            scanner sheet is closed by default when the page
+            is loaded with a ?code= or ?hint= in the URL, so
+            the user can actually scroll the result. To scan
+            again they need a way to bring the sheet back.
+            This button is the mobile-side equivalent of the
+            inline scanner card the desktop layout has above. */}
+        <div className="md:hidden">
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="w-full px-4 py-3 bg-ink text-paper text-[12px] font-extrabold uppercase tracking-[0.12em] border-2 border-ink hover:bg-orange-d"
+          >
+            📷 Scan another code
+          </button>
         </div>
       </div>
     </FeatureGate>
