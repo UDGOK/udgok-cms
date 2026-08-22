@@ -72,11 +72,21 @@ const EVENT_HOURS_COL = 50;
 
 const styles = StyleSheet.create({
   page: {
-    ...page,
+    size: page.size,
+    // In react-pdf, `margin` on a Page is purely cosmetic (it
+    // tells the engine the printable area, but the layout
+    // engine doesn't clamp children to it). To actually
+    // constrain content to the 0.75" gutter we need `padding`.
+    // The previous version spread `...page` (which carries
+    // `marginTop/Bottom/Left/Right: 54`) and then set
+    // `padding: 0` — that's why the right column ("25",
+    // "1 event", "Aug 18 – Aug 24") used to overflow off the
+    // page edge. See the captured "before" render in
+    // /workspace/timesheet-v5.png for what the bug looked like.
+    paddingTop: page.marginTop,
+    paddingBottom: page.marginBottom,
+    paddingHorizontal: page.marginLeft,
     backgroundColor: colors.paper,
-    paddingTop: 56,        // slightly tighter top margin
-    paddingBottom: 56,
-    paddingHorizontal: 54,
     color: colors.ink,
     fontFamily: 'Helvetica',
     fontSize: font.sizeBase,
