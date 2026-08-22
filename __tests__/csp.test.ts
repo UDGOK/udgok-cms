@@ -92,6 +92,7 @@ describe('Content-Security-Policy', () => {
     { host: 'public.blob.vercel-storage.com', why: 'Vercel Blob bare host (defense-in-depth)' },
     { host: 'img.clerk.com', why: 'Clerk user avatars' },
     { host: '*.tile.openstreetmap.org', why: 'OSM map tiles' },
+    { host: 'api.qrserver.com', why: 'check-in QR codes (lib/checkins/qr-urls.ts)' },
   ];
 
   for (const { host, why } of imageHosts) {

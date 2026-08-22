@@ -135,7 +135,14 @@ const nextConfig = {
       // storage.com (e.g. 15c4iwiin1qbgxzg.public.blob.vercel-
       // storage.com) — the wildcard must be on the subdomain
       // part, not the host.
-      "img-src 'self' data: blob: https://clerk.udgok.com https://img.clerk.com https://*.tile.openstreetmap.org https://*.public.blob.vercel-storage.com https://public.blob.vercel-storage.com ",
+      //
+      // `https://api.qrserver.com` is the free QR encoder used
+      // by the check-in print sheet (lib/checkins/qr-urls.ts).
+      // Without it the QR images silently 200 with a CSP-blocked
+      // response and the printed/PDF'd sheet comes out blank —
+      // an easy-to-miss bug because the HTML page itself
+      // renders fine, the user only notices when they hit print.
+      "img-src 'self' data: blob: https://clerk.udgok.com https://img.clerk.com https://*.tile.openstreetmap.org https://*.public.blob.vercel-storage.com https://public.blob.vercel-storage.com https://api.qrserver.com ",
       "font-src 'self' data:",
       // Connections: our own server, Clerk, the OSM geocoder +
       // tile servers, and Vercel Blob. Add Nominatim too.
