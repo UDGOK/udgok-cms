@@ -1,0 +1,1466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project Nav — 4 redesign options · Atelier</title>
+<style>
+  /* ============================================================
+   * ATELIER DESIGN TOKENS — keep in sync with styles/globals.css
+   * ============================================================ */
+  :root {
+    --ink: #1e2a3a;
+    --ink-2: #2a3a4e;
+    --ink-70: rgba(30, 42, 58, 0.7);
+    --ink-50: rgba(30, 42, 58, 0.5);
+    --ink-30: rgba(30, 42, 58, 0.3);
+    --ink-15: rgba(30, 42, 58, 0.15);
+    --ink-08: rgba(30, 42, 58, 0.08);
+    --orange: #f06a2d;
+    --orange-d: #d44a1a;
+    --orange-l: #ff8a5a;
+    --orange-bg: rgba(240, 106, 45, 0.08);
+    --paper: #ffffff;
+    --cream: #f5f1ea;
+    --cream-2: #ede7d9;
+    --success: #2d6a4f;
+    --warn: #b08900;
+    --error: #9d2c2c;
+    --info: #2563a3;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .serif { font-family: 'DM Serif Display', Georgia, serif; font-style: italic; }
+
+  /* ============================================================
+   * PAGE WRAPPER
+   * ============================================================ */
+  .page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+  .header {
+    margin-bottom: 32px;
+  }
+  .header-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-bottom: 8px;
+  }
+  .header h1 {
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin: 0 0 12px;
+  }
+  .header h1 .serif { color: var(--orange-d); }
+  .header p {
+    color: var(--ink-70);
+    font-size: 15px;
+    max-width: 720px;
+    margin: 0;
+  }
+
+  /* ============================================================
+   * OPTION GRID (4 cards, each one is a full design)
+   * ============================================================ */
+  .options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    margin-top: 32px;
+  }
+  @media (max-width: 900px) {
+    .options { grid-template-columns: 1fr; }
+  }
+  .option {
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .option-header {
+    padding: 16px 20px;
+    border-bottom: 2px solid var(--ink);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .option-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .option-name {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    margin: 8px 0 4px;
+  }
+  .option-tagline {
+    font-size: 12px;
+    color: var(--ink-70);
+    line-height: 1.4;
+  }
+  .option-preview {
+    background: var(--cream);
+    flex: 1;
+    min-height: 360px;
+    overflow: hidden;
+    position: relative;
+    border-bottom: 2px solid var(--ink);
+  }
+  .option-meta {
+    padding: 14px 20px;
+    font-size: 11px;
+    color: var(--ink-70);
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .option-meta strong { color: var(--ink); font-weight: 800; }
+  .option-meta .pill {
+    display: inline-block;
+    padding: 2px 7px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: var(--ink-08);
+    color: var(--ink);
+  }
+  .option-meta .pill-orange { background: var(--orange-bg); color: var(--orange-d); }
+  .option-meta .pill-success { background: rgba(45, 106, 79, 0.1); color: var(--success); }
+
+  /* ============================================================
+   * MOCKUP SCENE — shared scaffolding
+   * The "stage" is a fake browser frame with a fake project page
+   * inside. The actual nav design is what differs between options.
+   * ============================================================ */
+  .scene {
+    width: 100%;
+    height: 100%;
+    padding: 14px;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .frame {
+    width: 100%;
+    background: var(--paper);
+    border: 1px solid var(--ink-15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .frame-chrome {
+    background: var(--cream-2);
+    border-bottom: 1px solid var(--ink-15);
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-50);
+  }
+  .frame-chrome .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-15); }
+  .frame-chrome .url { background: var(--paper); padding: 2px 8px; border: 1px solid var(--ink-15); flex: 1; text-align: center; }
+
+  /* Inside the frame: workspace pill, then the nav design, then a sample of the page */
+  .frame-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .ws-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--ink-15);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .ws-pill .dot { width: 6px; height: 6px; background: var(--orange); border-radius: 50%; }
+  .ws-pill .label { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ink-50); }
+  .ws-pill .name { font-weight: 800; }
+
+  /* Fake project content (page body) */
+  .fake-page { flex: 1; padding: 10px 12px; font-size: 10px; overflow: hidden; }
+  .fake-page h2 { font-size: 14px; font-weight: 900; letter-spacing: -0.01em; margin: 0 0 2px; line-height: 1.1; }
+  .fake-page .crumbs { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--ink-50); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .fake-page .status {
+    display: inline-block;
+    padding: 1px 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: var(--success);
+    color: var(--paper);
+    margin-top: 4px;
+  }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+  .kpi {
+    border: 1px solid var(--ink-15);
+    padding: 4px 6px;
+  }
+  .kpi .l { font-family: 'JetBrains Mono', monospace; font-size: 7px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-50); }
+  .kpi .v { font-weight: 900; font-size: 12px; line-height: 1.1; margin-top: 1px; }
+  .kpi .v.green { color: var(--success); }
+  .kpi .v.warn { color: var(--warn); }
+  .kpi .s { font-size: 8px; color: var(--ink-50); margin-top: 1px; }
+  .row { display: flex; gap: 6px; margin-top: 8px; }
+  .col-half { flex: 1; }
+  .col-half .card {
+    border: 1px solid var(--ink-15);
+    padding: 6px 8px;
+  }
+  .col-half .card .title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-bottom: 4px;
+  }
+  .col-half .item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--ink-08);
+    font-size: 9px;
+  }
+  .col-half .item:last-child { border-bottom: 0; }
+  .col-half .item .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 1px 4px;
+    text-transform: uppercase;
+  }
+  .badge.green { background: var(--success); color: var(--paper); }
+  .badge.yellow { background: rgba(176, 137, 0, 0.15); color: var(--warn); }
+  .badge.blue { background: rgba(37, 99, 163, 0.15); color: var(--info); }
+  .badge.gray { background: var(--ink-08); color: var(--ink-50); }
+  .col-half .item .amt { margin-left: auto; font-weight: 800; }
+
+  /* ============================================================
+   * OPTION 0 — CURRENT (baseline)
+   * ============================================================ */
+  .tabs-current {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--ink-15);
+    padding: 4px 8px 0;
+    gap: 0;
+  }
+  .tabs-current::-webkit-scrollbar { display: none; }
+  .tabs-current .tab {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink-70);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+  }
+  .tabs-current .tab svg { width: 11px; height: 11px; }
+  .tabs-current .tab.active { color: var(--orange-d); border-bottom-color: var(--orange-d); background: var(--orange-bg); }
+  .tabs-current .tab .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0 4px;
+    border-radius: 8px;
+    margin-left: 2px;
+  }
+  .tabs-current .tab.faded { opacity: 0.4; }
+
+  /* ============================================================
+   * OPTION A — Vertical grouped sidebar (Linear/Notion pattern)
+   * ============================================================ */
+  .option-a {
+    display: flex;
+    height: 100%;
+  }
+  .sidebar-a {
+    width: 38%;
+    background: var(--cream);
+    border-right: 1px solid var(--ink-15);
+    padding: 8px 0;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar-a .group {
+    margin-bottom: 8px;
+  }
+  .sidebar-a .group-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    padding: 4px 12px;
+  }
+  .sidebar-a .item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink);
+    border-left: 2px solid transparent;
+  }
+  .sidebar-a .item.active {
+    background: var(--orange-bg);
+    border-left-color: var(--orange);
+    color: var(--orange-d);
+    font-weight: 800;
+  }
+  .sidebar-a .item svg { width: 11px; height: 11px; flex-shrink: 0; }
+  .sidebar-a .item .badge {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    padding: 1px 4px;
+    border-radius: 6px;
+    background: var(--ink-08);
+    color: var(--ink-50);
+  }
+  .sidebar-a .item .badge.warn { background: rgba(176, 137, 0, 0.2); color: var(--warn); }
+  .sidebar-a .item .badge.danger { background: rgba(157, 44, 44, 0.15); color: var(--error); }
+  .sidebar-a .item .badge.hot { background: var(--orange); color: var(--paper); }
+  .content-a { flex: 1; padding: 10px 12px; font-size: 10px; overflow: hidden; }
+
+  /* ============================================================
+   * OPTION B — Hub-and-spoke cards (Overview IS the nav)
+   * ============================================================ */
+  .content-b { padding: 10px 12px; }
+  .content-b h3 { font-size: 13px; font-weight: 900; letter-spacing: -0.01em; margin: 0 0 2px; }
+  .content-b .desc { font-size: 9px; color: var(--ink-70); margin-bottom: 8px; }
+  .hub-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .hub-card {
+    border: 2px solid var(--ink-15);
+    padding: 8px;
+    background: var(--paper);
+    position: relative;
+  }
+  .hub-card.hot { border-color: var(--orange); background: var(--orange-bg); }
+  .hub-card .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .hub-card .label svg { width: 9px; height: 9px; }
+  .hub-card .title { font-weight: 900; font-size: 11px; margin: 3px 0 1px; line-height: 1.1; }
+  .hub-card .stat {
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1;
+    margin: 4px 0 2px;
+  }
+  .hub-card .stat.green { color: var(--success); }
+  .hub-card .stat.warn { color: var(--warn); }
+  .hub-card .sub { font-size: 7px; color: var(--ink-50); line-height: 1.3; }
+  .hub-card .preview {
+    margin-top: 4px;
+    display: flex;
+    gap: 2px;
+  }
+  .hub-card .preview .swatch {
+    width: 14px;
+    height: 14px;
+    background: var(--cream-2);
+    border: 1px solid var(--ink-15);
+  }
+  .hub-card .arrow {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 11px;
+    color: var(--ink-30);
+  }
+  .hub-card.hot .arrow { color: var(--orange-d); }
+
+  /* ============================================================
+   * OPTION C — Curated most-used + More menu
+   * ============================================================ */
+  .tabs-c {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--ink-15);
+    gap: 2px;
+    position: relative;
+  }
+  .tabs-c .tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink-70);
+    border-radius: 4px 4px 0 0;
+    white-space: nowrap;
+  }
+  .tabs-c .tab.active { color: var(--orange-d); background: var(--orange-bg); font-weight: 800; }
+  .tabs-c .tab svg { width: 11px; height: 11px; }
+  .tabs-c .tab .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0 4px;
+    border-radius: 8px;
+  }
+  .tabs-c .more {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--ink-08);
+    border-radius: 4px;
+  }
+  .tabs-c .more .count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 1px 4px;
+    border-radius: 8px;
+  }
+  .more-menu-open {
+    position: absolute;
+    top: 100%;
+    right: 8px;
+    margin-top: 4px;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10;
+    min-width: 220px;
+    padding: 4px;
+  }
+  .more-menu-open .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .more-menu-open .menu-item:hover { background: var(--cream); }
+  .more-menu-open .menu-item svg { width: 11px; height: 11px; }
+
+  /* ============================================================
+   * OPTION D — Two-tier bar
+   * ============================================================ */
+  .tabs-d {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--ink-15);
+  }
+  .tabs-d .row {
+    display: flex;
+    padding: 4px 8px 0;
+    gap: 0;
+    align-items: center;
+  }
+  .tabs-d .row.primary { padding-bottom: 2px; }
+  .tabs-d .row.secondary {
+    border-top: 1px solid var(--ink-08);
+    background: var(--cream);
+    padding-top: 2px;
+    padding-bottom: 4px;
+  }
+  .tabs-d .tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink-70);
+    border-radius: 4px 4px 0 0;
+    white-space: nowrap;
+  }
+  .tabs-d .row.secondary .tab { font-size: 9px; padding: 3px 6px; color: var(--ink-50); }
+  .tabs-d .tab.active { color: var(--orange-d); background: var(--orange-bg); font-weight: 800; }
+  .tabs-d .row.secondary .tab.active { color: var(--ink); background: var(--ink-08); }
+  .tabs-d .tab svg { width: 10px; height: 10px; }
+  .tabs-d .row.secondary .tab svg { width: 9px; height: 9px; }
+  .tabs-d .tab .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0 4px;
+    border-radius: 8px;
+  }
+  .tabs-d .row-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-30);
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+
+  /* ============================================================
+   * INLINE SVG ICONS
+   * ============================================================ */
+  .ico { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  /* ============================================================
+   * DETAIL MODAL — when you click an option, full-size view
+   * ============================================================ */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(30, 42, 58, 0.7);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+    padding: 24px;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--cream);
+    border: 2px solid var(--ink);
+    max-width: 1100px; width: 100%; max-height: 92vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-head {
+    background: var(--ink); color: var(--paper);
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .modal-head h2 { margin: 0; font-size: 18px; font-weight: 900; letter-spacing: -0.01em; }
+  .modal-head .tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; opacity: 0.7; }
+  .modal-close {
+    background: var(--paper); color: var(--ink); border: 0;
+    width: 28px; height: 28px; font-weight: 900; cursor: pointer; font-size: 16px;
+  }
+  .modal-body { flex: 1; overflow: auto; padding: 24px; }
+  .modal-body .big-scene { background: var(--paper); border: 1px solid var(--ink-15); height: 520px; display: flex; }
+  .modal-body h3 { font-size: 14px; font-weight: 900; margin: 18px 0 6px; }
+  .modal-body p { font-size: 12px; color: var(--ink-70); margin: 0 0 6px; }
+  .modal-body ul { font-size: 12px; color: var(--ink-70); padding-left: 20px; margin: 0; }
+  .modal-body ul li { margin-bottom: 4px; }
+  .modal-body .strengths { background: rgba(45, 106, 79, 0.08); border-left: 3px solid var(--success); padding: 10px 14px; margin-top: 12px; }
+  .modal-body .tradeoffs { background: rgba(176, 137, 0, 0.08); border-left: 3px solid var(--warn); padding: 10px 14px; margin-top: 8px; }
+  .modal-body .strengths h4, .modal-body .tradeoffs h4 {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.15em;
+    text-transform: uppercase; margin: 0 0 6px;
+  }
+  .modal-body .strengths h4 { color: var(--success); }
+  .modal-body .tradeoffs h4 { color: var(--warn); }
+
+  .option { cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .option:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
+  .option-prompt {
+    padding: 8px 20px;
+    background: var(--cream);
+    border-top: 1px solid var(--ink-15);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    text-align: center;
+  }
+  .footer { margin-top: 48px; padding: 24px; background: var(--paper); border: 2px solid var(--ink); font-size: 12px; color: var(--ink-70); }
+  .footer strong { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="header">
+    <div class="header-eyebrow">// atelier — design exploration</div>
+    <h1>Project nav, <span class="serif">redesigned</span></h1>
+    <p>Four options for the project tab bar. The current 13-tab strip is an inventory, not navigation. Each option below is a clickable mockup — click any card to see it full-size with notes on strengths and tradeoffs.</p>
+  </div>
+
+  <div class="options">
+
+    <!-- ============================================================ -->
+    <!-- OPTION 0: CURRENT (BASELINE) -->
+    <!-- ============================================================ -->
+    <div class="option" data-modal="m0">
+      <div class="option-header">
+        <div>
+          <span class="option-tag">Baseline</span>
+          <div class="option-name">What you have now</div>
+          <div class="option-tagline">13 equal-weight horizontal tabs, scrollable with fade. Working on mobile, but barely.</div>
+        </div>
+      </div>
+      <div class="option-preview">
+        <div class="scene">
+          <div class="frame">
+            <div class="frame-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">cms.udgok.com / w / acme-builders / projects / smith-residence</span>
+            </div>
+            <div class="frame-body">
+              <div class="ws-pill">
+                <span class="dot"></span>
+                <span class="label">workspace</span>
+                <span class="name">Acme Builders</span>
+              </div>
+              <div class="tabs-current">
+                <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photos</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Team</div>
+                <div class="tab faded"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Schedule</div>
+                <div class="tab faded">…</div>
+                <div class="tab faded">→</div>
+              </div>
+              <div class="fake-page">
+                <div class="crumbs">PROJECT · SMITH RESIDENCE</div>
+                <h2>Smith Residence</h2>
+                <span class="status">ACTIVE</span>
+                <div class="kpi-row">
+                  <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+                  <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div><div class="s">65%</div></div>
+                  <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div></div>
+                  <div class="kpi"><div class="l">Margin</div><div class="v">22%</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="option-meta">
+        <span class="pill pill-orange">STATUS QUO</span>
+        <span>13 tabs · mobile-fades · no grouping · no status</span>
+      </div>
+      <div class="option-prompt">Click to see full breakdown →</div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- OPTION A: VERTICAL GROUPED SIDEBAR -->
+    <!-- ============================================================ -->
+    <div class="option" data-modal="mA">
+      <div class="option-header">
+        <div>
+          <span class="option-tag" style="background: var(--orange);">★ Recommended</span>
+          <div class="option-name">A · Vertical grouped sidebar</div>
+          <div class="option-tagline">Linear/Notion pattern. Every section, one click, with status badges. Always visible on desktop, drawer on mobile.</div>
+        </div>
+      </div>
+      <div class="option-preview">
+        <div class="scene">
+          <div class="frame">
+            <div class="frame-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">cms.udgok.com / w / acme-builders / projects / smith-residence</span>
+            </div>
+            <div class="frame-body">
+              <div class="ws-pill">
+                <span class="dot"></span>
+                <span class="label">workspace</span>
+                <span class="name">Acme Builders</span>
+              </div>
+              <div class="option-a" style="flex: 1;">
+                <div class="sidebar-a">
+                  <div class="group">
+                    <div class="group-label">// Working</div>
+                    <div class="item active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI board <span class="badge hot">2</span></div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photos <span class="badge">87</span></div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks <span class="badge warn">3</span></div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Team <span class="badge">4</span></div>
+                  </div>
+                  <div class="group">
+                    <div class="group-label">// Schedule</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Schedule</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Takeoff</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2"/></svg>Map</div>
+                  </div>
+                  <div class="group">
+                    <div class="group-label">// Money</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pay apps <span class="badge warn">$45k</span></div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>Financials</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Subs</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Inventory</div>
+                  </div>
+                  <div class="group">
+                    <div class="group-label">// Site</div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Check-in <span class="badge hot">5</span></div>
+                    <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+                  </div>
+                </div>
+                <div class="content-a">
+                  <div class="crumbs">PROJECT · SMITH RESIDENCE</div>
+                  <h2>Overview</h2>
+                  <div class="kpi-row">
+                    <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+                    <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div></div>
+                    <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div></div>
+                    <div class="kpi"><div class="l">Margin</div><div class="v">22%</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="option-meta">
+        <span class="pill pill-orange">BIG SHIP</span>
+        <span class="pill">2-3 days</span>
+        <span>Always visible · status badges · 4 groups · mobile drawer</span>
+      </div>
+      <div class="option-prompt">Click to see full breakdown →</div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- OPTION B: HUB-AND-SPOKE CARDS -->
+    <!-- ============================================================ -->
+    <div class="option" data-modal="mB">
+      <div class="option-header">
+        <div>
+          <span class="option-tag" style="background: var(--orange-d);">Bold</span>
+          <div class="option-name">B · Hub-and-spoke cards</div>
+          <div class="option-tagline">Kill the tab bar. Overview becomes a grid of 8 section-cards with previews. Click → enter section.</div>
+        </div>
+      </div>
+      <div class="option-preview">
+        <div class="scene">
+          <div class="frame">
+            <div class="frame-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">cms.udgok.com / w / acme-builders / projects / smith-residence</span>
+            </div>
+            <div class="frame-body">
+              <div class="ws-pill">
+                <span class="dot"></span>
+                <span class="label">workspace</span>
+                <span class="name">Acme Builders</span>
+              </div>
+              <div class="content-b">
+                <div class="crumbs">PROJECT · SMITH RESIDENCE</div>
+                <h3>Smith Residence</h3>
+                <div class="desc">8 sections, each with live status. Tap a card to enter.</div>
+                <div class="hub-grid">
+                  <div class="hub-card hot">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pay apps</div>
+                    <div class="title">Draw 8 sent</div>
+                    <div class="stat warn">$45k <span style="font-size:9px; font-weight:600;">outstanding</span></div>
+                    <div class="sub">2 viewed, 1 paid this week</div>
+                  </div>
+                  <div class="hub-card">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg>Tasks</div>
+                    <div class="title">23 open</div>
+                    <div class="stat warn">3 <span style="font-size:9px; font-weight:600;">overdue</span></div>
+                    <div class="sub">Rough-in by Fri</div>
+                  </div>
+                  <div class="hub-card">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>Photos</div>
+                    <div class="title">87 photos</div>
+                    <div class="stat green">12 <span style="font-size:9px; font-weight:600;">this week</span></div>
+                    <div class="preview">
+                      <div class="swatch" style="background:#d4c5a0;"></div>
+                      <div class="swatch" style="background:#8b9a7a;"></div>
+                      <div class="swatch" style="background:#c4a47a;"></div>
+                      <div class="swatch" style="background:#a08b6b;"></div>
+                      <div class="swatch" style="background:#7a8b6b;"></div>
+                    </div>
+                  </div>
+                  <div class="hub-card hot">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Check-in</div>
+                    <div class="title">5 on site</div>
+                    <div class="stat green">Live</div>
+                    <div class="sub">Bob, Maria, Jose, 2 subs</div>
+                  </div>
+                  <div class="hub-card">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/></svg>Financials</div>
+                    <div class="title">22% margin</div>
+                    <div class="stat">$105k <span style="font-size:9px; font-weight:600;">kept</span></div>
+                    <div class="sub">$312k billed of $480k</div>
+                  </div>
+                  <div class="hub-card">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17"/></svg>AI board</div>
+                    <div class="title">2 alerts</div>
+                    <div class="stat warn">!</div>
+                    <div class="sub">Subs delayed, under-billed</div>
+                  </div>
+                  <div class="hub-card">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+                    <div class="title">2 open</div>
+                    <div class="stat">3 <span style="font-size:9px; font-weight:600;">inspections due</span></div>
+                  </div>
+                  <div class="hub-card">
+                    <div class="arrow">→</div>
+                    <div class="label"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Schedule</div>
+                    <div class="title">Day 47 of 120</div>
+                    <div class="stat">On track</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="option-meta">
+        <span class="pill pill-orange">BIG SHIP</span>
+        <span class="pill">3-4 days</span>
+        <span>No tab bar · cards have live previews · spatial navigation</span>
+      </div>
+      <div class="option-prompt">Click to see full breakdown →</div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- OPTION C: CURATED MOST-USED + MORE -->
+    <!-- ============================================================ -->
+    <div class="option" data-modal="mC">
+      <div class="option-header">
+        <div>
+          <span class="option-tag" style="background: var(--success);">Quick win</span>
+          <div class="option-name">C · Curated + More menu</div>
+          <div class="option-tagline">Smallest change. Pin 6 most-used tabs, hide 7 in a "More" dropdown. Ships in 1 day.</div>
+        </div>
+      </div>
+      <div class="option-preview">
+        <div class="scene">
+          <div class="frame">
+            <div class="frame-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">cms.udgok.com / w / acme-builders / projects / smith-residence</span>
+            </div>
+            <div class="frame-body">
+              <div class="ws-pill">
+                <span class="dot"></span>
+                <span class="label">workspace</span>
+                <span class="name">Acme Builders</span>
+              </div>
+              <div class="tabs-c">
+                <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photos</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pay apps <span class="badge">3</span></div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Check-in <span class="badge">5</span></div>
+                <div class="more">
+                  <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                  More <span class="count">7</span>
+                </div>
+                <div class="more-menu-open">
+                  <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Team</div>
+                  <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Schedule</div>
+                  <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+                  <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Takeoff</div>
+                  <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Inventory</div>
+                  <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2"/></svg>Map</div>
+                  <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Subs</div>
+                </div>
+              </div>
+              <div class="fake-page">
+                <div class="crumbs">PROJECT · SMITH RESIDENCE</div>
+                <h2>Smith Residence</h2>
+                <span class="status">ACTIVE</span>
+                <div class="kpi-row">
+                  <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+                  <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div></div>
+                  <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div></div>
+                  <div class="kpi"><div class="l">Margin</div><div class="v">22%</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="option-meta">
+        <span class="pill pill-success">QUICK WIN</span>
+        <span class="pill">~1 day</span>
+        <span>6 pinned + More menu · minimal change · preserves mobile</span>
+      </div>
+      <div class="option-prompt">Click to see full breakdown →</div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- OPTION D: TWO-TIER BAR -->
+    <!-- ============================================================ -->
+    <div class="option" data-modal="mD">
+      <div class="option-header">
+        <div>
+          <span class="option-tag" style="background: var(--info);">Middle ground</span>
+          <div class="option-name">D · Two-tier bar</div>
+          <div class="option-tagline">Primary row (Working) + smaller secondary row (everything else). All 13 visible, none competing.</div>
+        </div>
+      </div>
+      <div class="option-preview">
+        <div class="scene">
+          <div class="frame">
+            <div class="frame-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">cms.udgok.com / w / acme-builders / projects / smith-residence</span>
+            </div>
+            <div class="frame-body">
+              <div class="ws-pill">
+                <span class="dot"></span>
+                <span class="label">workspace</span>
+                <span class="name">Acme Builders</span>
+              </div>
+              <div class="tabs-d">
+                <div class="row primary">
+                  <span class="row-label">WORKING</span>
+                  <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photos</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Team</div>
+                </div>
+                <div class="row secondary">
+                  <span class="row-label">REST</span>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Schedule</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Takeoff</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Inventory</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Check-in <span class="badge">5</span></div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2"/></svg>Map</div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pay apps <span class="badge">3</span></div>
+                  <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Subs</div>
+                  <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>Financials</div>
+                </div>
+              </div>
+              <div class="fake-page">
+                <div class="crumbs">PROJECT · SMITH RESIDENCE · FINANCIALS</div>
+                <h2>Financial guide</h2>
+                <span class="status" style="background: var(--info);">MONEY</span>
+                <div class="kpi-row">
+                  <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+                  <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div></div>
+                  <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div></div>
+                  <div class="kpi"><div class="l">Margin</div><div class="v">22%</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="option-meta">
+        <span class="pill" style="background: rgba(37, 99, 163, 0.15); color: var(--info);">MIDDLE GROUND</span>
+        <span class="pill">~1.5 days</span>
+        <span>All 13 visible · primary row is bigger · rest is calmer</span>
+      </div>
+      <div class="option-prompt">Click to see full breakdown →</div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <strong>Need to compare side-by-side?</strong> Open this in a wide window (1400px+) — the 4 options lay out as 2×2 cards. Click any card to see it full-size with a full mockup scene, design notes, strengths, and tradeoffs.
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODALS — one per option, with full-size mockup + notes -->
+<!-- ============================================================ -->
+<div class="modal-bg" id="m0">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="tag">// baseline</div>
+        <h2>What you have now</h2>
+      </div>
+      <button class="modal-close" onclick="closeModal('m0')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="big-scene">
+        <div class="scene">
+          <div class="frame" style="height: 100%;">
+            <div class="frame-chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">cms.udgok.com / w / acme-builders / projects / smith-residence</span></div>
+            <div class="frame-body">
+              <div class="ws-pill"><span class="dot"></span><span class="label">workspace</span><span class="name">Acme Builders</span></div>
+              <div class="tabs-current">
+                <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI board</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>Photos</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg>Tasks</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Team</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Schedule</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Takeoff</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Inventory</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Check-in <span class="badge">5</span></div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2"/></svg>Map</div>
+                <div class="tab"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pay apps <span class="badge">3</span></div>
+                <div class="tab">Subs</div>
+                <div class="tab">Financials</div>
+              </div>
+              <div class="fake-page">
+                <div class="crumbs">PROJECT · SMITH RESIDENCE</div>
+                <h2>Smith Residence</h2>
+                <span class="status">ACTIVE</span>
+                <div class="kpi-row">
+                  <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+                  <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div></div>
+                  <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div></div>
+                  <div class="kpi"><div class="l">Margin</div><div class="v">22%</div></div>
+                </div>
+                <p style="font-size:9px; color: var(--ink-50); margin-top: 10px; font-style: italic;">↳ Notice: tabs run off the right edge. The "Subs" and "Financials" tabs are invisible without horizontal scroll.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>The diagnosis</h3>
+      <p>13 tabs, all the same weight, all the same size. The eye has to scan the entire strip to find anything. On mobile, the last 2-3 tabs are off-screen with a faint fade hint. There's no semantic structure — the user can't tell that "Permits" and "Takeoff" are field operations while "Pay apps" and "Financials" are money.</p>
+
+      <h3>What's broken specifically</h3>
+      <ul>
+        <li><strong>No hierarchy</strong> — every tab is equal. "AI board" is just as prominent as "Permits".</li>
+        <li><strong>Mobile is hostile</strong> — fade-out tells the user there's more, but the icon+label doesn't shrink.</li>
+        <li><strong>No status at a glance</strong> — to know "how are we doing on pay apps", the user has to click into Pay apps and read.</li>
+        <li><strong>Tab labels overlap their badges</strong> — the "Pay apps 3" label crowds the badge.</li>
+      </ul>
+
+      <div class="tradeoffs">
+        <h4>// When to keep this</h4>
+        <p>If users always know exactly which tab they want (experts), and the project list is short, this is fine. Otherwise it stops scaling past ~8 tabs.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="mA">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="tag">// option A · my recommendation</div>
+        <h2>Vertical grouped sidebar</h2>
+      </div>
+      <button class="modal-close" onclick="closeModal('mA')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="big-scene">
+        <div class="option-a" style="width:100%; height: 100%;">
+          <div class="sidebar-a" style="width: 280px; padding: 16px 0;">
+            <div class="group">
+              <div class="group-label">// Working</div>
+              <div class="item active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI board <span class="badge hot">2</span></div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photos <span class="badge">87</span></div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks <span class="badge warn">3</span></div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Team <span class="badge">4</span></div>
+            </div>
+            <div class="group">
+              <div class="group-label">// Schedule</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Schedule</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Takeoff</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2"/></svg>Map</div>
+            </div>
+            <div class="group">
+              <div class="group-label">// Money</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pay apps <span class="badge warn">$45k</span></div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>Financials</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Subs</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Inventory</div>
+            </div>
+            <div class="group">
+              <div class="group-label">// Site</div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Check-in <span class="badge hot">5</span></div>
+              <div class="item"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+            </div>
+          </div>
+          <div class="content-a" style="flex: 1; padding: 18px;">
+            <div class="crumbs">PROJECT · SMITH RESIDENCE</div>
+            <h2 style="font-size: 22px;">Smith Residence</h2>
+            <span class="status">ACTIVE</span>
+            <div class="kpi-row" style="margin-top: 14px;">
+              <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+              <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div><div class="s">65%</div></div>
+              <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div><div class="s">2 viewed</div></div>
+              <div class="kpi"><div class="l">Margin</div><div class="v">22%</div><div class="s">$105k kept</div></div>
+            </div>
+            <div class="row" style="margin-top: 12px;">
+              <div class="col-half">
+                <div class="card">
+                  <div class="title">// Recent pay apps</div>
+                  <div class="item">
+                    <span class="badge green">PAID</span>
+                    <span>Draw 7</span>
+                    <span class="amt">$42k</span>
+                  </div>
+                  <div class="item">
+                    <span class="badge blue">VIEWED</span>
+                    <span>Draw 8</span>
+                    <span class="amt">$45k</span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-half">
+                <div class="card">
+                  <div class="title">// On site now</div>
+                  <div class="item">
+                    <span class="badge green">●</span>
+                    <span>Bob Builder</span>
+                  </div>
+                  <div class="item">
+                    <span class="badge green">●</span>
+                    <span>Maria Subs</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>How it works</h3>
+      <p>Left rail ~240px, fixed, always visible on desktop. 4 groups — Working, Schedule, Money, Site. Active item has orange-tinted background and orange left border. Every item can show a status badge (count, dollar amount, warning dot).</p>
+
+      <h3>The status-at-a-glance win</h3>
+      <p>The sidebar isn't just navigation — it's a status board. The user opens a project and immediately sees: <em>3 tasks overdue, 5 on site, $45k AR, 2 AI alerts</em>. They can navigate to any of them in one click.</p>
+
+      <h3>Mobile</h3>
+      <p>The sidebar collapses to a drawer triggered by a hamburger in the page header. Tap → drawer slides in from the left, takes 80% of the screen, all groups visible, all status badges visible. Tap outside to close.</p>
+
+      <div class="strengths">
+        <h4>// Strengths</h4>
+        <ul>
+          <li>Every section is one click, always</li>
+          <li>Status badges teach the user where attention is needed</li>
+          <li>Scales to 30+ sections without breaking</li>
+          <li>Linear/Notion/Stripe users already know this pattern</li>
+          <li>On mobile, drawer is more discoverable than horizontal scroll</li>
+        </ul>
+      </div>
+      <div class="tradeoffs">
+        <h4>// Tradeoffs</h4>
+        <ul>
+          <li>Reclaims ~240px of horizontal space on every project page</li>
+          <li>Has to be implemented thoughtfully to not feel like a workspace dashboard in itself</li>
+          <li>Adds a layout change to every project sub-route (photos, pay-apps list, etc.)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="mB">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="tag">// option B · bold</div>
+        <h2>Hub-and-spoke cards</h2>
+      </div>
+      <button class="modal-close" onclick="closeModal('mB')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="big-scene" style="display: block; padding: 24px;">
+        <h2 style="font-size: 18px; font-weight: 900; margin: 0 0 4px;">Smith Residence</h2>
+        <p style="font-size: 11px; color: var(--ink-70); margin: 0 0 16px;">Day 47 of 120 · Active · 5 on site now</p>
+
+        <div class="hub-grid" style="grid-template-columns: repeat(4, 1fr); gap: 10px;">
+          <div class="hub-card hot">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pay apps</div>
+            <div class="title">Draw 8 sent</div>
+            <div class="stat warn">$45k <span style="font-size:9px; font-weight:600;">outstanding</span></div>
+            <div class="sub">2 viewed, 1 paid this week</div>
+          </div>
+          <div class="hub-card">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg>Tasks</div>
+            <div class="title">23 open</div>
+            <div class="stat warn">3 <span style="font-size:9px; font-weight:600;">overdue</span></div>
+            <div class="sub">Rough-in by Fri</div>
+          </div>
+          <div class="hub-card">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>Photos</div>
+            <div class="title">87 photos</div>
+            <div class="stat green">12 <span style="font-size:9px; font-weight:600;">this week</span></div>
+            <div class="preview">
+              <div class="swatch" style="background:#d4c5a0;"></div>
+              <div class="swatch" style="background:#8b9a7a;"></div>
+              <div class="swatch" style="background:#c4a47a;"></div>
+              <div class="swatch" style="background:#a08b6b;"></div>
+              <div class="swatch" style="background:#7a8b6b;"></div>
+            </div>
+          </div>
+          <div class="hub-card hot">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Check-in</div>
+            <div class="title">5 on site</div>
+            <div class="stat green">Live</div>
+            <div class="sub">Bob, Maria, Jose, 2 subs</div>
+          </div>
+          <div class="hub-card">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/></svg>Financials</div>
+            <div class="title">22% margin</div>
+            <div class="stat">$105k <span style="font-size:9px; font-weight:600;">kept</span></div>
+            <div class="sub">$312k billed of $480k</div>
+          </div>
+          <div class="hub-card">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17"/></svg>AI board</div>
+            <div class="title">2 alerts</div>
+            <div class="stat warn">!</div>
+            <div class="sub">Subs delayed, under-billed</div>
+          </div>
+          <div class="hub-card">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+            <div class="title">2 open</div>
+            <div class="stat">3 <span style="font-size:9px; font-weight:600;">inspections due</span></div>
+            <div class="sub">Rough-in, framing</div>
+          </div>
+          <div class="hub-card">
+            <div class="arrow">→</div>
+            <div class="label"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Schedule</div>
+            <div class="title">Day 47 of 120</div>
+            <div class="stat">On track</div>
+            <div class="sub">Framing next week</div>
+          </div>
+        </div>
+      </div>
+
+      <h3>How it works</h3>
+      <p>No tab bar. The Overview page IS the hub. Eight cards (4-col desktop, 2-col tablet, 1-col mobile), each with live status, a stat, and a 1-line sub. Click a card → enter that section. Inside each section, in-page tabs handle sub-views (e.g. Pay apps → Drafts / Sent / Paid).</p>
+
+      <h3>Why this is bold</h3>
+      <p>The current nav is a horizontal list. This turns navigation into a spatial experience — the user looks at the project, sees what's hot, and dives in. It's how Vercel, Linear, and modern dashboards all work. It also gives every feature equal visual real estate (instead of competing for tab-bar pixels).</p>
+
+      <h3>Why it works for "functionality"</h3>
+      <p>Each card carries a real piece of data. "Draw 8 sent — $45k outstanding" is more useful than a tab labeled "Pay apps". The user knows the state before they click. Status colors (orange = needs attention) guide the eye.</p>
+
+      <div class="strengths">
+        <h4>// Strengths</h4>
+        <ul>
+          <li>Zero learning curve — cards are universal</li>
+          <li>Status at a glance — every card carries a live number</li>
+          <li>Scales infinitely — add a feature, add a card</li>
+          <li>The Overview page becomes a real product surface, not just a project header</li>
+        </ul>
+      </div>
+      <div class="tradeoffs">
+        <h4>// Tradeoffs</h4>
+        <ul>
+          <li>Loses the persistent nav — clicking Pay apps doesn't feel like "moving"</li>
+          <li>Users who want a sidebar for power-navigation need to add a sub-nav inside sections</li>
+          <li>Biggest build cost — every card needs a real data source</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="mC">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="tag">// option C · quick win</div>
+        <h2>Curated most-used + More menu</h2>
+      </div>
+      <button class="modal-close" onclick="closeModal('mC')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="big-scene" style="display: block; padding: 16px;">
+        <div class="tabs-c" style="position: relative;">
+          <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI board</div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>Photos</div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg>Tasks</div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/></svg>Pay apps <span class="badge">3</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Check-in <span class="badge">5</span></div>
+          <div class="more" style="position: relative;">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            More <span class="count">7</span>
+          </div>
+          <div class="more-menu-open" style="position: absolute; top: 100%; right: 0;">
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Team</div>
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Schedule</div>
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Takeoff</div>
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Inventory</div>
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2"/></svg>Map</div>
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Subs</div>
+            <div class="menu-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/></svg>Financials</div>
+          </div>
+        </div>
+        <div class="kpi-row" style="margin-top: 16px;">
+          <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+          <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div></div>
+          <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div></div>
+          <div class="kpi"><div class="l">Margin</div><div class="v">22%</div></div>
+        </div>
+      </div>
+
+      <h3>How it works</h3>
+      <p>Pin 6 most-used tabs in the bar (Overview, AI board, Photos, Tasks, Pay apps, Check-in). Everything else lives in a "More" dropdown that opens a clean menu. Smallest change, biggest perceived improvement.</p>
+
+      <h3>Smart variant: usage-based pinning</h3>
+      <p>Track which tabs each user opens most. After 7 days, "More" auto-hides tabs they use daily, and pinned tabs auto-add ones they use more. So a PM who lives in Subs and Inventory would see those pinned instead of AI board.</p>
+
+      <div class="strengths">
+        <h4>// Strengths</h4>
+        <ul>
+          <li>Ships in 1 day</li>
+          <li>Preserves everything that works — just hides the long tail</li>
+          <li>Mobile gets dramatically better (6 tabs fit, 7 in a clear menu)</li>
+          <li>No layout change to sub-routes</li>
+        </ul>
+      </div>
+      <div class="tradeoffs">
+        <h4>// Tradeoffs</h4>
+        <ul>
+          <li>Not a "real" redesign — more like a patch</li>
+          <li>Smart pinning adds analytics work</li>
+          <li>Doesn't scale past 13 tabs forever — when you hit 20, you need A or B</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="mD">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="tag">// option D · middle ground</div>
+        <h2>Two-tier bar</h2>
+      </div>
+      <button class="modal-close" onclick="closeModal('mD')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="big-scene" style="display: block; padding: 16px;">
+        <div class="tabs-d">
+          <div class="row primary">
+            <span class="row-label">WORKING</span>
+            <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg>AI board</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>Photos</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg>Tasks</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Team</div>
+          </div>
+          <div class="row secondary">
+            <span class="row-label">REST</span>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Schedule</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Permits</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Takeoff</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Inventory</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>Check-in <span class="badge">5</span></div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2"/></svg>Map</div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/></svg>Pay apps <span class="badge">3</span></div>
+            <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Subs</div>
+            <div class="tab active"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/></svg>Financials</div>
+          </div>
+        </div>
+        <div class="kpi-row" style="margin-top: 16px;">
+          <div class="kpi"><div class="l">Contract</div><div class="v">$480k</div></div>
+          <div class="kpi"><div class="l">Billed</div><div class="v green">$312k</div></div>
+          <div class="kpi"><div class="l">AR</div><div class="v warn">$45k</div></div>
+          <div class="kpi"><div class="l">Margin</div><div class="v">22%</div></div>
+        </div>
+      </div>
+
+      <h3>How it works</h3>
+      <p>Top row: 5 "Working" tabs (Overview, AI, Photos, Tasks, Team) — bigger, more prominent, with a small `WORKING` label. Bottom row: 8 "Rest" tabs in a calmer style with a `REST` label, on a slightly different background. Both rows scroll horizontally on mobile.</p>
+
+      <h3>Why this works</h3>
+      <p>Visual hierarchy is immediate. Your eye lands on the top row because it's bigger and on a brighter background. The bottom row is for "the long tail" — you can see everything but it doesn't compete. On mobile, both rows are still scrollable, but the top row is what you reach for first.</p>
+
+      <div class="strengths">
+        <h4>// Strengths</h4>
+        <ul>
+          <li>All 13 visible without hiding anything</li>
+          <li>Hierarchy is clear at a glance</li>
+          <li>~1.5 day build, similar to C</li>
+          <li>Scales to ~25 tabs before becoming unwieldy</li>
+        </ul>
+      </div>
+      <div class="tradeoffs">
+        <h4>// Tradeoffs</h4>
+        <ul>
+          <li>Takes 2x the vertical space of a single bar</li>
+          <li>Still horizontal-scroll on mobile</li>
+          <li>The "Rest" label feels a bit apologetic</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  document.querySelectorAll('.option[data-modal]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const id = el.getAttribute('data-modal');
+      document.getElementById(id).classList.add('open');
+    });
+  });
+  document.querySelectorAll('.modal-bg').forEach((bg) => {
+    bg.addEventListener('click', (e) => { if (e.target === bg) bg.classList.remove('open'); });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-bg.open').forEach((b) => b.classList.remove('open'));
+  });
+</script>
+
+</body>
+</html>

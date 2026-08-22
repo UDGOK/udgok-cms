@@ -22,7 +22,6 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { prisma } from '@/lib/db/client';
 import { getProjectFinancialSummary } from '@/lib/projects/financial-summary';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
-import { ProjectTabsBar } from '../ProjectTabsBar';
 
 interface PageProps {
   params: { workspace: string; id: string };
@@ -61,18 +60,6 @@ export default async function ProjectFinancialsPage({ params }: PageProps) {
         subtitle={`${project.code ?? 'PROJECT'} · ${project.name} · ${project.client?.name ?? 'No client'}`}
         backHref={`${base}?tab=overview`}
       />
-
-      {/* Sub-nav: keeps the project tab bar in context */}
-      <div className="mb-5 -mx-4 md:-mx-7">
-        <ProjectTabsBar
-          workspaceSlug={params.workspace}
-          projectId={project.id}
-          taskCount={0}
-          payAppCount={summary.payAppCounts.DRAFT + summary.payAppCounts.SENT + summary.payAppCounts.VIEWED + summary.payAppCounts.ACKNOWLEDGED + summary.payAppCounts.PAID}
-          subAssignmentCount={summary.subCount}
-          teamMemberCount={0}
-        />
-      </div>
 
       <Hero summary={summary} />
 

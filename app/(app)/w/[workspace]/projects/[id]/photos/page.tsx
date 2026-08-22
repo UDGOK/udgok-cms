@@ -6,7 +6,6 @@ import { listProjectPhotoFolders, seedDefaultPhotoFolders } from '@/lib/photos/f
 import { ProjectPhotosClient } from '@/components/photos/ProjectPhotosClient';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { ProjectTabsBar } from '../ProjectTabsBar';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,11 +43,10 @@ export default async function ProjectPhotosPage({
   // Determine which folder is active (default to 'all' for null/undefined)
   const activeFolderId = searchParams.folder === undefined ? null : searchParams.folder;
 
-  const [photos, facets, folders, projectMembersCount] = await Promise.all([
+  const [photos, facets, folders] = await Promise.all([
     listProjectPhotos(project.id, { folderId: activeFolderId ?? undefined }),
     getProjectPhotoFacets(project.id),
     listProjectPhotoFolders(project.id),
-    prisma.projectMember.count({ where: { projectId: project.id } }),
   ]);
 
   return (
@@ -62,17 +60,6 @@ export default async function ProjectPhotosPage({
         <PageHeader
           title="Project photos"
           subtitle={`${project.name} · ${facets.totalCount} photo${facets.totalCount === 1 ? '' : 's'} across ${folders.length} folder${folders.length === 1 ? '' : 's'}`}
-        />
-      </div>
-
-      <div className="px-4 md:px-8">
-        <ProjectTabsBar
-          workspaceSlug={params.workspace}
-          projectId={project.id}
-          taskCount={project._count.tasks}
-          payAppCount={project._count.payApps}
-          subAssignmentCount={project._count.subAssignments}
-          teamMemberCount={projectMembersCount}
         />
       </div>
 

@@ -20,14 +20,11 @@ import { DivisionRow } from './DivisionRow';
 import { GeneratePayAppButton } from './GeneratePayAppButton';
 import { AssignSubForm } from './AssignSubForm';
 import { SeedFromEstimateButton } from './SeedFromEstimateButton';
-import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import { MessageThread } from '@/components/messages/MessageThread';
 import { listMessagesForEntity } from '@/lib/messages/queries';
 import { listEntityActivity } from '@/lib/activity/queries';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { countProjectPhotosByPhase, listProjectPhotos, listProjectGpsPhotos } from '@/lib/photos/queries';
-import { ProjectTabs } from './ProjectTabs';
-import { getProjectTabs } from '@/lib/projects/tabs';
 import { CompletionRing } from './CompletionRing';
 import { AIBoard } from './AIBoard';
 import { TakeoffTab } from './TakeoffTab';
@@ -305,13 +302,11 @@ export default async function ProjectDetailPage({
   const completion = computeProjectCompletion(projectForInsights);
   const insights = generateProjectInsights(projectForInsights, completion);
 
-  // Build tabs
+  // Build the base URL — the old tab bar used this for the
+  // `?tab=` query params. The new sidebar lives in the layout
+  // and uses these hrefs directly.
   const base = `/w/${params.workspace}/projects/${projectData.id}`;
   const permitSummary = summarizePermits(permits);
-  // The tab badge is computed inside getProjectTabs() — this
-  // page no longer needs its own copy. The permit summary is
-  // still passed to <PermitsTab> below for the actual permits
-  // list rendering.
 
   // Deep AI analysis: now loaded CLIENT-SIDE via /api/ai/project-analysis.
   // The page no longer blocks on the NVIDIA call (which can be slow).
@@ -323,48 +318,25 @@ export default async function ProjectDetailPage({
   const deepAnalysis = null;
   const deepInsights: Awaited<ReturnType<typeof generateDeepInsights>> = [];
 
-  // Build tabs. We pass counts the page already has so the
-  // helper doesn't re-fetch. The helper is the single source
-  // of truth for the tab list — every project sub-route
-  // (photos, pay-apps, pay-app detail, new pay-app) renders
-  // the same 12 tabs in the same order.
-  const tabs = await getProjectTabs({
-    workspaceSlug: params.workspace,
-    projectId: projectData.id,
-    taskCount: projectData.tasks.length,
-    payAppCount: projectData.payApps.length,
-    subAssignmentCount: projectData.subAssignments.length,
-    teamMemberCount: projectMembers.length,
-    bimModelCount: projectData.bimModels.length,
-    gpsPhotoCount: gpsPhotos.length,
-    aiAlertCount: insights.filter(
-      (i) => i.level === 'danger' || i.level === 'warning',
-    ).length,
-    // Open (currently on-site) check-in count for the
-    // Check-in tab badge. A separate query rather than a
-    // join on the project fetch because CheckInEvent is
-    // potentially a high-volume table; a count over the
-    // (projectId, checkedOutAt IS NULL) index is cheap.
-    openCheckInCount: await prisma.checkInEvent.count({
-      where: { projectId: projectData.id, checkedOutAt: null },
-    }),
-  });
-
   return (
     <div className="p-4 md:p-8 max-w-6xl">
-      <MobilePageHeader
-        title={projectData.name}
-        subtitle={`${projectData.code ?? 'PROJECT'} · ${projectData.client?.name ?? 'No client'}`}
-        backHref={`/w/${params.workspace}/projects`}
-        actionLabel="+ Pay app"
-        actionHref={
-          projectData.divisions.length > 0
-            ? `${base}/pay-apps/new`
-            : `${base}?tab=pay-apps`
-        }
-      />
-
-      <ProjectTabs tabs={tabs} />
+      {/* Mobile-only quick action bar — the layout's mobile
+          header has the project name + hamburger + back, but
+          project-specific actions like "+ Pay app" still need
+          to be reachable on mobile. A small sticky bar below
+          the layout's header does the job. */}
+      <div className="md:hidden sticky top-[7.5rem] z-20 -mx-4 px-4 py-2 bg-paper border-b border-line flex items-center gap-2">
+        <a
+          href={
+            projectData.divisions.length > 0
+              ? `${base}/pay-apps/new`
+              : `${base}?tab=pay-apps`
+          }
+          className="flex-1 px-3 py-2 bg-orange text-paper text-[10px] font-extrabold uppercase tracking-[0.12em] text-center"
+        >
+          + Generate pay app
+        </a>
+      </div>
 
       {/* Header — project name, status, completion ring */}
       <div className="mt-5 flex justify-between items-start gap-4 flex-wrap pb-5 md:pb-7 border-b border-line bg-paper p-4 md:p-7 -mx-4 md:-m-7 mb-5 md:mb-7">

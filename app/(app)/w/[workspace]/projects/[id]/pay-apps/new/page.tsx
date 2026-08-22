@@ -3,7 +3,6 @@ import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { NewPayAppForm } from './NewPayAppForm';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
-import { ProjectTabsBar } from '../../ProjectTabsBar';
 
 export default async function NewPayAppPage({
   params,
@@ -44,16 +43,6 @@ export default async function NewPayAppPage({
         subtitle={project.name}
         backHref={`/w/${params.workspace}/projects/${params.id}/pay-apps`}
       />
-      <div className="px-4 md:px-8 pt-4 md:pt-8">
-        <ProjectTabsBar
-          workspaceSlug={params.workspace}
-          projectId={project.id}
-          taskCount={0}
-          payAppCount={0}
-          subAssignmentCount={0}
-          teamMemberCount={0}
-        />
-      </div>
       <div className="p-4 md:p-8">
         <div className="label-eyebrow mb-4">{'// New pay app'}</div>
         <h1 className="text-display-lg mb-4">

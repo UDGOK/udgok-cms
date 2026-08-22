@@ -5,7 +5,6 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { GeneratePayAppButton } from '../GeneratePayAppButton';
-import { ProjectTabsBar } from '../ProjectTabsBar';
 import { PayAppFlow3DViewer } from '@/components/3d/PayAppFlow3DViewer';
 import { ImportInvoiceButton } from './ImportInvoiceButton';
 
@@ -42,10 +41,6 @@ export default async function ProjectPayAppsPage({
     },
   });
   if (!project) notFound();
-
-  const projectMembersCount = await prisma.projectMember.count({
-    where: { projectId: params.id },
-  });
 
   // Contract total = the project-level contractValue when set,
   // else the sum of division budgets. We use contractValue
@@ -84,15 +79,6 @@ export default async function ProjectPayAppsPage({
           subtitle={`${project.name} · ${project.payApps.length} draw${project.payApps.length === 1 ? '' : 's'} issued`}
         />
       </div>
-
-      <ProjectTabsBar
-        workspaceSlug={params.workspace}
-        projectId={project.id}
-        taskCount={project._count.tasks}
-        payAppCount={project.payApps.length}
-        subAssignmentCount={project._count.subAssignments}
-        teamMemberCount={projectMembersCount}
-      />
 
       <div className="mt-5 flex items-center justify-between gap-3 flex-wrap mb-4">
         <p className="text-[13px] text-ink-70">
