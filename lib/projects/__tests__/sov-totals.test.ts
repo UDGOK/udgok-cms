@@ -26,14 +26,14 @@ const PA = (
 
 describe('BILLED_PAY_APP_STATUSES', () => {
   it('includes the right statuses', () => {
+    expect(BILLED_PAY_APP_STATUSES.has('DRAFT')).toBe(true);
     expect(BILLED_PAY_APP_STATUSES.has('SENT')).toBe(true);
     expect(BILLED_PAY_APP_STATUSES.has('VIEWED')).toBe(true);
     expect(BILLED_PAY_APP_STATUSES.has('ACKNOWLEDGED')).toBe(true);
     expect(BILLED_PAY_APP_STATUSES.has('PAID')).toBe(true);
     expect(BILLED_PAY_APP_STATUSES.has('DISPUTED')).toBe(true);
   });
-  it('excludes draft and superseded', () => {
-    expect(BILLED_PAY_APP_STATUSES.has('DRAFT')).toBe(false);
+  it('excludes only superseded', () => {
     expect(BILLED_PAY_APP_STATUSES.has('SUPERSEDED')).toBe(false);
   });
 });
@@ -44,16 +44,15 @@ describe('computeBilledByDivision', () => {
     expect(out).toEqual({ d1: 0, d2: 0 });
   });
 
-  it('ignores DRAFT pay apps (this was the bug)', () => {
-    // The previous version summed DRAFT pay apps into per-row
-    // but excluded them from TOTALS, so a $20k DRAFT allocation
-    // would show $20k in the row but $0 in TOTALS. Now we
-    // consistently exclude DRAFT from both.
+  it('counts DRAFT pay apps (a draft allocates the line item)', () => {
+    // In construction, a draft pay app IS a bill — the work
+    // has been allocated to the line item, just not yet
+    // submitted to the client. DRAFT counts.
     const out = computeBilledByDivision(
       [D('d1', 25000)],
       [PA('DRAFT', [{ projectDivisionId: 'd1', thisDrawAmount: 20000 }])],
     );
-    expect(out.d1).toBe(0);
+    expect(out.d1).toBe(20000);
   });
 
   it('counts SENT pay apps', () => {
@@ -204,14 +203,28 @@ describe('SOV consistency — the original bug', () => {
     expect(remaining).toBe(38150);
   });
 
-  it('DRAFT pay apps do not contribute to TOTALS (correct semantics)', () => {
-    // A draft hasn't been sent to the client. It shouldn't
-    // count as "billed" — that money hasn't been requested.
+  it('DRAFT pay apps DO contribute to TOTALS (a draft allocates the line item)', () => {
+    // In construction, a draft IS a bill — the work has been
+    // allocated to the line item, just not yet submitted to
+    // the client. The SOV reflects what's been allocated,
+    // not just what's been sent. So DRAFT counts.
     const out = computeBilledByDivision(
       [D('d1', 1000)],
       [PA('DRAFT', [{ projectDivisionId: 'd1', thisDrawAmount: 1000 }])],
     );
-    expect(out.d1).toBe(0);
-    expect(computeTotalBilled(out)).toBe(0);
+    expect(out.d1).toBe(1000);
+    expect(computeTotalBilled(out)).toBe(1000);
+  });
+
+  it('SUPERSEDED pay apps do NOT contribute (replaced by a newer draw)', () => {
+    const out = computeBilledByDivision(
+      [D('d1', 5000)],
+      [
+        PA('SUPERSEDED', [{ projectDivisionId: 'd1', thisDrawAmount: 2000 }]),
+        PA('DRAFT', [{ projectDivisionId: 'd1', thisDrawAmount: 3000 }]),
+      ],
+    );
+    // SUPERSEDED excluded, DRAFT included = 3000
+    expect(out.d1).toBe(3000);
   });
 });

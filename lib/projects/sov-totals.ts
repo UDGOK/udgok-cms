@@ -5,22 +5,25 @@
  * project's pay apps, and the totals row that should always
  * equal the sum of the per-division amounts.
  *
- * The billed status set is intentional:
- *   - SENT, VIEWED, ACKNOWLEDGED, PAID, DISPUTED all count
- *   - DRAFT does NOT count (you haven't asked the client yet)
- *   - SUPERSEDED does NOT count (this draw was replaced)
+ * "Billed" in construction means: money allocated to a
+ * division via a pay-app line — regardless of whether that
+ * pay app has been sent to the client. A DRAFT pay app counts
+ * because the work has been allocated to the line item;
+ * it's just not yet "submitted" to the client for payment.
+ * SUPERSEDED does NOT count because the draw was replaced.
  *
  * This used to be a subtle bug: the project page's TOTALS
  * row summed `payApp.totalThisDraw` filtered by status, while
  * the per-row billed amount summed all `payAppLines` regardless
  * of status. The two would disagree, so a DRAFT pay app with
  * $20k allocated to a division would show $20k in the row
- * but $0 in the TOTALS. This helper now uses ONE consistent
+ * but $0 in TOTALS. This helper now uses ONE consistent
  * calculation that's used by both the per-row render and the
  * totals row.
  */
 
 export const BILLED_PAY_APP_STATUSES: ReadonlySet<string> = new Set([
+  'DRAFT',
   'SENT',
   'VIEWED',
   'ACKNOWLEDGED',
@@ -50,8 +53,10 @@ export type SovDivision = {
  * Per-division billed amount (a map of divisionId → dollars).
  * TOTALS row is just the sum of all values in this map.
  *
- * Filtering: only pay apps in BILLED_PAY_APP_STATUSES contribute
- * to billed totals. DRAFT and SUPERSEDED are excluded.
+ * Filtering: pay apps in BILLED_PAY_APP_STATUSES contribute
+ * to billed totals. SUPERSEDED is excluded (replaced by a
+ * newer draw). DRAFT counts because the work is allocated
+ * to the line item, even before submission to the client.
  */
 export function computeBilledByDivision(
   divisions: SovDivision[],
