@@ -11,6 +11,11 @@ export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 import { getProjectWithRelations, computeProjectCompletion, generateProjectInsights } from '@/lib/projects/insights';
 import { getProjectFinancialSummary } from '@/lib/projects/financial-summary';
+import {
+  computeBilledByDivision,
+  computeTotalBudget,
+  computeTotalBilled,
+} from '@/lib/projects/sov-totals';
 import { FinancialSummary } from './FinancialSummary';
 import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
@@ -655,10 +660,24 @@ function OverviewTab({
   totalPhotoCount: number;
   completion: ReturnType<typeof computeProjectCompletion>;
 }) {
-  const totalBudget = project.divisions.reduce((acc, d) => acc + Number(d.budget), 0);
-  const totalBilled = project.payApps
-    .filter((p) => p.status === 'PAID' || p.status === 'ACKNOWLEDGED' || p.status === 'VIEWED' || p.status === 'SENT')
-    .reduce((acc, p) => acc + Number(p.totalThisDraw), 0);
+  // Sum each division's billed amount from pay-app LINES (not
+  // the parent pay app's `totalThisDraw`). This matches the
+  // per-row calculation below so the TOTALS row always adds up.
+  // We exclude DRAFT (not yet requested) and SUPERSEDED (replaced
+  // by a newer draw) — those shouldn't count as "billed" against
+  // the client yet.
+  //
+  // SOV math — see lib/projects/sov-totals.ts. The previous
+  // version used `payApp.status` filter on the parent pay
+  // app and summed `totalThisDraw`, which didn't match the
+  // per-row aggregation and produced the TOTALS=0 bug when
+  // the only pay app was DRAFT.
+  const billedByDivision = computeBilledByDivision(
+    project.divisions,
+    project.payApps,
+  );
+  const totalBudget = computeTotalBudget(project.divisions);
+  const totalBilled = computeTotalBilled(billedByDivision);
   const totalPhotos = photoCounts.ROUGH_IN + photoCounts.FINAL;
   const base = `/w/${workspace}/projects/${projectId}`;
 
@@ -868,10 +887,10 @@ function OverviewTab({
               </thead>
               <tbody>
                 {project.divisions.map((d) => {
-                  const billed = project.payApps
-                    .flatMap((p) => p.divisions)
-                    .filter((line) => line.projectDivisionId === d.id)
-                    .reduce((acc, l) => acc + Number(l.thisDrawAmount), 0);
+                  // billedByDivision is computed above so this
+                  // matches the TOTALS row exactly. Same set of
+                  // pay-app statuses is included.
+                  const billed = billedByDivision[d.id] ?? 0;
                   const linkedSub = d.subLinks?.[0]?.assignment?.subcontractor;
                   return (
                     <DivisionRow

@@ -1092,6 +1092,15 @@ model PayApp {
   acknowledgedByEmail String?
   acknowledgedByName  String?
   firstViewedAt       DateTime?
+  // When the pay app was marked PAID (or DISPUTED). Set by
+  // markPayAppPaidAction and markPayAppDisputedAction. Lets
+  // the status timeline show the actual transition timestamps
+  // and the workspace dashboard's "outstanding AR" compute
+  // age from sentAt (until paidAt).
+  paidAt              DateTime?
+  paidById            String?
+  disputedAt          DateTime?
+  disputedReason      String?
   viewCount           Int          @default(0)
   createdById         String
   createdAt           DateTime     @default(now())

@@ -271,9 +271,19 @@ export async function markPayAppPaidAction(workspaceSlug: string, projectId: str
 
   const payApp = await prisma.payApp.findFirst({ where: { id: payAppId, projectId, project: { workspaceId: workspace.id } } });
   if (!payApp) return { error: 'Not found' };
+  if (payApp.status === 'PAID') {
+    return { error: 'Already marked paid' };
+  }
+  if (payApp.status === 'DRAFT') {
+    return { error: 'Cannot mark a draft as paid — send it first' };
+  }
   await prisma.payApp.update({
     where: { id: payAppId },
-    data: { status: 'PAID' },
+    data: {
+      status: 'PAID',
+      paidAt: new Date(),
+      paidById: userId,
+    },
   });
 
   const { logActivity } = await import('@/lib/activity/log');
@@ -288,6 +298,8 @@ export async function markPayAppPaidAction(workspaceSlug: string, projectId: str
   });
 
   revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/pay-apps/${payAppId}`);
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}/pay-apps`);
+  revalidatePath(`/w/${workspaceSlug}/projects/${projectId}`);
   return { ok: true };
 }
 

@@ -3,7 +3,7 @@ import { getPayApp } from '@/lib/pay-apps/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { listEntityActivity } from '@/lib/activity/queries';
 import { SendPayAppForm } from './SendPayAppForm';
-import { PayAppEditor, PayAppStatusActions } from './PayAppControls';
+import { PayAppEditor, PayAppStatusActions, PayAppStatusTimeline } from './PayAppControls';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import Link from 'next/link';
@@ -106,6 +106,19 @@ export default async function PayAppDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Status timeline — the visual lifecycle indicator.
+          Shows where this draw is: Draft → Sent → Viewed →
+          Acknowledged → Paid. Past steps are green, current
+          step is dark, future steps are dim. DISPUTED adds a
+          red badge. PAID stops the timeline at the final step. */}
+      <PayAppStatusTimeline
+        status={payApp.status}
+        sentAt={payApp.sentAt}
+        firstViewedAt={payApp.firstViewedAt}
+        acknowledgedAt={payApp.acknowledgedAt}
+        paidAt={payApp.paidAt ?? null}
+      />
 
       {/* Public URL */}
       <div className="bg-paper border-2 border-line p-5 mb-6">
