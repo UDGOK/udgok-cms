@@ -8,15 +8,18 @@ export interface FileCategory {
 
 // "all" is a virtual category (matches every file), not a stored value.
 export const FILE_CATEGORIES: readonly FileCategory[] = [
-  { id: 'all',         label: 'All Files' },
-  { id: 'brochures',   label: 'Brochures' },
-  { id: 'marketing',   label: 'Marketing' },
-  { id: 'floorplans',  label: 'Floorplans' },
-  { id: 'contracts',   label: 'Contracts' },
-  { id: 'site_photos', label: 'Site Photos' },
-  { id: 'submittals',  label: 'Submittals' },
-  { id: 'invoices',    label: 'Invoices' },
-  { id: 'drawings',    label: 'Drawings' },
+  { id: 'all',           label: 'All Files' },
+  { id: 'brochures',     label: 'Brochures' },
+  { id: 'marketing',     label: 'Marketing' },
+  { id: 'floorplans',    label: 'Floorplans' },
+  { id: 'contracts',     label: 'Contracts' },
+  { id: 'site_photos',   label: 'Site Photos' },
+  { id: 'submittals',    label: 'Submittals' },
+  { id: 'invoices',      label: 'Invoices' },
+  { id: 'drawings',      label: 'Drawings' },
+  // CM compliance suite (Aug 2026)
+  { id: 'change_orders', label: 'Change Orders' },
+  { id: 'lien_waivers',  label: 'Lien Waivers' },
 ];
 
 // Categories the user can pick when uploading (everything except 'all').

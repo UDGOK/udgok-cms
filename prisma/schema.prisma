@@ -70,6 +70,10 @@ model Workspace {
   poVendorResponses     PoVendorResponse[]
   poVendorResponseLines PoVendorResponseLine[]
   poInvoices            PoInvoice[]
+  changeOrders          ChangeOrder[]
+  lienWaivers           LienWaiver[]
+  submittals            Submittal[]
+  rfis                  Rfi[]
 
   @@index([slug])
 }
@@ -111,6 +115,14 @@ model User {
   notificationsReceived     Notification[]    @relation("notificationRecipient")
   notificationsCreated      Notification[]    @relation("notificationCreator")
   estimatesCreated          Estimate[]        @relation("estimateCreator")
+  changeOrdersCreated        ChangeOrder[]     @relation("co_createdBy")
+  changeOrdersSubmitted      ChangeOrder[]     @relation("co_submittedBy")
+  changeOrdersOwnerApproved  ChangeOrder[]     @relation("co_ownerApproved")
+  changeOrdersArchitectApproved ChangeOrder[]   @relation("co_architectApproved")
+  lienWaiversCreated         LienWaiver[]      @relation("lw_createdBy")
+  lienWaiversVoided          LienWaiver[]      @relation("lw_voidedBy")
+  submittalsCreated          Submittal[]       @relation("submittal_createdBy")
+  rfisCreated                Rfi[]             @relation("rfi_createdBy")
 
   @@index([email])
 }
@@ -171,6 +183,11 @@ enum MessageEntityType {
   SUBCONTRACTOR
   PAY_APP
   WORKSPACE
+  // CM compliance suite (Aug 2026)
+  CHANGE_ORDER
+  LIEN_WAIVER
+  SUBMITTAL
+  RFI
 }
 
 // =========================================
@@ -547,6 +564,11 @@ model Project {
   equipment        Equipment[]
   siteCheckInCodes SiteCheckInCode[]
   checkInEvents    CheckInEvent[]
+  // CM compliance suite (Aug 2026)
+  changeOrders     ChangeOrder[]
+  lienWaivers      LienWaiver[]
+  submittals       Submittal[]
+  rfis             Rfi[]
   // Estimates created for this project (scope changes
   // or change orders). null when the project was
   // created from a Won deal (the deal is the source
@@ -993,6 +1015,10 @@ model File {
   // onboarding. Set when the file is uploaded from the sub's
   // onboarding scanner (phone camera → Vercel Blob → this row).
   subcontractorId String?
+  // For submittals (shop drawings, product data, samples). When a
+  // sub uploads a PDF for a submittal, this FK ties the file row
+  // to that submittal so it shows in the submittal's "Files" tab.
+  submittalId     String?
   // GPS coordinates captured at upload time. Used for "GPS-tagged site
   // photos" feature — lets you see exactly where on the job site a
   // photo was taken.
@@ -1005,9 +1031,11 @@ model File {
   uploader      User           @relation("uploader", fields: [uploaderId], references: [id], onDelete: NoAction, onUpdate: Cascade)
   client        Client?        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   deal          Deal?          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  // Back-relations for the CM compliance suite (Aug 2026)
   project       Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   task          Task?          @relation("taskFiles", fields: [taskId], references: [id], onDelete: Cascade)
   subcontractor Subcontractor? @relation("subcontractorDocuments", fields: [subcontractorId], references: [id], onDelete: Cascade)
+  submittal     Submittal?     @relation("submittal_files", fields: [submittalId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, kind])
   @@index([workspaceId, category])
@@ -1015,6 +1043,7 @@ model File {
   @@index([dealId])
   @@index([projectId])
   @@index([taskId])
+  @@index([submittalId])
 }
 
 // =========================================
@@ -1077,6 +1106,7 @@ model ProjectDivision {
   project     Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   payAppLines PayAppDivision[]
   subLinks    ProjectDivisionAssignment[]
+  changeOrderLines ChangeOrderDivision[]
 
   @@index([projectId, sortOrder])
 }
@@ -1118,6 +1148,7 @@ model PayApp {
   project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   divisions  PayAppDivision[]
   viewEvents PayAppViewEvent[]
+  lienWaivers LienWaiver[]
 
   @@unique([projectId, drawNumber])
   @@index([projectId, status])
@@ -1234,6 +1265,8 @@ model Subcontractor {
   assignments   ProjectSubcontractorAssignment[]
   documents     File[]                           @relation("subcontractorDocuments")
   checkInEvents CheckInEvent[]                   @relation("checkInSubcontractor")
+  lienWaivers   LienWaiver[]
+  submittals     Submittal[]
 
   @@index([workspaceId, name])
   @@index([workspaceId, primaryTrade])
@@ -2385,13 +2418,452 @@ model PriceObservation {
 // (workspace, type, period) tuple.
 model DocCounter {
   workspaceId String
-  docType     String // "RFQ" | "PO"
+  docType     String // "RFQ" | "PO" | "CO" | "LW" | "SUB" | "RFI"
   period      String // "2026"
   value       Int    @default(0)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@id([workspaceId, docType, period])
+}
+
+// =========================================
+// CHANGE ORDERS
+// Three COs of lifecycle supported:
+//   1. ADDITIVE / DEDUCTIVE / NEUTRAL — money changes
+//   2. TIME_ONLY — schedule extension without money
+//   3. SUPERSEDED — replaced by a newer CO (history preserved)
+//
+// AIA G701-inspired fields. The CO is a peer entity to PayApp:
+// both mutate the project baseline but a CO is a contract
+// amendment (needs owner + architect sign-off) while a pay
+// app is a request for payment against the existing contract.
+//
+// `supersedesId`/`supersededById` form a self-referential chain
+// for "we sent CO-002, owner asked for backup, we sent CO-002
+// Rev 2 which supersedes CO-002 Rev 1" without losing the
+// original pricing history.
+// =========================================
+model ChangeOrder {
+  id                    String   @id @default(cuid())
+  workspaceId           String
+  projectId             String
+  number                String   // "CO-2026-0001", from DocCounter type='CO'
+  revision              Int      @default(1) // bumped on each re-submit
+  status                ChangeOrderStatus @default(DRAFT)
+  type                  ChangeOrderType
+  pricingMethod         PricingMethod
+
+  // Title + narrative (matches AIA G701 §2 "changed as follows")
+  title                 String
+  description           String?
+  reasonCode            ChangeOrderReasonCode?
+
+  // AIA G701 §3 running totals — SNAPSHOTS at the moment of approval
+  originalContractSum   Decimal  @db.Decimal(12, 2)
+  netPriorCOs           Decimal  @db.Decimal(12, 2)
+  priorContractSum      Decimal  @db.Decimal(12, 2)
+  thisCOAmount          Decimal  @db.Decimal(12, 2) // signed delta (can be negative)
+  newContractSum        Decimal  @db.Decimal(12, 2)
+
+  // Time
+  timeImpactDays        Int      @default(0)
+  priorSubstantialCompletion DateTime?
+  newSubstantialCompletion   DateTime?
+
+  // Pricing details (method-specific JSON; keep auditable)
+  lumpSumBreakdown      Json?
+  unitPriceLines        Json?
+  tmNotToExceed         Decimal? @db.Decimal(12, 2)
+  tmMarkupPct           Decimal? @db.Decimal(5, 2)
+  tmLaborRateCard       Json?
+
+  // Approvals (A201 §7 three-signature rule: owner + architect + contractor)
+  submittedAt           DateTime?
+  submittedByUserId     String?
+  ownerApprovedAt       DateTime?
+  ownerApprovedByUserId String?
+  ownerSignatoryName    String?
+  architectApprovedAt   DateTime?
+  architectApprovedByUserId String?
+  architectSignatoryName String?
+  rejectedAt            DateTime?
+  rejectionReason       String?
+
+  // Share token for the public approval portal (owner/architect sign off here)
+  shareToken            String?  @unique
+  firstViewedAt         DateTime?
+  viewCount             Int      @default(0)
+
+  // PDF storage
+  pdfUrl                String?
+
+  // History / soft supersession
+  supersedesId          String?
+  notes                 String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdByUserId       String
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submittedBy User?        @relation("co_submittedBy", fields: [submittedByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  ownerApprovedBy User?    @relation("co_ownerApproved", fields: [ownerApprovedByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  architectApprovedBy User? @relation("co_architectApproved", fields: [architectApprovedByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  createdBy   User         @relation("co_createdBy", fields: [createdByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  // Self-referential supersession chain. Use a single relation
+  // name so both sides of the same-model FK are linked.
+  supersedes       ChangeOrder?  @relation("co_supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededByList ChangeOrder[]  @relation("co_supersession")
+  divisions   ChangeOrderDivision[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+}
+
+enum ChangeOrderType {
+  ADDITIVE
+  DEDUCTIVE
+  NEUTRAL
+  TIME_ONLY
+}
+
+model ChangeOrderDivision {
+  id                String   @id @default(cuid())
+  changeOrderId     String
+  projectDivisionId String
+  // If positive: a new SOV line is created at the bottom of the
+  // G703 (per AIA convention). If zero: this CO is a delta to the
+  // existing SOV line. If negative: this is a deductive.
+  newBudgetDelta    Decimal  @db.Decimal(12, 2) @default(0)
+  // Amount to bill in THIS CO on the next pay app (≤ thisCOAmount)
+  // Usually equals thisCOAmount for one-shot COs; partial for split.
+  thisCOAmount      Decimal  @db.Decimal(12, 2) @default(0)
+  sortOrder         Int      @default(0)
+
+  changeOrder     ChangeOrder     @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  projectDivision ProjectDivision @relation(fields: [projectDivisionId], references: [id], onDelete: Cascade)
+
+  @@unique([changeOrderId, projectDivisionId])
+  @@index([changeOrderId])
+}
+
+enum PricingMethod {
+  LUMP_SUM
+  UNIT_PRICE
+  TIME_AND_MATERIALS
+  COST_PLUS
+}
+
+enum ChangeOrderStatus {
+  DRAFT
+  SUBMITTED          // sent to owner/architect
+  UNDER_REVIEW
+  PARTIALLY_APPROVED
+  REVISED            // bumped revision #, re-submitted
+  APPROVED           // all 3 signatures collected; contract sum updated
+  INCLUDED_IN_PAY_APP // billed at least once
+  REJECTED
+  WITHDRAWN
+  SUPERSEDED         // replaced by a newer revision
+}
+
+enum ChangeOrderReasonCode {
+  OWNER_REQUEST
+  RFI
+  ASI                // Architect's Supplemental Instructions
+  DIFFERING_SITE_CONDITION
+  CODE_REQUIREMENT
+  DESIGN_OMISSION
+  FIELD_CONDITION
+  OTHER
+}
+
+// =========================================
+// LIEN WAIVERS
+// Oklahoma is a non-statutory waiver state (Title 42 §§141–154).
+// Four flavors per AIA G901–G904: conditional/unconditional ×
+// progress/final. Hard rule baked into the state machine:
+//   - Progress waivers: soft prompt (don't block pay app)
+//   - Final waivers: hard block (no retainage release without
+//     signed conditional final, no project closeout without
+//     signed unconditional final)
+//
+// Generated automatically on PayApp SENT/PAID transitions;
+// signed by the sub via the public token portal.
+// =========================================
+model LienWaiver {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  projectId       String
+  subcontractorId String?
+  // payAppId is null for project-level final waivers
+  payAppId        String?
+  // Sequential LW-YYYY-NNNN from DocCounter type='LW'
+  number          String
+
+  type            LienWaiverType
+  // The 2x2 flavor in a single field for easy filtering.
+  // status is the lifecycle of THIS waiver document
+  // (draft → sent → signed / voided / refused).
+  status          LienWaiverStatus @default(DRAFT)
+
+  // Money (cents-precision, never floats).
+  amountCents     BigInt
+  currency        String          @default("USD")
+
+  // The "through date" — the last day of work this waiver
+  // releases. System-derived from payApp.periodEnd for progress
+  // waivers, set manually for finals.
+  throughDate     DateTime
+
+  // Optional carve-outs the sub is reserving (e.g. "except for
+  // Change Order #3 not yet billed"). Free text + structured list.
+  exceptionText   String?
+  exceptionItems  Json?
+
+  // Templating — the version of the form text the sub saw.
+  // Locked on send; subs can never sign v1 in arrears.
+  templateVersion Int
+  renderedHtml    String?         // snapshot of what they signed
+
+  // PDF storage
+  pdfUrl          String?
+
+  // Signature
+  signerName      String?
+  signerTitle     String?
+  signerEmail     String?
+  signerIp        String?
+  signedAt        DateTime?
+  signatureMethod String?         // "TYPED" | "UPLOADED" | "DOCUSIGN"
+
+  // Notarization. Optional in OK; project-level opt-in.
+  notarized       Boolean        @default(false)
+  notaryName      String?
+  notaryCommissionExpiry DateTime?
+  notaryState     String?
+
+  // Public signing portal
+  shareToken      String?  @unique
+  firstViewedAt   DateTime?
+  viewCount       Int      @default(0)
+
+  // Audit
+  voidedReason    String?
+  voidedAt        DateTime?
+  voidedByUserId  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUserId String
+
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor   Subcontractor? @relation(fields: [subcontractorId], references: [id], onDelete: SetNull)
+  payApp          PayApp?       @relation(fields: [payAppId], references: [id], onDelete: SetNull)
+  createdBy       User          @relation("lw_createdBy", fields: [createdByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  voidedBy        User?         @relation("lw_voidedBy", fields: [voidedByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  events          LienWaiverEvent[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status])
+  @@index([payAppId])
+  @@index([subcontractorId, type])
+}
+
+// Append-only event log (mirrors RfqEvent / PoEvent shape).
+// Every view, send, sign, void writes one row.
+model LienWaiverEvent {
+  id          String   @id @default(cuid())
+  waiverId    String
+  // CREATED | SENT | VIEWED | SIGNED | VOIDED | REFUSED | DOWNLOADED
+  type        String
+  // "user:<clerkId>" | "sub:<subId>" | "system"
+  actor       String
+  ipHash      String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  waiver LienWaiver @relation(fields: [waiverId], references: [id], onDelete: Cascade)
+
+  @@index([waiverId, createdAt])
+}
+
+enum LienWaiverType {
+  CONDITIONAL_PROGRESS
+  UNCONDITIONAL_PROGRESS
+  CONDITIONAL_FINAL
+  UNCONDITIONAL_FINAL
+}
+
+enum LienWaiverStatus {
+  DRAFT         // GC created, not yet sent
+  SENT          // sub has been notified
+  VIEWED        // sub opened the public link (tracking)
+  SIGNED        // waiver signed and submitted
+  VOIDED        // GC voided (manual override, audit-logged)
+  REFUSED       // sub refused to sign (soft block continues)
+  EXPIRED       // past the 30-day signing window
+}
+
+// =========================================
+// SUBMITTALS & RFIs
+// Submittals: shop drawings, product data, samples. Sent by sub,
+// reviewed by GC, forwarded to architect/engineer, returned
+// APPROVED / APPROVED AS NOTED / REVISE & RESUBMIT / REJECTED.
+//   Numbered SUB-YYYY-NNNN with CSI spec section (e.g. "09 65 19-001")
+//
+// RFIs: Request for Information. Formal question from GC to
+// architect/engineer. Numbered RFI-YYYY-NNNN. When the answer
+// flags a cost or schedule impact, the system prompts the user
+// to create a Change Order linked to this RFI.
+// =========================================
+model Submittal {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  projectId       String
+  number          String   // "SUB-2026-0001"
+  // CSI spec section, e.g. "09 65 19". Combined with the per-project
+  // sequence to produce "09 65 19-001" on the printable form.
+  specSection     String
+  // Per-project sequence within this spec section (1, 2, 3...)
+  specSequence    Int
+  revision        Int      @default(1)
+  title           String
+  description     String?
+
+  status          SubmittalStatus @default(DRAFT)
+  disposition     SubmittalDisposition?
+
+  // Lead time tracking — submittal must be approved before
+  // the related work can start. requiredByDate is when the
+  // GC needs the architect's review back by.
+  requiredByDate  DateTime?
+  submittedAt     DateTime?
+  submittedByName String?         // typed by sub on the portal
+  submittedByEmail String?
+  reviewedAt      DateTime?
+  reviewerName    String?
+  reviewerEmail   String?
+  reviewNotes     String?
+
+  // The sub or staff user who created this (internal user)
+  createdByUserId String
+  // Optional FK to the sub that submitted it (if known)
+  subcontractorId String?
+
+  // Public token for the architect/engineer review portal
+  shareToken      String?  @unique
+  firstViewedAt   DateTime?
+  viewCount       Int      @default(0)
+
+  // PDF storage
+  pdfUrl          String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation("submittal_createdBy", fields: [createdByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  subcontractor Subcontractor? @relation(fields: [subcontractorId], references: [id], onDelete: SetNull)
+  files         File[]        @relation("submittal_files")
+  // If this is a revise-and-resubmit, link to the prior revision
+  supersedesId  String?
+  supersedes    Submittal?    @relation("submittal_revisions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy  Submittal[]   @relation("submittal_revisions")
+  // If the RFI answer led to this submittal being needed
+  triggeringRfiId String?
+  triggeringRfi   Rfi?         @relation("rfi_triggered_submittal", fields: [triggeringRfiId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, number])
+  @@unique([projectId, specSection, specSequence])
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+}
+
+model Rfi {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  projectId       String
+  number          String   // "RFI-2026-0001"
+  revision        Int      @default(1)
+
+  subject         String
+  question        String   // the full RFI body
+  answer          String?  // the architect/engineer's response
+  status          RfiStatus @default(DRAFT)
+
+  // Cost / schedule impact flags + amounts. When the GC
+  // marks costImpact=true, the system prompts to create a
+  // Change Order linked to this RFI.
+  costImpact      Boolean  @default(false)
+  costImpactAmount Decimal? @db.Decimal(12, 2)
+  costImpactNote  String?
+  scheduleImpact  Boolean  @default(false)
+  scheduleImpactDays Int   @default(0)
+
+  // Response tracking
+  submittedAt     DateTime?
+  dueDate         DateTime?
+  answeredAt      DateTime?
+  answeredByName  String?
+  answeredByEmail String?
+
+  // The internal user who created the RFI
+  createdByUserId String
+
+  // Public token for the architect/engineer response portal
+  shareToken      String?  @unique
+  firstViewedAt   DateTime?
+  viewCount       Int      @default(0)
+
+  // PDF storage
+  pdfUrl          String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy       User      @relation("rfi_createdBy", fields: [createdByUserId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  triggeredSubmittals Submittal[] @relation("rfi_triggered_submittal")
+
+  @@unique([projectId, number])
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+}
+
+enum SubmittalStatus {
+  DRAFT
+  SUBMITTED          // sent by sub, awaiting GC check
+  UNDER_REVIEW       // GC reviewing
+  FORWARDED          // GC sent to architect/engineer
+  APPROVED
+  APPROVED_AS_NOTED
+  REVISE_AND_RESUBMIT
+  REJECTED
+  VOID               // GC voided
+}
+
+enum SubmittalDisposition {
+  // "approved" | "approved_as_noted" | "revise_and_resubmit" | "rejected"
+  // Stored as string for forward-compat with new dispositions
+  APPROVED
+  APPROVED_AS_NOTED
+  REVISE_AND_RESUBMIT
+  REJECTED
+}
+
+enum RfiStatus {
+  DRAFT
+  SUBMITTED
+  ANSWERED
+  VOID
 }
 
 // Postgres-backed rate limit. We have no Redis in the

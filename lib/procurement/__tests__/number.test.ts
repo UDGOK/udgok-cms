@@ -84,4 +84,50 @@ describe('nextDocNumber', () => {
     expect(poCall).toContain('PO');
     expect(rfqCall).toContain('RFQ');
   });
+
+  // CM compliance suite (Aug 2026) — CO / LW / SUB / RFI share
+  // the same DocCounter pattern. The numbers are independently
+  // sequenced, all gapless and per-workspace.
+  it('returns CO-YYYY-NNNN for change orders', async () => {
+    const no = await nextDocNumber(makeTx(), 'ws_abc', 'CO');
+    const year = new Date().getFullYear();
+    expect(no).toBe(`CO-${year}-0001`);
+  });
+
+  it('returns LW-YYYY-NNNN for lien waivers', async () => {
+    const no = await nextDocNumber(makeTx(), 'ws_abc', 'LW');
+    const year = new Date().getFullYear();
+    expect(no).toBe(`LW-${year}-0001`);
+  });
+
+  it('returns SUB-YYYY-NNNN for submittals', async () => {
+    const no = await nextDocNumber(makeTx(), 'ws_abc', 'SUB');
+    const year = new Date().getFullYear();
+    expect(no).toBe(`SUB-${year}-0001`);
+  });
+
+  it('returns RFI-YYYY-NNNN for RFIs', async () => {
+    const no = await nextDocNumber(makeTx(), 'ws_abc', 'RFI');
+    const year = new Date().getFullYear();
+    expect(no).toBe(`RFI-${year}-0001`);
+  });
+
+  it('all 6 doc types can be allocated independently in one call', async () => {
+    await nextDocNumber(makeTx(), 'ws_abc', 'PO');
+    await nextDocNumber(makeTx(), 'ws_abc', 'RFQ');
+    await nextDocNumber(makeTx(), 'ws_abc', 'CO');
+    await nextDocNumber(makeTx(), 'ws_abc', 'LW');
+    await nextDocNumber(makeTx(), 'ws_abc', 'SUB');
+    await nextDocNumber(makeTx(), 'ws_abc', 'RFI');
+    // Each call passes the docType as a separate argument (Prisma.sql
+    // template literal). We assert the *presence* of each type, not
+    // its index, so the test is robust to Prisma's internal shape.
+    const allArgs = mockQueryRaw.mock.calls.flat().map(String);
+    expect(allArgs).toContain('PO');
+    expect(allArgs).toContain('RFQ');
+    expect(allArgs).toContain('CO');
+    expect(allArgs).toContain('LW');
+    expect(allArgs).toContain('SUB');
+    expect(allArgs).toContain('RFI');
+  });
 });

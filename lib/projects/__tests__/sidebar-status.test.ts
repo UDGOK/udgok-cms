@@ -31,6 +31,11 @@ const checkInEventCount = vi.fn();
 const permitFindMany = vi.fn();
 const payAppFindMany = vi.fn();
 const poInvoiceCount = vi.fn();
+// CM compliance suite (Aug 2026)
+const changeOrderGroupBy = vi.fn();
+const lienWaiverGroupBy = vi.fn();
+const submittalGroupBy = vi.fn();
+const rfiGroupBy = vi.fn();
 
 vi.mock('@/lib/db/client', () => ({
   prisma: {
@@ -50,6 +55,10 @@ vi.mock('@/lib/db/client', () => ({
     permit: { findMany: (...a: unknown[]) => permitFindMany(...a) },
     payApp: { findMany: (...a: unknown[]) => payAppFindMany(...a) },
     poInvoice: { count: (...a: unknown[]) => poInvoiceCount(...a) },
+    changeOrder: { groupBy: (...a: unknown[]) => changeOrderGroupBy(...a) },
+    lienWaiver: { groupBy: (...a: unknown[]) => lienWaiverGroupBy(...a) },
+    submittal: { groupBy: (...a: unknown[]) => submittalGroupBy(...a) },
+    rfi: { groupBy: (...a: unknown[]) => rfiGroupBy(...a) },
   },
 }));
 
@@ -84,6 +93,11 @@ beforeEach(() => {
   permitFindMany.mockResolvedValue([]);
   payAppFindMany.mockResolvedValue([]);
   poInvoiceCount.mockResolvedValue(0);
+  // CM compliance suite (Aug 2026) — default to empty
+  changeOrderGroupBy.mockResolvedValue([]);
+  lienWaiverGroupBy.mockResolvedValue([]);
+  submittalGroupBy.mockResolvedValue([]);
+  rfiGroupBy.mockResolvedValue([]);
 });
 
 describe('getProjectSidebarStatus', () => {
@@ -249,6 +263,64 @@ describe('getProjectSidebarStatus', () => {
     expect(s.badges.photos).toEqual(expect.objectContaining({
       value: 42,
       tone: 'default',
+    }));
+  });
+});
+
+describe('CM compliance badges', () => {
+  it('omits all compliance badges when nothing is open', async () => {
+    const s = await getProjectSidebarStatus('w_1', 'p_1');
+    expect(s.badges['change-orders']).toBeUndefined();
+    expect(s.badges['lien-waivers']).toBeUndefined();
+    expect(s.badges['submittals']).toBeUndefined();
+    expect(s.badges['rfis']).toBeUndefined();
+  });
+
+  it('shows change-orders badge when there are COs in flight', async () => {
+    changeOrderGroupBy.mockResolvedValueOnce([
+      { status: 'SUBMITTED', _count: 2 },
+      { status: 'APPROVED', _count: 1 }, // excluded
+    ]);
+    const s = await getProjectSidebarStatus('w_1', 'p_1');
+    expect(s.badges['change-orders']).toEqual(expect.objectContaining({
+      value: 2,
+      tone: 'warn',
+    }));
+  });
+
+  it('shows lien-waivers badge for unsigned progress waivers', async () => {
+    lienWaiverGroupBy.mockResolvedValueOnce([
+      { status: 'SENT', type: 'CONDITIONAL_PROGRESS', _count: 3 },
+      { status: 'SIGNED', type: 'UNCONDITIONAL_FINAL', _count: 1 }, // excluded
+    ]);
+    const s = await getProjectSidebarStatus('w_1', 'p_1');
+    expect(s.badges['lien-waivers']).toEqual(expect.objectContaining({
+      value: 3,
+      tone: 'warn',
+    }));
+  });
+
+  it('shows submittals badge for items in review', async () => {
+    submittalGroupBy.mockResolvedValueOnce([
+      { status: 'SUBMITTED', _count: 4 },
+      { status: 'APPROVED', _count: 10 }, // excluded
+    ]);
+    const s = await getProjectSidebarStatus('w_1', 'p_1');
+    expect(s.badges['submittals']).toEqual(expect.objectContaining({
+      value: 4,
+      tone: 'warn',
+    }));
+  });
+
+  it('shows rfis badge for unanswered RFIs', async () => {
+    rfiGroupBy.mockResolvedValueOnce([
+      { status: 'SUBMITTED', _count: 1 },
+      { status: 'ANSWERED', _count: 5 }, // excluded
+    ]);
+    const s = await getProjectSidebarStatus('w_1', 'p_1');
+    expect(s.badges['rfis']).toEqual(expect.objectContaining({
+      value: 1,
+      tone: 'warn',
     }));
   });
 });

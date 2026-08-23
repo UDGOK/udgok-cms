@@ -32,7 +32,12 @@ export type ActivityEntityType =
   | 'division'
   | 'comment'
   | 'message'
-  | 'user';
+  | 'user'
+  // CM compliance suite (Aug 2026)
+  | 'change_order'
+  | 'lien_waiver'
+  | 'submittal'
+  | 'rfi';
 
 interface LogOptions {
   workspaceId: string;

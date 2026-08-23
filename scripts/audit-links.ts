@@ -98,6 +98,11 @@ const MIDDLEWARE_PUBLIC_PATTERNS = [
   /^\/api\/subs\/.*\/documents$/,
   /^\/api\/projects\/.*\/bim$/,
   /^\/api\/projects\/.*\/photos\/upload$/,
+  // CM compliance suite public share links (Aug 2026)
+  /^\/co\/[^/]+$/,    // /co/[token] — Change Order approval
+  /^\/lw\/[^/]+$/,    // /lw/[token] — Lien Waiver signing
+  /^\/sub\/[^/]+$/,   // /sub/[token] — Submittal review
+  /^\/rfi\/[^/]+$/,   // /rfi/[token] — RFI response
 ];
 
 // Known-external patterns the audit should ignore.

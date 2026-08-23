@@ -15,11 +15,18 @@
  * in the same atomic unit as the row that uses it. If we did
  * this outside a transaction, the PO create could fail AFTER
  * the number was taken, leaving a gap.
+ *
+ * Document types (Aug 2026 compliance suite):
+ *   PO, RFQ — original procurement
+ *   CO      — Change Order (project-scoped, AIA G701)
+ *   LW      — Lien Waiver (project-scoped, OK Title 42)
+ *   SUB     — Submittal (project-scoped, CSI spec section)
+ *   RFI     — Request for Information (project-scoped)
  */
 
 import type { Prisma } from '@prisma/client';
 
-export type DocType = 'PO' | 'RFQ';
+export type DocType = 'PO' | 'RFQ' | 'CO' | 'LW' | 'SUB' | 'RFI';
 
 export async function nextDocNumber(
   tx: Prisma.TransactionClient,

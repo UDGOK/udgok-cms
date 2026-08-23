@@ -82,6 +82,11 @@ export async function getProjectSidebarStatus(
     payApps,
     financials,
     disputedInvoices,
+    // CM compliance suite (Aug 2026)
+    changeOrderCounts,
+    lienWaiverCounts,
+    submittalCounts,
+    rfiCounts,
   ] = await Promise.all([
     prisma.project.findFirstOrThrow({
       where: { id: projectId, workspaceId },
@@ -122,6 +127,28 @@ export async function getProjectSidebarStatus(
     // would trigger a warning/danger rule. Cheap, no AI call.
     prisma.poInvoice.count({
       where: { po: { projectId }, status: 'DISPUTED' },
+    }),
+    // CM compliance — each groupBy returns rows like
+    // { status: 'DRAFT', _count: 3 }.
+    prisma.changeOrder.groupBy({
+      by: ['status'],
+      where: { projectId },
+      _count: true,
+    }),
+    prisma.lienWaiver.groupBy({
+      by: ['status', 'type'],
+      where: { projectId },
+      _count: true,
+    }),
+    prisma.submittal.groupBy({
+      by: ['status'],
+      where: { projectId },
+      _count: true,
+    }),
+    prisma.rfi.groupBy({
+      by: ['status'],
+      where: { projectId },
+      _count: true,
     }),
   ]);
 
@@ -177,6 +204,42 @@ export async function getProjectSidebarStatus(
     : null;
 
   // Build badges
+  // ---- CM compliance (Aug 2026) counters ----
+  // Pending COs = anything that's been sent but not yet approved.
+  // Once approved, it counts as "billed into the contract" not
+  // "waiting on signature", so we exclude APPROVED/INCLUDED_IN_PAY_APP.
+  const changeOrderOpen = changeOrderCounts
+    .filter((c) =>
+      c.status !== 'APPROVED' &&
+      c.status !== 'INCLUDED_IN_PAY_APP' &&
+      c.status !== 'REJECTED' &&
+      c.status !== 'WITHDRAWN' &&
+      c.status !== 'SUPERSEDED'
+    )
+    .reduce((acc, c) => acc + c._count, 0);
+  // Lien waivers: any progress waiver that's been SENT but not
+  // SIGNED is blocking a pay app. Count the SENT+VIEWEWD in progress.
+  const lienWaiverPending = lienWaiverCounts
+    .filter((l) =>
+      (l.status === 'SENT' || l.status === 'VIEWED') &&
+      (l.type === 'CONDITIONAL_PROGRESS' || l.type === 'UNCONDITIONAL_PROGRESS')
+    )
+    .reduce((acc, l) => acc + l._count, 0);
+  // Submittals awaiting review (under GC or architect) — also
+  // includes REVISE_AND_RESUBMIT (waiting on sub to re-send).
+  const submittalOpen = submittalCounts
+    .filter((s) =>
+      s.status === 'SUBMITTED' ||
+      s.status === 'UNDER_REVIEW' ||
+      s.status === 'FORWARDED' ||
+      s.status === 'REVISE_AND_RESUBMIT'
+    )
+    .reduce((acc, s) => acc + s._count, 0);
+  // RFIs that have been sent but not answered.
+  const rfiOpen = rfiCounts
+    .filter((r) => r.status === 'SUBMITTED')
+    .reduce((acc, r) => acc + r._count, 0);
+
   const badges: Record<string, SidebarBadge | undefined> = {
     'ai': aiAlertCount > 0
       ? { kind: 'count', value: aiAlertCount, tone: 'warn', tooltip: 'AI-detected alerts' }
@@ -219,6 +282,18 @@ export async function getProjectSidebarStatus(
       ? { kind: 'count', value: permitOverdueInspections, tone: 'danger', tooltip: 'Overdue inspections' }
       : permitCount > 0
       ? { kind: 'count', value: permitCount, tone: 'default' }
+      : undefined,
+    'change-orders': changeOrderOpen > 0
+      ? { kind: 'count', value: changeOrderOpen, tone: 'warn', tooltip: 'COs awaiting approval' }
+      : undefined,
+    'lien-waivers': lienWaiverPending > 0
+      ? { kind: 'count', value: lienWaiverPending, tone: 'warn', tooltip: 'Progress waivers awaiting signature' }
+      : undefined,
+    'submittals': submittalOpen > 0
+      ? { kind: 'count', value: submittalOpen, tone: 'warn', tooltip: 'Submittals in review' }
+      : undefined,
+    'rfis': rfiOpen > 0
+      ? { kind: 'count', value: rfiOpen, tone: 'warn', tooltip: 'RFIs awaiting response' }
       : undefined,
   };
 
@@ -315,6 +390,20 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     items: [
       { key: 'checkins', label: 'Check-in', subRoute: 'checkins' },
       { key: 'permits', label: 'Permits', useTabParam: true },
+    ],
+  },
+  {
+    key: 'compliance',
+    label: 'Compliance',
+    // CM compliance suite (Aug 2026). AIA G701 (Change Orders),
+    // Oklahoma Title 42 (Lien Waivers), CSI spec section
+    // (Submittals), AIA G716 (RFIs). Each one is a distinct
+    // contract artifact with its own approval workflow.
+    items: [
+      { key: 'change-orders', label: 'Change orders', subRoute: 'change-orders' },
+      { key: 'lien-waivers',  label: 'Lien waivers',  subRoute: 'lien-waivers' },
+      { key: 'submittals',    label: 'Submittals',    subRoute: 'submittals' },
+      { key: 'rfis',          label: 'RFIs',          subRoute: 'rfis' },
     ],
   },
 ];
