@@ -35,9 +35,6 @@ const TYPE_LABEL: Record<string, string> = {
   UNCONDITIONAL_FINAL: 'Unconditional final',
 };
 
-const fmtUsd = (cents: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100);
-
 export default async function ProjectLienWaiversPage({
   params,
 }: {
@@ -116,7 +113,6 @@ export default async function ProjectLienWaiversPage({
         projectId={project.id}
         statusColor={STATUS_COLOR}
         typeLabel={TYPE_LABEL}
-        fmtUsd={fmtUsd}
       />
 
       {waivers.length === 0 ? (

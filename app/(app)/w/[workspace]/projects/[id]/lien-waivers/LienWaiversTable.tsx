@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { sendLienWaiverAction, voidLienWaiverAction } from '@/lib/lien-waivers/actions';
+import { fmtUsdFromCents as fmtUsd } from '@/lib/format/currency';
 
 interface WaiverRow {
   id: string;
@@ -24,14 +25,12 @@ export function LienWaiversTable({
   projectId,
   statusColor,
   typeLabel,
-  fmtUsd,
 }: {
   waivers: WaiverRow[];
   workspaceSlug: string;
   projectId: string;
   statusColor: Record<string, string>;
   typeLabel: Record<string, string>;
-  fmtUsd: (cents: number) => string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
