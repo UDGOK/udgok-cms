@@ -131,3 +131,4 @@ fi
 
 echo "✅ Migration is purely additive. Proceeding."
 exit 0
+// Build trigger 2026-08-23T05:06:57Z
