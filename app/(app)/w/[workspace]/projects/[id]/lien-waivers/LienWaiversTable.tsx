@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { sendLienWaiverAction, voidLienWaiverAction } from '@/lib/lien-waivers/actions';
 import { fmtUsdFromCents as fmtUsd } from '@/lib/format/currency';
 
@@ -75,7 +76,14 @@ export function LienWaiversTable({
           <tbody>
             {waivers.map((w) => (
               <tr key={w.id} className="border-t border-line align-top">
-                <td className="px-3 py-3 font-mono">{w.number}</td>
+                <td className="px-3 py-3 font-mono">
+                  <Link
+                    href={`/w/${workspaceSlug}/projects/${projectId}/lien-waivers/${w.id}`}
+                    className="text-ink underline hover:no-underline"
+                  >
+                    {w.number}
+                  </Link>
+                </td>
                 <td className="px-3 py-3">{typeLabel[w.type] ?? w.type}</td>
                 <td className="px-3 py-3">{w.subcontractorName ?? <span className="text-ink-50">—</span>}</td>
                 <td className="px-3 py-3 font-mono">{w.payAppNumber ? `#${w.payAppNumber}` : <span className="text-ink-50">—</span>}</td>
@@ -90,6 +98,12 @@ export function LienWaiversTable({
                 </td>
                 <td className="px-3 py-3 text-right whitespace-nowrap">
                   <div className="flex flex-col gap-1 items-end">
+                    <Link
+                      href={`/w/${workspaceSlug}/projects/${projectId}/lien-waivers/${w.id}`}
+                      className="text-ink underline text-xs"
+                    >
+                      Open
+                    </Link>
                     {w.status === 'DRAFT' ? (
                       <button
                         type="button"

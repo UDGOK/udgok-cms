@@ -26,6 +26,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 const PAGES_TO_AUDIT = [
   'app/(app)/w/[workspace]/projects/[id]/lien-waivers/page.tsx',
+  'app/(app)/w/[workspace]/projects/[id]/lien-waivers/[waiverId]/page.tsx',
   'app/(app)/w/[workspace]/projects/[id]/change-orders/page.tsx',
   'app/(app)/w/[workspace]/projects/[id]/change-orders/[coId]/page.tsx',
   'app/(app)/w/[workspace]/projects/[id]/submittals/page.tsx',

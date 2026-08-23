@@ -21,6 +21,7 @@ import { prisma } from '@/lib/db/client';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { logActivity } from '@/lib/activity/log';
 import { nextDocNumber, type DocType } from '@/lib/procurement/number';
+import { sendLienWaiverEmail } from '@/lib/email/lien-waiver';
 
 function genToken(): string {
   return randomBytes(24).toString('base64url');
@@ -126,21 +127,72 @@ const sendSchema = z.object({
   workspaceSlug: z.string().min(1),
   projectId: z.string().min(1),
   waiverId: z.string().min(1),
+  // Optional override. If not provided, uses the sub's
+  // contactEmail. If both are missing, we still flip the
+  // status to SENT but skip the email (and return a warning
+  // so the UI can show "no email address on file").
+  recipientEmail: z.string().email().optional().nullable(),
 });
 
+/**
+ * Send a lien waiver to the sub for signature. This:
+ *   1. Flips status DRAFT → SENT
+ *   2. Sends an email with the public /lw/[token] sign link
+ *   3. Logs a SENT event + activity
+ *
+ * The shareToken was generated at create time, so we can always
+ * build the sign URL. If the sub has no contactEmail AND the
+ * caller didn't provide an override, the status still flips but
+ * we return `emailSent: false` so the UI can show "no email on
+ * file" and let the user copy the public link manually.
+ */
 export async function sendLienWaiverAction(raw: z.input<typeof sendSchema>) {
   const parsed = sendSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false as const, error: 'Invalid input' };
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? 'Invalid input' };
+  }
   const { userId, workspace } = await requireMembership(parsed.data.workspaceSlug);
 
   const w = await prisma.lienWaiver.findFirst({
     where: { id: parsed.data.waiverId, projectId: parsed.data.projectId, workspaceId: workspace.id },
+    include: {
+      project: { select: { name: true } },
+      subcontractor: { select: { name: true, contactEmail: true } },
+      payApp: { select: { drawNumber: true } },
+    },
   });
   if (!w) return { ok: false as const, error: 'Waiver not found' };
   if (w.status !== 'DRAFT') {
     return { ok: false as const, error: `Cannot send from ${w.status} state` };
   }
+  if (!w.shareToken) {
+    // Should never happen (token is generated at create) but
+    // handle the legacy data case gracefully.
+    const newToken = genToken();
+    await prisma.lienWaiver.update({
+      where: { id: w.id },
+      data: { shareToken: newToken },
+    });
+    w.shareToken = newToken;
+  }
 
+  // Resolve recipient: explicit override > sub's contactEmail
+  const recipientEmail = parsed.data.recipientEmail ?? w.subcontractor?.contactEmail ?? null;
+
+  // Get the GC's display name for the email "from" attribution.
+  // Falls back to a generic greeting if the user record is missing.
+  // The User model uses `id` directly as the Clerk user ID.
+  const gcUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true },
+  });
+  const gcName = gcUser?.name?.trim() || 'Your general contractor';
+
+  const signUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://cms.udgok.com'}/lw/${w.shareToken}`;
+
+  // Flip status + log the event regardless of whether the
+  // email went out. The "SENT" lifecycle is about the GC's
+  // intent, not whether the email actually delivered.
   await prisma.lienWaiver.update({
     where: { id: w.id },
     data: { status: 'SENT' },
@@ -155,11 +207,57 @@ export async function sendLienWaiverAction(raw: z.input<typeof sendSchema>) {
     entityType: 'lien_waiver',
     entityId: w.id,
     entityName: w.number,
-    details: `Sent ${w.number} for signature`,
+    details: `Sent ${w.number} for signature${recipientEmail ? ` to ${recipientEmail}` : ' (no email — share link only)'}`,
   });
+
+  let emailSent = false;
+  let emailError: string | undefined;
+  if (recipientEmail) {
+    const result = await sendLienWaiverEmail({
+      to: recipientEmail,
+      gcName,
+      projectName: w.project.name,
+      number: w.number,
+      typeLabel: WAIVER_TYPE_LABEL[w.type],
+      amountCents: Number(w.amountCents),
+      throughDate: w.throughDate,
+      payAppNumber: w.payApp?.drawNumber ?? null,
+      signUrl,
+      exceptionText: w.exceptionText ?? null,
+      daysSinceSent: 0,
+      variant: 'initial',
+    });
+    emailSent = result.sent;
+    emailError = result.error;
+    if (result.sent) {
+      await prisma.lienWaiverEvent.create({
+        data: {
+          waiverId: w.id,
+          type: 'EMAIL_SENT',
+          actor: `user:${userId}`,
+          metadata: { to: recipientEmail },
+        },
+      });
+    }
+  }
+
   revalidatePath(`/w/${parsed.data.workspaceSlug}/projects/${parsed.data.projectId}/lien-waivers`);
-  return { ok: true as const };
+  revalidatePath(`/w/${parsed.data.workspaceSlug}/projects/${parsed.data.projectId}/lien-waivers/${w.id}`);
+  return {
+    ok: true as const,
+    emailSent,
+    emailError,
+    signUrl,
+    recipientEmail: recipientEmail ?? null,
+  };
 }
+
+const WAIVER_TYPE_LABEL: Record<string, string> = {
+  CONDITIONAL_PROGRESS: 'Conditional Waiver and Release on Progress Payment',
+  UNCONDITIONAL_PROGRESS: 'Unconditional Waiver and Release on Progress Payment',
+  CONDITIONAL_FINAL: 'Conditional Waiver and Release on Final Payment',
+  UNCONDITIONAL_FINAL: 'Unconditional Waiver and Release on Final Payment',
+};
 
 const voidSchema = z.object({
   workspaceSlug: z.string().min(1),
