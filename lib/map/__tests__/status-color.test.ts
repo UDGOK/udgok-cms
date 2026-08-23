@@ -10,6 +10,7 @@ describe('STATUS_COLORS', () => {
       'CANCELLED',
       'COMPLETED',
       'ON_HOLD',
+      'PROSPECT',
     ]);
   });
   it('all colors are valid 6-digit hex strings', () => {
@@ -22,6 +23,13 @@ describe('STATUS_COLORS', () => {
     // pins, so we hardcode the brand orange here. If the
     // brand color changes, this test fails — that's the point.
     expect(STATUS_COLORS.ACTIVE).toBe('#ff5a1f');
+  });
+  it('PROSPECT uses indigo to distinguish from active work', () => {
+    // A user scanning the map should immediately know PROSPECT
+    // pins aren't live jobs. Indigo is the visual "talking
+    // stages" signal — distinct from orange (active) and the
+    // muted stone/green/grays of the other 3 states.
+    expect(STATUS_COLORS.PROSPECT).toBe('#6366f1');
   });
 });
 

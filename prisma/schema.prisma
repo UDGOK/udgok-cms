@@ -787,6 +787,15 @@ enum PhotoPhase {
 }
 
 enum ProjectStatus {
+  // Pre-contract / talking stages. Project is in the pipeline but
+  // there's no signed agreement, no SOV, no tasks yet. Surfaces in
+  // the projects list with a distinct (indigo) color so it's
+  // visually obvious these aren't live jobs — they're opportunities
+  // being shaped into projects. Future state transitions go
+  // PROSPECT → ACTIVE (contract signed) or PROSPECT → CANCELLED
+  // (lost). The completion ring treats PROSPECT as 0% across the
+  // board (no work to measure yet).
+  PROSPECT
   ACTIVE
   ON_HOLD
   COMPLETED

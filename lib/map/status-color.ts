@@ -1,16 +1,23 @@
 /**
  * Status → marker color mapping. Status is the project's
- * ProjectStatus enum (ACTIVE | ON_HOLD | COMPLETED | CANCELLED).
+ * ProjectStatus enum (PROSPECT | ACTIVE | ON_HOLD |
+ * COMPLETED | CANCELLED).
  *
  * Colors are tuned to match the Atelier design palette: warm
  * industrial. The active state uses the brand orange (the same
  * `#ff5a1f` family used elsewhere in the app for primary actions).
  * The other states are muted to keep the active projects visually
  * dominant in a map full of pins.
+ *
+ * PROSPECT (indigo) is intentionally distinct from the other 4 —
+ * it's not a live job, it's an opportunity being shaped. A user
+ * scanning the map should immediately know which pins are real
+ * work in progress vs. which are conversations-in-flight.
  */
 import type { ProjectStatus } from '@prisma/client';
 
 export const STATUS_COLORS: Record<ProjectStatus, string> = {
+  PROSPECT: '#6366f1',   // indigo-500 — "being shaped"
   ACTIVE: '#ff5a1f',     // brand orange — dominant
   ON_HOLD: '#a8a29e',    // stone-400 — muted
   COMPLETED: '#16a34a',  // green-600 — done
@@ -18,6 +25,7 @@ export const STATUS_COLORS: Record<ProjectStatus, string> = {
 };
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {
+  PROSPECT: 'Prospect',
   ACTIVE: 'Active',
   ON_HOLD: 'On hold',
   COMPLETED: 'Completed',

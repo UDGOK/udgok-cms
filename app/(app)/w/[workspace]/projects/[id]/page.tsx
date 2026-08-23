@@ -286,6 +286,7 @@ export default async function ProjectDetailPage({
               projectData.status === 'ACTIVE' ? 'bg-success text-paper' :
               projectData.status === 'COMPLETED' ? 'bg-ink text-paper' :
               projectData.status === 'ON_HOLD' ? 'bg-warning text-ink' :
+              projectData.status === 'PROSPECT' ? 'bg-indigo-500 text-paper' :
               'bg-line text-ink-50'
             }`}>
               {projectData.status}

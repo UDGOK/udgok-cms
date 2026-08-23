@@ -3,6 +3,7 @@ import { listProjects } from '@/lib/projects/queries';
 import { requireMembership } from '@/lib/auth/require-membership';
 
 const STATUS_LABELS: Record<string, string> = {
+  PROSPECT: 'Prospect',
   ACTIVE: 'Active',
   ON_HOLD: 'On Hold',
   COMPLETED: 'Completed',
@@ -10,6 +11,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
+  // Indigo for PROSPECT — visually distinct from the other 4
+  // states so a user scanning the list can immediately tell
+  // which projects are "live work" vs. "still in the pipeline".
+  PROSPECT: 'bg-indigo-500 text-paper',
   ACTIVE: 'bg-success text-paper',
   ON_HOLD: 'bg-cream-2 text-ink-50',
   COMPLETED: 'bg-ink text-cream',
