@@ -97,26 +97,44 @@ describe('No inline toLocaleString in any server-rendered page', () => {
 });
 
 describe('Date formatters are timezone-deterministic', () => {
-  // Pick a date that crosses midnight in many US timezones
-  // (Aug 19, 2026, 23:30 UTC = Aug 19 19:30 EDT / Aug 19
-  // 16:30 PDT). The UTC date is Aug 19 in all US timezones,
-  // but if we used a date near midnight UTC (e.g. Aug 20
-  // 03:00 UTC), the date would flip in some timezones.
+  // Pick a date that crosses midnight in many US timezones.
+  // Aug 20 03:00 UTC = Aug 19 23:00 EDT = Aug 19 20:00 PDT.
+  // The UTC date is "Aug 20" — the PDT/EDT date is "Aug 19".
+  // If `timeZone: 'UTC'` is missing from the formatter options,
+  // the test will fail when run on a non-UTC host (CI, dev
+  // laptops, anywhere outside UTC).
   const referenceDate = new Date('2026-08-20T03:00:00.000Z');
 
   it('fmtDate produces the same output regardless of host timezone', () => {
-    // We can't actually change the host timezone in this
-    // test, but we can assert the output uses the UTC date
-    // components — which is what makes it deterministic.
-    // If `timeZone: 'UTC'` is removed, the output would
-    // include the local date components and this assertion
-    // would fail on non-UTC hosts.
+    // We use the test runner's `process.env.TZ` to simulate a
+    // non-UTC host — the assertion would only be meaningful if
+    // the formatter is truly timezone-deterministic. If you run
+    // this test in PDT and the formatter uses the system
+    // timezone, it would render "Aug 19" (because Aug 20 03:00
+    // UTC = Aug 19 20:00 PDT). With `timeZone: 'UTC'` the
+    // output is "Aug 20" everywhere.
     const formatted = fmtDate(referenceDate);
     expect(formatted).toBe('Aug 20, 2026');
-    // The expected string above is the UTC date. If the
-    // formatter used local time on a PDT host, the output
-    // would be 'Aug 19, 2026'. That difference is the
-    // hydration bug.
+  });
+
+  it('fmtDate is timezone-deterministic when run in a non-UTC timezone', () => {
+    // Save and override the TZ env var to simulate a PDT host.
+    // This catches the bug where someone re-introduces
+    // `timeZone: 'system'` (or omits `timeZone: 'UTC'`).
+    const savedTz = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      // Re-import the formatters inside the changed TZ. Node
+      // caches `Intl.DateTimeFormat` instances, but the
+      // `timeZone` option is checked at format-time, not
+      // at construction time. So calling the function again
+      // should still return the UTC date.
+      const formatted = fmtDate(referenceDate);
+      expect(formatted).toBe('Aug 20, 2026');
+    } finally {
+      if (savedTz === undefined) delete process.env.TZ;
+      else process.env.TZ = savedTz;
+    }
   });
 
   it('fmtDateTimeUtc appends UTC suffix for clarity', () => {

@@ -46,10 +46,23 @@ export function fmtUsdPrecise(amount: number): string {
   return usdPrecise.format(amount);
 }
 
+// IMPORTANT: date formatters MUST be timezone-deterministic to
+// avoid React hydration mismatches. Without `timeZone: 'UTC'`,
+// the server (UTC) and the client (user's local timezone) would
+// format the same Date as different strings, and React throws
+// error #425 / #422 in production.
+//
+// For "calendar day" fields (dueDate, throughDate), this means
+// the date shown is the UTC date. For a US construction site
+// this is fine in practice — the discrepancy is at most one
+// day, and the workspace's "now" is rarely right at midnight.
+// When we want workspace-local rendering we'll pass the IANA
+// timezone as a prop and re-introduce a second formatter.
 const dateFmt = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
   month: 'short',
   day: '2-digit',
+  timeZone: 'UTC',
 });
 
 /** Format a Date / ISO string as "Aug 19, 2026" (US-style short, UTC). */
