@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listMaterialLists } from '@/lib/procurement/list-queries';
 import { requireMembership } from '@/lib/auth/require-membership';
+import { fmtDate } from '@/lib/format/currency';
 
 const STATUS_COLOR: Record<string, string> = {
   DRAFT: 'bg-ink-50/15 text-ink-50',
@@ -102,10 +103,10 @@ export default async function MaterialListsPage({
                   <td className="px-3 py-2 text-right font-mono">{l.lineCount}</td>
                   <td className="px-3 py-2 text-right font-mono">{l.rfqCount}</td>
                   <td className="px-3 py-2 text-[10px] text-ink-50 font-mono">
-                    {l.neededBy ? new Date(l.neededBy).toLocaleDateString() : '—'}
+                    {l.neededBy ? fmtDate(l.neededBy) : '—'}
                   </td>
                   <td className="px-3 py-2 text-[10px] text-ink-50 font-mono">
-                    {new Date(l.updatedAt).toLocaleDateString()}
+                    {fmtDate(l.updatedAt)}
                   </td>
                 </tr>
               ))}

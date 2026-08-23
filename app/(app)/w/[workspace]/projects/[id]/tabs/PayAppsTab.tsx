@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { GeneratePayAppButton } from '../GeneratePayAppButton';
 import { PayAppFlow3DViewer } from '@/components/3d/PayAppFlow3DViewer';
 import type { ProjectData } from '../page-types';
+import { fmtDate } from '@/lib/format/currency';
 
 export function PayAppsTab({
   projectId,
@@ -110,7 +111,7 @@ export function PayAppsTab({
               <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-50">#{p.drawNumber}</div>
               <div>
                 <div className="font-extrabold text-[13px]">
-                  {p.periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {p.periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {fmtDate(p.periodStart)} – {fmtDate(p.periodEnd)}
                 </div>
                 <div className="text-[10px] text-ink-50 font-mono uppercase tracking-[0.1em]">
                   {p.status} {p.viewCount > 0 ? `· ${p.viewCount} view${p.viewCount === 1 ? '' : 's'}` : ''}

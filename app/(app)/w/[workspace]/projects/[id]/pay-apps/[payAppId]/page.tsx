@@ -7,6 +7,7 @@ import { PayAppEditor, PayAppStatusActions, PayAppStatusTimeline } from './PayAp
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
 import Link from 'next/link';
+import { fmtDate } from '@/lib/format/currency';
 
 const PAY_APP_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
@@ -60,7 +61,7 @@ export default async function PayAppDetailPage({
             {payApp.project.client?.name ?? 'No client'}
           </h2>
           <div className="font-mono text-[10px] text-ink-50 tracking-[0.12em] uppercase mt-2">
-            PERIOD {payApp.periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} – {payApp.periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            PERIOD {fmtDate(payApp.periodStart)} – {fmtDate(payApp.periodEnd)}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">

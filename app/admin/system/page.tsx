@@ -1,5 +1,6 @@
 import { getSystemChecks } from '@/lib/admin/system';
 import { prisma } from '@/lib/db/client';
+import { fmtDateTimeUtc } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +99,7 @@ export default async function AdminSystemPage() {
                 </div>
               </div>
               <span className="text-[10px] font-mono text-ink-50 flex-shrink-0">
-                {new Date(u.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                {fmtDateTimeUtc(u.createdAt)}
               </span>
             </li>
           ))}
@@ -126,7 +127,7 @@ export default async function AdminSystemPage() {
                 <div className="text-[10px] font-mono text-ink-50">{a.entityType}</div>
               </div>
               <span className="text-[10px] font-mono text-ink-50 flex-shrink-0">
-                {new Date(a.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                {fmtDateTimeUtc(a.createdAt)}
               </span>
             </li>
           ))}

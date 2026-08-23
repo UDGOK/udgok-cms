@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { CSI_MASTERFORMAT } from '@/lib/construction/csi-masterformat';
 import { SubOnboardingScanner } from './SubOnboardingScanner';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,13 +89,13 @@ export default async function SubDetailPage({
             <div className="flex items-center justify-between py-1.5 border-b border-line-soft">
               <span className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">ID card on file</span>
               <span className={`text-[11px] font-extrabold ${sub.idScanned ? 'text-success' : 'text-ink-50'}`}>
-                {sub.idScanned ? `YES${sub.idScannedAt ? ` · ${sub.idScannedAt.toLocaleDateString()}` : ''}` : 'NO'}
+                {sub.idScanned ? `YES${sub.idScannedAt ? ` · ${fmtDate(sub.idScannedAt)}` : ''}` : 'NO'}
               </span>
             </div>
             <div className="flex items-center justify-between py-1.5 border-b border-line-soft">
               <span className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">W-9 on file</span>
               <span className={`text-[11px] font-extrabold ${sub.w9OnFile ? 'text-success' : 'text-ink-50'}`}>
-                {sub.w9OnFile ? `YES${sub.w9ScannedAt ? ` · ${sub.w9ScannedAt.toLocaleDateString()}` : ''}` : 'NO'}
+                {sub.w9OnFile ? `YES${sub.w9ScannedAt ? ` · ${fmtDate(sub.w9ScannedAt)}` : ''}` : 'NO'}
               </span>
             </div>
             {sub.hourlyRate ? <Field label="Hourly rate" value={`$${sub.hourlyRate.toFixed(2)}`} mono /> : null}

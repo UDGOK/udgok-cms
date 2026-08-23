@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache';
 import { isMasterAdmin } from '@/lib/admin/permissions';
 import { prisma } from '@/lib/db/client';
 import { relativeTime } from '@/lib/format/relative-time';
+import { fmtDateTimeUtc } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,7 +161,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
                 <Row label="Source" value={lead.source} />
                 <Row label="Plan" value={lead.plan} />
                 <Row label="Page" value={lead.page} />
-                <Row label="Created" value={new Date(lead.createdAt).toLocaleString()} />
+                <Row label="Created" value={fmtDateTimeUtc(lead.createdAt)} />
                 <Row label="Referer" value={typeof meta.referer === 'string' ? meta.referer : null} />
                 <Row label="User agent" value={typeof meta.userAgent === 'string' ? meta.userAgent.slice(0, 80) : null} />
               </tbody>

@@ -12,11 +12,10 @@
 import { notFound } from 'next/navigation';
 import { getRfiByToken, trackRfiView } from '@/lib/submittals/queries';
 import { PublicRfiActions } from './PublicRfiActions';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
-const fmtDate = (d: Date | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
 
 export default async function PublicRfiPage({
   params,

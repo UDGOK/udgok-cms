@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { workspaceDashboard, recentActivity } from '@/lib/dashboard/queries';
 import { getWorkspaceFinancialRollup } from '@/lib/projects/financial-summary';
+import { fmtDate } from '@/lib/format/currency';
 
 export default async function DashboardPage({
   params,
@@ -30,7 +31,7 @@ export default async function DashboardPage({
         The <span className="font-serif italic text-orange-d">pulse,</span> today.
       </h1>
       <p className="text-sm md:text-base text-ink-70 max-w-xl mb-5 md:mb-7">
-        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {stats.openTasks} open tasks across {stats.activeProjects} active project{stats.activeProjects === 1 ? '' : 's'}.
+        {fmtDate(new Date())} · {stats.openTasks} open tasks across {stats.activeProjects} active project{stats.activeProjects === 1 ? '' : 's'}.
       </p>
 
       {/* 4-cell KPI row — 2x2 on mobile, 1x4 on desktop */}
@@ -198,7 +199,7 @@ export default async function DashboardPage({
                     <div className="text-[11px] text-ink-50">{a.meta}</div>
                   </div>
                   <div className="text-[10px] text-ink-50 font-mono uppercase tracking-[0.1em]">
-                    {a.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {fmtDate(a.at)}
                   </div>
                 </Link>
               ))}

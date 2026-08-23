@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { GeneratePayAppButton } from '../GeneratePayAppButton';
 import { PayAppFlow3DViewer } from '@/components/3d/PayAppFlow3DViewer';
 import { ImportInvoiceButton } from './ImportInvoiceButton';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -148,7 +149,7 @@ export default async function ProjectPayAppsPage({
               <div className="font-mono text-[14px] font-black text-orange-d">#{p.drawNumber}</div>
               <div className="min-w-0">
                 <div className="font-extrabold text-[13px]">
-                  {p.periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {p.periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {fmtDate(p.periodStart)} – {fmtDate(p.periodEnd)}
                 </div>
                 <div className="text-[10px] text-ink-50 font-mono uppercase tracking-[0.1em] flex items-center gap-2 mt-0.5">
                   <span className={`px-1.5 py-0.5 ${STATUS_COLOR[p.status] ?? 'bg-ink-30 text-ink'}`}>

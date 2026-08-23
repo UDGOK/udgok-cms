@@ -59,7 +59,6 @@ const isPublicRoute = createRouteMatcher([
   '/api/presence/(.*)',
   '/api/presence',
   '/api/webhooks/(.*)',
-  '/api/debug/(.*)', // TEMPORARY debug routes — remove after debugging
   // Vercel Blob handleUpload routes — these are called by Vercel
   // Blob's server-to-server callback with no session cookie. Each
   // route does its own role check inside onBeforeGenerateToken, so

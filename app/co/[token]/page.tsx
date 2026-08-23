@@ -17,14 +17,12 @@
 import { notFound } from 'next/navigation';
 import { getChangeOrderByToken, trackChangeOrderView } from '@/lib/change-orders/queries';
 import { PublicChangeOrderActions } from './PublicChangeOrderActions';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
 const fmtUsd = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
-
-const fmtDate = (d: Date | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }) : '—';
 
 export default async function PublicChangeOrderPage({
   params,

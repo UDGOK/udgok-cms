@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listItems } from '@/lib/procurement/items-queries';
 import { requireMembership } from '@/lib/auth/require-membership';
+import { fmtDate } from '@/lib/format/currency';
 
 export default async function ItemsPage({
   params,
@@ -90,7 +91,7 @@ export default async function ItemsPage({
                   <td className="px-3 py-2 text-[11px]">{i.defaultVendorName ?? '—'}</td>
                   <td className="px-3 py-2 text-right font-mono">{i.priceCount}</td>
                   <td className="px-3 py-2 text-[10px] text-ink-50">
-                    {i.lastQuotedAt ? new Date(i.lastQuotedAt).toLocaleDateString() : '—'}
+                    {i.lastQuotedAt ? fmtDate(i.lastQuotedAt) : '—'}
                   </td>
                 </tr>
               ))}

@@ -4,6 +4,7 @@ import { DEAL_STAGE_LABELS, DEAL_STAGES, type DealStage } from '@/lib/deals/quer
 import { requireMembership } from '@/lib/auth/require-membership';
 import { Button, StatusBadge } from '@/components/ui';
 import { ConvertToProjectButton } from './ConvertToProjectButton';
+import { fmtDate } from '@/lib/format/currency';
 
 export default async function DealDetailPage({
   params,
@@ -28,7 +29,7 @@ export default async function DealDetailPage({
           </div>
           <h2 className="text-3xl font-black tracking-tight leading-tight">{deal.title}</h2>
           <div className="font-mono text-[10px] text-ink-50 tracking-[0.12em] uppercase mt-2">
-            {deal.client.name} · {deal.property ? deal.property.label : 'No property'} · CREATED {deal.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {deal.client.name} · {deal.property ? deal.property.label : 'No property'} · CREATED {fmtDate(deal.createdAt)}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -87,7 +88,7 @@ export default async function DealDetailPage({
                     <div>
                       <div className="font-extrabold text-[13px]">{n.author?.name ?? 'Unknown'}</div>
                       <div className="text-[10px] text-ink-50 font-mono uppercase tracking-[0.1em]">
-                        {n.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {fmtDate(n.createdAt)}
                       </div>
                     </div>
                   </div>
@@ -110,7 +111,7 @@ export default async function DealDetailPage({
               {deal.expectedClose ? (
                 <div>
                   <div className="label-mono">EXPECTED CLOSE</div>
-                  <div className="font-extrabold">{deal.expectedClose.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                  <div className="font-extrabold">{fmtDate(deal.expectedClose)}</div>
                 </div>
               ) : null}
               {deal.margin ? (

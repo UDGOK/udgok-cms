@@ -16,6 +16,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { acceptCounterAction, rejectCounterAction } from '@/lib/procurement/po-response-actions';
+import { fmtDateTimeUtc } from '@/lib/format/currency';
 
 interface PoLine {
   id: string;
@@ -173,7 +174,7 @@ export function PoResponseSection({
             <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
               Submitted
             </div>
-            <div className="font-mono">{new Date(response.submittedAt).toLocaleString()}</div>
+            <div className="font-mono">{fmtDateTimeUtc(response.submittedAt)}</div>
           </div>
           <div>
             <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">

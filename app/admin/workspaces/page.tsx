@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db/client';
 import Link from 'next/link';
 import { Plan } from '@prisma/client';
 import { Prisma } from '@prisma/client';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,7 +112,7 @@ export default async function AdminWorkspacesPage({
                     {w._count.members}m · {w._count.projects}p · {w._count.clients}c
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell text-[10px] font-mono text-ink-50">
-                    {new Date(w.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                    {fmtDate(w.createdAt)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

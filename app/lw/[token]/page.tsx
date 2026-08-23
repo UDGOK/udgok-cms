@@ -13,13 +13,12 @@
 import { notFound } from 'next/navigation';
 import { getLienWaiverByToken, trackLienWaiverView } from '@/lib/lien-waivers/queries';
 import { PublicLienWaiverActions } from './PublicLienWaiverActions';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
 const fmtUsd = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(cents / 100);
-const fmtDate = (d: Date | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
 
 const TYPE_LABEL: Record<string, string> = {
   CONDITIONAL_PROGRESS: 'Conditional Waiver and Release on Progress Payment',

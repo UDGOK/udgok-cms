@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { listAllRfqs } from '@/lib/procurement/rfq-list-queries';
+import { fmtDate } from '@/lib/format/currency';
 
 const STATUS_COLOR: Record<string, string> = {
   DRAFT: 'bg-ink-50/15 text-ink-50',
@@ -103,10 +104,10 @@ export default async function AllRfqsPage({
                     {r.total != null ? `$${r.total.toLocaleString()}` : '—'}
                   </td>
                   <td className="px-3 py-2 text-[10px] text-ink-50 font-mono">
-                    {r.sentAt ? r.sentAt.toLocaleDateString() : '—'}
+                    {r.sentAt ? fmtDate(r.sentAt) : '—'}
                   </td>
                   <td className="px-3 py-2 text-[10px] text-ink-50 font-mono">
-                    {r.expiresAt.toLocaleDateString()}
+                    {fmtDate(r.expiresAt)}
                   </td>
                 </tr>
               ))}

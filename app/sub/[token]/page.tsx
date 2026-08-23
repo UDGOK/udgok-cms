@@ -12,11 +12,10 @@
 import { notFound } from 'next/navigation';
 import { getSubmittalByToken, trackSubmittalView } from '@/lib/submittals/queries';
 import { PublicSubmittalActions } from './PublicSubmittalActions';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
-const fmtDate = (d: Date | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
 
 const DISPOSITION_COLOR: Record<string, string> = {
   APPROVED: 'bg-success text-paper',

@@ -108,11 +108,7 @@ export default async function PublicVendorPortalPage({
         {rfq.neededBy ? (
           <p className="text-sm text-ink-70 mt-1">
             <span className="text-ink-50 font-mono text-[10px] uppercase tracking-[0.1em] mr-1">Needed by</span>
-            {rfq.neededBy.toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {fmtDate(rfq.neededBy)}
           </p>
         ) : null}
         {rfq.message ? (
@@ -165,7 +161,7 @@ export default async function PublicVendorPortalPage({
 
       <footer className="mt-8 text-[11px] text-ink-50 font-mono uppercase tracking-[0.1em]">
         This link is private to {rfq.vendor.name} and expires{' '}
-        {rfq.expiresAt.toLocaleDateString()}. Questions? Reply to the email.
+        {fmtDate(rfq.expiresAt)}. Questions? Reply to the email.
       </footer>
     </main>
   );
@@ -174,6 +170,7 @@ export default async function PublicVendorPortalPage({
 // Tiny inline helper so we don't have to import prisma at the
 // top and confuse the spec-critical "no PII imports" reviewer.
 import { prisma } from '@/lib/db/client';
+import { fmtDate } from '@/lib/format/currency';
 async function prismaRfqTouch(
   id: string,
   data: {

@@ -9,6 +9,7 @@ import { ActivityFeed } from '@/components/activity/ActivityFeed';
 import { ClientAddNoteForm } from './ClientAddNoteForm';
 import { ClientTaskRow } from './ClientTaskRow';
 import { ClientFileUpload } from './ClientFileUpload';
+import { fmtDate, fmtDateTimeUtc } from '@/lib/format/currency';
 
 function initials(name: string) {
   return name
@@ -98,7 +99,7 @@ export default async function ClientDetailPage({
           <div>
             <h2 className="text-3xl font-black tracking-tight leading-tight">{client.name}</h2>
             <div className="font-mono text-[10px] text-ink-50 tracking-[0.12em] uppercase mt-1">
-              {client.email ?? '—'} · {client.phone ?? '—'} · SINCE {client.createdAt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase()}
+              {client.email ?? '—'} · {client.phone ?? '—'} · SINCE {fmtDate(client.createdAt).toUpperCase()}
             </div>
           </div>
         </div>
@@ -191,7 +192,7 @@ export default async function ClientDetailPage({
                     <div className="w-3.5 h-3.5 rounded-full bg-paper border-2 border-ink mt-1" />
                     <div>
                       <div className="font-mono text-[10px] text-ink-50 tracking-[0.12em] uppercase">
-                        {n.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {fmtDate(n.createdAt)}
                       </div>
                       <div className="text-[13px] font-bold text-ink mt-0.5">{n.body}</div>
                       <div className="text-[11px] text-ink-50 mt-1">
@@ -272,10 +273,10 @@ export default async function ClientDetailPage({
                         </td>
                         <td className="px-5 py-3 font-black">${Number(d.value).toLocaleString()}</td>
                         <td className="px-5 py-3 text-[12px]">
-                          {d.expectedClose ? new Date(d.expectedClose).toLocaleDateString() : <span className="text-ink-30">—</span>}
+                          {d.expectedClose ? fmtDate(d.expectedClose) : <span className="text-ink-30">—</span>}
                         </td>
                         <td className="px-5 py-3 text-[12px] text-ink-50">
-                          {new Date(d.createdAt).toLocaleDateString()}
+                          {fmtDate(d.createdAt)}
                         </td>
                       </tr>
                     ))}
@@ -405,7 +406,7 @@ export default async function ClientDetailPage({
                         {f.filename}
                       </a>
                       <div className="font-mono text-[10px] text-ink-50 tracking-[0.1em] uppercase mt-0.5">
-                        {(f.size / 1024).toFixed(1)} KB · {f.kind} · {new Date(f.createdAt).toLocaleDateString()}
+                        {(f.size / 1024).toFixed(1)} KB · {f.kind} · {fmtDate(f.createdAt)}
                       </div>
                     </div>
                   </li>
@@ -437,7 +438,7 @@ export default async function ClientDetailPage({
                   <li key={n.id} className="px-5 py-4">
                     <div className="text-[14px] text-ink leading-relaxed">{n.body}</div>
                     <div className="font-mono text-[10px] text-ink-50 tracking-[0.1em] uppercase mt-2">
-                      {n.author?.name ?? 'Unknown'} · {new Date(n.createdAt).toLocaleString()}
+                      {n.author?.name ?? 'Unknown'} · {fmtDateTimeUtc(n.createdAt)}
                     </div>
                   </li>
                 ))}

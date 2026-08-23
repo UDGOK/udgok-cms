@@ -9,6 +9,7 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { getChangeOrder } from '@/lib/change-orders/queries';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
+import { fmtDate, fmtDateTimeUtc } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,8 +28,11 @@ const STATUS_COLOR: Record<string, string> = {
 
 const fmtUsd = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
-const fmtDate = (d: Date | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }) : '—';
+// fmtDate / fmtDateTimeUtc are imported from @/lib/format/currency
+// (timezone-deterministic — see lib/format/currency.ts). The local
+// fmtDate helper was removed to fix React hydration mismatches: the
+// old toLocaleDateString defaulted to the system timezone, which
+// differs between server (UTC) and client (user local).
 
 export default async function ChangeOrderDetailPage({
   params,
@@ -224,7 +228,7 @@ export default async function ChangeOrderDetailPage({
                   <li key={h.id} className="border-l-2 border-ink-30 pl-2">
                     <div className="font-semibold">{h.type}</div>
                     <div className="text-ink-60">
-                      {h.actor} · {new Date(h.createdAt).toLocaleString('en-US')}
+                      {h.actor} · {fmtDateTimeUtc(h.createdAt)}
                     </div>
                     {(h.metadata as { details?: string } | null)?.details ? (
                       <div className="text-ink-70 mt-0.5">{(h.metadata as { details?: string }).details}</div>

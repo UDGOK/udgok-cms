@@ -14,6 +14,7 @@ import { GanttChart, type GanttTask } from '@/components/workspace/GanttChart';
 import { ThreeDGanttViewer } from '@/components/3d/ThreeDGanttViewer';
 import type { computeProjectCompletion } from '@/lib/projects/insights';
 import type { ProjectData } from '../page-types';
+import { fmtDate } from '@/lib/format/currency';
 
 export function ScheduleTab({
   project,
@@ -67,8 +68,8 @@ export function ScheduleTab({
             />
           </div>
           <div className="flex justify-between text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50 mt-2">
-            <span>{project.startDate ? new Date(project.startDate).toLocaleDateString() : '—'}</span>
-            <span>{project.endDate ? new Date(project.endDate).toLocaleDateString() : '—'}</span>
+            <span>{project.startDate ? fmtDate(project.startDate) : '—'}</span>
+            <span>{project.endDate ? fmtDate(project.endDate) : '—'}</span>
           </div>
         </div>
       ) : (

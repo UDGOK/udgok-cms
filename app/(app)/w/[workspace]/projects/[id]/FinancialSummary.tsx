@@ -16,6 +16,7 @@
 
 import Link from 'next/link';
 import type { ProjectFinancialSummary } from '@/lib/projects/financial-summary';
+import { fmtDate } from '@/lib/format/currency';
 
 interface Props {
   workspace: string;
@@ -28,10 +29,6 @@ interface Props {
 const fmtMoney = (n: number) =>
   `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
-const fmtDate = (d: Date | null) =>
-  d
-    ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : '—';
 
 const STATUS_COLOR: Record<string, string> = {
   DRAFT:           'bg-line text-ink-50',

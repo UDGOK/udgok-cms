@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/client';
 import { Plan } from '@prisma/client';
 import { listMasterAdminEmails } from '@/lib/admin/permissions';
 import { PLAN_INFO } from '@/lib/workspace/tier';
+import { fmtDate, fmtDateTimeUtc } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,7 +187,7 @@ export default async function AdminOverview() {
                     </div>
                   </div>
                   <span className="text-[10px] font-mono text-ink-50">
-                    {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {fmtDate(u.createdAt)}
                   </span>
                 </li>
               );
@@ -213,7 +214,7 @@ export default async function AdminOverview() {
                 </div>
               </div>
               <span className="text-[10px] font-mono text-ink-50 flex-shrink-0">
-                {new Date(a.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                {fmtDateTimeUtc(a.createdAt)}
               </span>
             </li>
           ))}

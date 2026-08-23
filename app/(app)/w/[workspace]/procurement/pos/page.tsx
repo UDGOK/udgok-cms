@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireMembership } from '@/lib/auth/require-membership';
 import { listAllPos } from '@/lib/procurement/po-queries';
+import { fmtDate } from '@/lib/format/currency';
 
 const STATUS_COLOR: Record<string, string> = {
   DRAFT: 'bg-ink-50/15 text-ink-50',
@@ -93,7 +94,7 @@ export default async function AllPosPage({
                     ${p.total.toLocaleString()}
                   </td>
                   <td className="px-3 py-2 text-[10px] text-ink-50 font-mono">
-                    {p.issuedAt ? p.issuedAt.toLocaleDateString() : '—'}
+                    {p.issuedAt ? fmtDate(p.issuedAt) : '—'}
                   </td>
                 </tr>
               ))}

@@ -1,3 +1,4 @@
+import { fmtDate } from '@/lib/format/currency';
 /**
  * GET /api/timesheets/sub/[subId]/pdf
  *
@@ -57,11 +58,11 @@ export async function GET(
       kind: 'sub',
       name: sheet.sub.name,
       secondaryLabel: sheet.sub.primaryTrade,
-      weekStartLabel: sheet.weekStart.toLocaleDateString([], { month: 'short', day: 'numeric' }),
+      weekStartLabel: fmtDate(sheet.weekStart),
       weekEndLabel: new Date(sheet.weekEnd.getTime() - 1).toLocaleDateString([], { month: 'short', day: 'numeric' }),
       days: days.map((d) => ({
         label: dayLabel(d, 'short'),
-        dateLabel: d.toLocaleDateString([], { month: 'numeric', day: 'numeric' }),
+        dateLabel: fmtDate(d),
       })),
       events: sheet.events.map((e) => ({
         id: e.id,

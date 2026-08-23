@@ -22,6 +22,7 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { prisma } from '@/lib/db/client';
 import { getProjectFinancialSummary } from '@/lib/projects/financial-summary';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
+import { fmtDate } from '@/lib/format/currency';
 
 interface PageProps {
   params: { workspace: string; id: string };
@@ -303,9 +304,9 @@ function ReceivablesSection({
                       </div>
                     </td>
                     <td className="px-3 md:px-5 py-3 text-[11px] font-mono text-ink-70">
-                      {new Date(p.periodStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtDate(p.periodStart)}
                       {' – '}
-                      {new Date(p.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtDate(p.periodEnd)}
                     </td>
                     <td className="px-3 md:px-5 py-3 font-extrabold text-[13px]">
                       {fmt(p.totalThisDraw)}
@@ -434,9 +435,9 @@ function PayAppsHistory({
                     </div>
                   </td>
                   <td className="px-3 md:px-5 py-3 text-[11px] font-mono text-ink-70">
-                    {new Date(p.periodStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                    {fmtDate(p.periodStart)}
                     {' – '}
-                    {new Date(p.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                    {fmtDate(p.periodEnd)}
                   </td>
                   <td className="px-3 md:px-5 py-3 font-extrabold text-[13px]">
                     {fmt(p.totalThisDraw)}
@@ -452,7 +453,7 @@ function PayAppsHistory({
                   </td>
                   <td className="px-3 md:px-5 py-3 text-[10px] font-mono text-ink-50">
                     {p.sentAt
-                      ? new Date(p.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      ? fmtDate(p.sentAt)
                       : '—'}
                   </td>
                   <td className="px-3 md:px-5 py-3 text-right">
@@ -577,7 +578,7 @@ function BillablesSection({
                     {fmt(inv.invoiceAmount)}
                   </td>
                   <td className="px-3 md:px-5 py-3 text-[11px] font-mono text-ink-50">
-                    {new Date(inv.invoiceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {fmtDate(inv.invoiceDate)}
                   </td>
                   <td className="px-3 md:px-5 py-3">
                     <StatusPill status={inv.status} />

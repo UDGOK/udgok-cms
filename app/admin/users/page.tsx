@@ -4,6 +4,7 @@ import { listMasterAdminEmails } from '@/lib/admin/permissions';
 import { Prisma } from '@prisma/client';
 import { auth } from '@clerk/nextjs/server';
 import { UserAdminActions } from './UserAdminActions';
+import { fmtDate } from '@/lib/format/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,7 +133,7 @@ export default async function AdminUsersPage({
                     )}
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell text-[10px] font-mono text-ink-50">
-                    {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {fmtDate(u.createdAt)}
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell text-[10px] font-mono text-ink-50">
                     {(() => {

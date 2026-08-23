@@ -22,6 +22,7 @@ import {
   disputeInvoiceAction,
   markInvoicePaidAction,
 } from '@/lib/procurement/po-invoice-actions';
+import { fmtDate } from '@/lib/format/currency';
 
 interface InvoiceDto {
   id: string;
@@ -325,8 +326,8 @@ export function PoPaymentSection({
                     </div>
                     <div className="text-[10px] font-mono text-ink-50">
                       from {inv.submittedByEmail} ·{' '}
-                      {new Date(inv.invoiceDate).toLocaleDateString()} ·{' '}
-                      received {new Date(inv.receivedAt).toLocaleDateString()}
+                      {fmtDate(inv.invoiceDate)} ·{' '}
+                      received {fmtDate(inv.receivedAt)}
                     </div>
                   </div>
                   <span
@@ -348,7 +349,7 @@ export function PoPaymentSection({
                 ) : null}
                 {inv.paidAt ? (
                   <div className="mt-2 text-[10px] font-mono text-ink-50">
-                    Paid {new Date(inv.paidAt).toLocaleDateString()} via {inv.paidMethod} · ref {inv.paidReference}
+                    Paid {fmtDate(inv.paidAt)} via {inv.paidMethod} · ref {inv.paidReference}
                   </div>
                 ) : null}
 

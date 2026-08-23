@@ -7,6 +7,7 @@ import { TierBadge } from '@/components/ui/TierBadge';
 import { PLAN_INFO } from '@/lib/workspace/tier';
 import { Plan } from '@prisma/client';
 import { isMasterAdmin } from '@/lib/admin/permissions';
+import { fmtDate } from '@/lib/format/currency';
 import { WorkspaceSettingsForm, InviteMemberForm, DeleteWorkspaceSection, BackupSection } from './SettingsClient';
 import { TimezoneForm } from './TimezoneForm';
 
@@ -126,13 +127,13 @@ export default async function SettingsPage({
             </div>
             <div>
               <div className="label-mono">Created</div>
-              <div className="text-ink-70">{workspace.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+              <div className="text-ink-70">{fmtDate(workspace.createdAt)}</div>
             </div>
           </div>
         )}
         <div className="mt-4 pt-4 border-t border-line-soft text-[11px] font-mono text-ink-50 flex items-center gap-4">
           <span>slug: <span className="text-ink-70">{workspace.slug}</span></span>
-          <span>created: <span className="text-ink-70">{workspace.createdAt.toLocaleDateString('en-US')}</span></span>
+          <span>created: <span className="text-ink-70">{fmtDate(workspace.createdAt)}</span></span>
         </div>
       </div>
 

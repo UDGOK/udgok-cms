@@ -1,5 +1,6 @@
 import { fetchWeatherForAddress, projectAddressToQuery, cToF, type WeatherData } from '@/lib/weather/api';
 import { buildMapSearchUrl } from '@/lib/permits/jurisdictions';
+import { fmtDate } from '@/lib/format/currency';
 
 interface WeatherWidgetProps {
   project: {
@@ -101,7 +102,7 @@ export async function WeatherWidget({ project }: WeatherWidgetProps) {
       {/* 7-day forecast */}
       <div className="border-t border-line grid grid-cols-7 divide-x divide-line-soft bg-paper">
         {daily.slice(0, 7).map((d) => {
-          const day = new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' });
+          const day = fmtDate(d.date);
           return (
             <div key={d.date} className="p-2 text-center">
               <div className="text-[9px] font-mono uppercase tracking-[0.1em] text-ink-50">
