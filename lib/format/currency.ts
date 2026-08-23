@@ -52,16 +52,33 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',
 });
 
-/** Format a Date / ISO string as "Aug 19, 2026" (US-style short). */
+/** Format a Date / ISO string as "Aug 19, 2026" (US-style short, UTC). */
 export function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return '—';
   return dateFmt.format(typeof d === 'string' ? new Date(d) : d);
+}
+
+const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: 'UTC',
+});
+
+/** Format a Date as "Aug 19, 2026, 14:30 UTC" (UTC, no ambiguity). */
+export function fmtDateTimeUtc(d: Date | string | null | undefined): string {
+  if (!d) return '—';
+  return `${dateTimeFmt.format(typeof d === 'string' ? new Date(d) : d)} UTC`;
 }
 
 const dateInputFmt = new Intl.DateTimeFormat('en-CA', {
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
+  timeZone: 'UTC',
 });
 
 /** Format a Date as YYYY-MM-DD (for <input type="date" value). */

@@ -15,7 +15,7 @@ import { requireMembership } from '@/lib/auth/require-membership';
 import { getLienWaiver } from '@/lib/lien-waivers/queries';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { MobilePageHeader } from '@/components/ui/MobilePageHeader';
-import { fmtUsdFromCents as fmtUsd, fmtDate } from '@/lib/format/currency';
+import { fmtUsdFromCents as fmtUsd, fmtDate, fmtDateTimeUtc } from '@/lib/format/currency';
 import { SendToSubButton } from './SendToSubButton';
 
 export const dynamic = 'force-dynamic';
@@ -286,7 +286,7 @@ export default async function LienWaiverDetailPage({
                   <li key={h.id} className="border-l-2 border-ink-30 pl-2">
                     <div className="font-semibold">{EVENT_LABEL[h.type] ?? h.type}</div>
                     <div className="text-ink-60">
-                      {h.actor} · {new Date(h.createdAt).toLocaleString('en-US')}
+                      {h.actor} · {fmtDateTimeUtc(h.createdAt)}
                     </div>
                   </li>
                 ))}
