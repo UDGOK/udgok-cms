@@ -34,11 +34,13 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  Prisma safety check (build pre-flight)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Use whichever env var is set. Vercel sets DATABASE_URL; in our
-# local scripts we often use a project-specific name (e.g. RESTORE_URL).
-DB_URL="${DATABASE_URL:-${RESTORE_URL:-}}"
+# Use whichever env var is set. Vercel may set DATABASE_URL,
+# but our UDGOK_* smart-prefix convention means production
+# typically has UDGOK_CMS_DATABASE_URL set instead. Check
+# them in priority order.
+DB_URL="${DATABASE_URL:-${UDGOK_CMS_DATABASE_URL:-${RESTORE_URL:-}}}"
 if [ -z "$DB_URL" ]; then
-  echo "❌ FAIL: no DATABASE_URL or RESTORE_URL set"
+  echo "❌ FAIL: no DATABASE_URL / UDGOK_CMS_DATABASE_URL / RESTORE_URL set"
   exit 1
 fi
 
