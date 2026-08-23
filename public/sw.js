@@ -19,7 +19,7 @@
 //
 // Form drafts are persisted in localStorage by the app itself, not here.
 
-const CACHE_VERSION = 'udgok-v4-239c95a-2026-08-23';
+const CACHE_VERSION = 'udgok-v4-d0c3af4-2026-08-23';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -126,16 +126,20 @@ self.addEventListener('fetch', (event) => {
   // Static assets (Next.js _next/static/*, icons, images) —
   // cache first. The filenames include content hashes so a
   // new deploy produces new URLs and the old cache is harmless.
+  // Fall back to a 504 response if the network is down or the
+  // request is aborted (e.g. user navigated away mid-fetch).
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
-      return fetch(request).then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(RUNTIME_CACHE).then((c) => c.put(request, copy));
-        }
-        return res;
-      });
+      return fetch(request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(RUNTIME_CACHE).then((c) => c.put(request, copy));
+          }
+          return res;
+        })
+        .catch(() => new Response('', { status: 504, statusText: 'Offline' }));
     }),
   );
 });
