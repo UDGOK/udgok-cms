@@ -206,9 +206,14 @@ export function ListDetailView({
           workspaceId={workspaceId}
           workspaceSlug={workspaceSlug}
           vendors={vendors}
-          existingVendorIds={list.rfqs
+          // Pass the actual RFQ info (not just vendor ids) so the
+          // modal can show blocked vendors with a clear reason
+          // ("already has a DRAFT — open it") instead of hiding
+          // them silently. Was the source of the "where did
+          // Jee Lighting go?" bug — see git history.
+          existingRfqs={list.rfqs
             .filter((r) => ['DRAFT', 'SENT', 'VIEWED'].includes(r.status))
-            .map((r) => r.vendor.id)}
+            .map((r) => ({ rfqId: r.id, number: r.number, status: r.status, vendorId: r.vendor.id }))}
           onClose={() => setShowSend(false)}
         />
       ) : null}
@@ -308,13 +313,13 @@ export function ListDetailView({
   );
 }
 
-function SendRfqModal({
+export function SendRfqModal({
   listId,
   listName,
   workspaceId,
   workspaceSlug,
   vendors,
-  existingVendorIds,
+  existingRfqs,
   onClose,
 }: {
   listId: string;
@@ -322,12 +327,21 @@ function SendRfqModal({
   workspaceId: string;
   workspaceSlug: string;
   vendors: VendorOption[];
-  existingVendorIds: string[];
+  // The RFQs that already exist for this list in an active
+  // status. Vendors with one of these are shown in the dropdown
+  // but disabled, with a "jump to existing" link so the user
+  // can act on the draft (send, edit, void) instead of getting
+  // confused that the vendor disappeared.
+  existingRfqs: { rfqId: string; number: string; status: string; vendorId: string }[];
   onClose: () => void;
 }) {
   const router = useRouter();
+  const blockedByVendor = new Map<string, { rfqId: string; number: string; status: string }>();
+  for (const r of existingRfqs) {
+    blockedByVendor.set(r.vendorId, { rfqId: r.rfqId, number: r.number, status: r.status });
+  }
   const [vendorId, setVendorId] = useState(
-    vendors.find((v) => !existingVendorIds.includes(v.id))?.id ?? '',
+    vendors.find((v) => !blockedByVendor.has(v.id))?.id ?? '',
   );
   const [contactId, setContactId] = useState('');
   const [message, setMessage] = useState('');
@@ -336,7 +350,11 @@ function SendRfqModal({
 
   const selectedVendor = vendors.find((v) => v.id === vendorId);
   const availableContacts = selectedVendor?.contacts ?? [];
-  const eligible = vendors.filter((v) => !existingVendorIds.includes(v.id));
+  const eligible = vendors.filter((v) => !blockedByVendor.has(v.id));
+  const blocked = vendors.filter((v) => blockedByVendor.has(v.id));
+  // If the user somehow has a blocked vendor selected (e.g. via
+  // browser autofill), still show the "jump to existing" hint.
+  const selectedBlocked = selectedVendor ? blockedByVendor.get(selectedVendor.id) : undefined;
 
   function send(e: React.FormEvent) {
     e.preventDefault();
@@ -412,7 +430,31 @@ function SendRfqModal({
                     {v.name} ({v.contacts.length} contact{v.contacts.length === 1 ? '' : 's'})
                   </option>
                 ))}
+                {blocked.length > 0 ? (
+                  <optgroup label="— already has an open RFQ on this list —">
+                    {blocked.map((v) => {
+                      const blocker = blockedByVendor.get(v.id)!;
+                      return (
+                        <option key={v.id} value={v.id} disabled>
+                          {v.name} — {blocker.status} {blocker.number}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                ) : null}
               </select>
+              {selectedBlocked ? (
+                <div className="mt-2 p-2 bg-warning/10 border border-warning text-[11px] text-ink">
+                  <strong>Already has a {selectedBlocked.status} RFQ on this list.</strong>{' '}
+                  <a
+                    href={`/w/${workspaceSlug}/procurement/rfqs/${selectedBlocked.rfqId}`}
+                    className="underline font-semibold"
+                  >
+                    Open {selectedBlocked.number} →
+                  </a>{' '}
+                  to send, edit, or void it.
+                </div>
+              ) : null}
             </label>
 
             {availableContacts.length > 0 ? (
