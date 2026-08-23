@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recommendation 2 — project detail page refactor</title>
+<style>
+  :root {
+    --paper: #f5f1ea;
+    --ink: #1e2a3a;
+    --ink-50: #7c8694;
+    --line: #c9c1ad;
+    --orange: #ff5a1d;
+    --orange-d: #e54a14;
+    --success: #2c8a5f;
+    --error: #c8423a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #e8e3d3;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    color: var(--ink);
+    padding: 40px 20px;
+  }
+  .frame {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    padding: 32px;
+  }
+  .label {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 8px 0;
+    font-weight: 900;
+    line-height: 1.1;
+  }
+  .sub {
+    color: var(--ink-50);
+    font-style: italic;
+    margin: 0 0 24px 0;
+    font-size: 14px;
+  }
+  .file-tree {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+    line-height: 1.7;
+    white-space: pre;
+  }
+  .dir  { color: var(--ink-50); }
+  .new  { color: var(--success); font-weight: 700; }
+  .shrunk { color: var(--orange-d); font-weight: 700; }
+  .red { color: var(--error); font-weight: 700; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .stat {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 30px;
+    font-weight: 900;
+    color: var(--orange);
+    line-height: 1;
+  }
+  .stat-lbl {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-top: 4px;
+  }
+  .blob {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+    margin: 12px 0;
+  }
+  .blob-title {
+    font-weight: 800;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .code {
+    font-family: 'Courier New', monospace;
+    background: #1e2a3a;
+    color: #f5f1ea;
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+  }
+  .code .com { color: #6a737d; }
+  .code .key { color: #ff7b72; }
+  .code .fn  { color: #d2a8ff; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="label">// Recommendation #2 — same pattern, biggest page</div>
+  <h1>Project detail page → 1 page + 8 tab files</h1>
+  <p class="sub">app/(app)/w/[workspace]/projects/[id]/page.tsx — 1,603 LOC, 9 tab components inline</p>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">1,603</div>
+      <div class="stat-lbl">lines in page.tsx</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">9</div>
+      <div class="stat-lbl">tab components inline</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">0</div>
+      <div class="stat-lbl">tab test files</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">~ 14 s</div>
+      <div class="stat-lbl">cold build time</div>
+    </div>
+  </div>
+
+  <div class="blob">
+    <div class="blob-title">All 9 tab components live as top-level functions in the same file</div>
+    <div class="file-tree" style="line-height: 1.5;">app/(app)/w/[workspace]/projects/[id]/page.tsx
+
+<span class="red">1,603</span> total LOC
+  ├─ ProjectDetailPage          (default export, ~50 LOC)
+  ├─ <span class="red">OverviewTab</span>            (lines 80–420, 340 LOC)
+  ├─ <span class="red">TasksTab</span>               (lines 440–620, 180 LOC)
+  ├─ <span class="red">TeamTab</span>                (lines 640–820, 180 LOC)
+  ├─ <span class="red">ScheduleTab</span>            (lines 840–980, 140 LOC)
+  ├─ <span class="red">SubsTab</span>                (lines 1000–1130, 130 LOC)
+  ├─ <span class="red">PayAppsTab</span>             (lines 1150–1300, 150 LOC)
+  ├─ <span class="red">PermitsTab</span>             (lines 1320–1450, 130 LOC)
+  ├─ <span class="red">CompletionCell</span>         (helper, 60 LOC)
+  └─ <span class="red">MapLocationIssue</span>       (helper, 50 LOC)</div>
+  </div>
+
+  <div class="blob">
+    <div class="blob-title">Proposed structure</div>
+    <div class="file-tree" style="line-height: 1.5;">app/(app)/w/[workspace]/projects/[id]/
+  <span class="shrunk">page.tsx</span>                  <span class="dir">~ 80 LOC (data fetch + dispatch to tab)</span>
+  <span class="dir">tabs/</span>
+  <span class="new">├─ OverviewTab.tsx</span>            <span class="dir">~ 350 LOC</span>
+  <span class="new">├─ TasksTab.tsx</span>               <span class="dir">~ 180 LOC</span>
+  <span class="new">├─ TeamTab.tsx</span>                <span class="dir">~ 180 LOC</span>
+  <span class="new">├─ ScheduleTab.tsx</span>            <span class="dir">~ 140 LOC</span>
+  <span class="new">├─ SubsTab.tsx</span>                <span class="dir">~ 130 LOC</span>
+  <span class="new">├─ PayAppsTab.tsx</span>             <span class="dir">~ 150 LOC</span>
+  <span class="new">├─ PermitsTab.tsx</span>             <span class="dir">~ 130 LOC</span>
+  <span class="new">├─ MapTab.tsx</span>                 <span class="dir">~ 90 LOC (was MapLocationIssue helper)</span>
+  <span class="new">└─ CompletionCell.tsx</span>         <span class="dir">~ 60 LOC</span>
+
+  <span class="dir">__tests__/</span>
+  <span class="new">├─ tabs/OverviewTab.test.tsx</span>
+  <span class="new">├─ tabs/TasksTab.test.tsx</span>
+  <span class="new">├─ tabs/ScheduleTab.test.tsx</span>
+  <span class="new">├─ tabs/SubsTab.test.tsx</span>
+  <span class="new">├─ tabs/PayAppsTab.test.tsx</span>
+  <span class="new">└─ tabs/PermitsTab.test.tsx</span></div>
+  </div>
+
+  <div class="blob">
+    <div class="blob-title">What page.tsx looks like after the refactor</div>
+    <div class="code">
+import { requireMembership } from '@/lib/auth/require-membership';
+import { OverviewTab } from './tabs/OverviewTab';
+import { TasksTab } from './tabs/TasksTab';
+import { TeamTab } from './tabs/TeamTab';
+import { ScheduleTab } from './tabs/ScheduleTab';
+import { SubsTab } from './tabs/SubsTab';
+import { PayAppsTab } from './tabs/PayAppsTab';
+import { PermitsTab } from './tabs/PermitsTab';
+import { loadProjectShell } from './data';
+
+export default async function ProjectDetailPage({ params, searchParams }) {
+  const ctx = await requireMembership(params.workspace);
+  const { project, tab } = await loadProjectShell(ctx, params.projectId, searchParams.tab);
+
+  <span class="com">// Tab dispatch is now a one-liner per tab</span>
+  return (
+    &lt;div&gt;
+      {tab === 'overview' &amp;&amp; &lt;OverviewTab project={project} /&gt;}
+      {tab === 'tasks'    &amp;&amp; &lt;TasksTab project={project} /&gt;}
+      {tab === 'team'     &amp;&amp; &lt;TeamTab project={project} /&gt;}
+      {tab === 'schedule' &amp;&amp; &lt;ScheduleTab project={project} /&gt;}
+      {tab === 'subs'     &amp;&amp; &lt;SubsTab project={project} /&gt;}
+      {tab === 'pay-apps' &amp;&amp; &lt;PayAppsTab project={project} /&gt;}
+      {tab === 'permits'  &amp;&amp; &lt;PermitsTab project={project} /&gt;}
+    &lt;/div&gt;
+  );
+}</div>
+  </div>
+
+</div>
+</body>
+</html>

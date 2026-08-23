@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recommendations 3–5 — quick wins</title>
+<style>
+  :root {
+    --paper: #f5f1ea;
+    --ink: #1e2a3a;
+    --ink-50: #7c8694;
+    --ink-30: #b8bcc4;
+    --line: #c9c1ad;
+    --line-soft: #ddd5be;
+    --orange: #ff5a1d;
+    --orange-d: #e54a14;
+    --success: #2c8a5f;
+    --error: #c8423a;
+    --info: #2a6fb5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #e8e3d3;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    color: var(--ink);
+    padding: 40px 20px;
+  }
+  .frame {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    padding: 32px;
+  }
+  .label {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 8px 0;
+    font-weight: 900;
+    line-height: 1.1;
+  }
+  .sub {
+    color: var(--ink-50);
+    font-style: italic;
+    margin: 0 0 24px 0;
+    font-size: 14px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .card {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 20px;
+  }
+  .card h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+  }
+  .num {
+    display: inline-block;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    width: 24px;
+    height: 24px;
+    text-align: center;
+    line-height: 24px;
+    margin-right: 6px;
+  }
+  .effort {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-50);
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .effort b { color: var(--orange-d); }
+  .code {
+    font-family: 'Courier New', monospace;
+    background: #1e2a3a;
+    color: #f5f1ea;
+    padding: 12px 14px;
+    font-size: 11px;
+    line-height: 1.55;
+    white-space: pre;
+    overflow-x: auto;
+    border: 1px solid var(--ink);
+    margin: 8px 0;
+  }
+  .code .com { color: #6a737d; }
+  .code .key { color: #ff7b72; }
+  .code .str { color: #a5d6ff; }
+  .code .ok  { color: #a5d6a7; }
+  .code .bad { color: #f48771; }
+  .pill {
+    display: inline-block;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 2px 6px;
+    border: 1px solid var(--ink);
+  }
+  .pill.bad { background: #f8d7da; border-color: var(--error); color: var(--error); }
+  .pill.warn { background: #fff3cd; border-color: var(--orange); color: var(--orange-d); }
+  .pill.ok { background: #d4edda; border-color: var(--success); color: var(--success); }
+  .bar {
+    height: 18px;
+    background: var(--line-soft);
+    border: 1px solid var(--ink);
+    margin: 4px 0;
+    overflow: hidden;
+    display: flex;
+  }
+  .bar-fill {
+    height: 100%;
+    background: var(--success);
+  }
+  .bar-fill.warn { background: var(--orange); }
+  .bar-fill.bad { background: var(--error); }
+  .bar-label {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: var(--ink);
+    margin-top: 2px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .stacked { display: flex; flex-direction: column; gap: 4px; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+  }
+  .row b { min-width: 200px; color: var(--ink); }
+  .row .bar-wrap { flex: 1; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="label">// Recommendations #3, #4, #5 — quick wins</div>
+  <h1>Three fixes, under an hour each</h1>
+  <p class="sub">All 3 are mechanical: a wrapper here, a regex there, a couple of test files. They pay back immediately.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h3><span class="num">3</span>Strip <code>console.log</code> from production</h3>
+      <p style="font-size: 13px; margin: 8px 0;"><span class="pill bad">8 hits</span> in <code>lib/blob/client-upload.ts</code> and the two upload routes. They fire on every file upload, print workspace IDs / uploader IDs / blob paths, and add noise to Vercel observability.</p>
+      <div class="code"><span class="bad">console.log('[useBlobUpload] starting upload', { ... })</span>
+<span class="bad">console.log('[files/upload] POST hit, body.type =', ...)</span>
+<span class="bad">console.log('[files/upload] onBeforeGenerateToken: OK for category', ...)</span>
+<span class="bad">console.log('[files/upload] onUploadCompleted FIRED for blob', ...)</span>
+<span class="bad">console.log('[files/upload] meta decoded', { ... })</span>
+<span class="bad">console.log('[files/upload] File row CREATED for blob', ...)</span>
+<span class="bad">console.log('[useBlobUpload] upload PUT resolved, ...', ...)</span>
+<span class="bad">console.log('[projects/[id]/photos/upload] ...', ...)</span></div>
+      <div class="code"><span class="com">// fix: gate on NODE_ENV or move to a structured logger</span>
+<span class="ok">if (process.env.NODE_ENV !== 'production') {</span>
+  console.log('[useBlobUpload] starting upload', { ... });
+<span class="ok">}</span>
+
+<span class="com">// better: use a tiny logger helper</span>
+<span class="key">import</span> { log } <span class="key">from</span> <span class="str">'@/lib/log'</span>;
+log.debug('useBlobUpload: starting upload', { ... });</div>
+      <div class="effort">Effort: <b>~ 15 min</b> · Risk: very low · Rollback: trivial</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="num">4</span>Tighten CSP — nonce-based <code>script-src</code></h3>
+      <p style="font-size: 13px; margin: 8px 0;">Currently <code>script-src 'unsafe-inline' 'unsafe-eval' https://clerk.udgok.com</code>. On the deployed build we don't need <code>'unsafe-eval'</code>. Switching to a per-request nonce is a documented Next.js pattern.</p>
+      <div class="code"><span class="com">// next.config.mjs — current</span>
+<span class="bad">"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.udgok.com"</span>
+
+<span class="com">// next.config.mjs — proposed</span>
+<span class="key">async</span> headers() {
+  <span class="key">const</span> nonce = ...
+  <span class="key">return</span> [{
+    <span class="key">source</span>: <span class="str">"/(.*)"</span>,
+    <span class="key">headers</span>: [{
+      <span class="key">key</span>: <span class="str">"Content-Security-Policy"</span>,
+      <span class="key">value</span>: <span class="str">`script-src 'self' 'nonce-${nonce}' https://clerk.udgok.com`</span>,
+    }],
+  }];
+}</div>
+      <p style="font-size: 12px; margin: 8px 0; color: var(--ink-50);">Next.js 13.4+ ships nonce-based CSP for App Router. Drops <code>'unsafe-inline'</code>, <code>'unsafe-eval'</code>, and tightens the XSS surface. The <code>__tests__/csp.test.ts</code> file already exists and would catch any new domain added without an img-src entry — extend it to verify the new nonce pattern.</p>
+      <div class="effort">Effort: <b>~ 3–4 h</b> · Risk: low (test in staging first) · Rollback: revert header</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin: 16px 0;">
+    <h3><span class="num">5</span>Test coverage map — where the gaps are</h3>
+    <p style="font-size: 13px; margin: 8px 0;">721 tests / 88 files. Coverage skews heavy to the financial workflows. The "I just want to see the data" pages have nothing.</p>
+
+    <div class="stacked" style="margin-top: 12px;">
+      <div class="row"><b>Procurement</b><div class="bar-wrap"><div class="bar"><div class="bar-fill" style="width: 95%;"></div></div><div class="bar-label"><span>17 test files</span><span>✓ strong</span></div></div></div>
+      <div class="row"><b>Timesheets</b><div class="bar-wrap"><div class="bar"><div class="bar-fill" style="width: 80%;"></div></div><div class="bar-label"><span>8 test files</span><span>✓ strong</span></div></div></div>
+      <div class="row"><b>Pay apps</b><div class="bar-wrap"><div class="bar"><div class="bar-fill" style="width: 60%;"></div></div><div class="bar-label"><span>5 test files</span><span>✓ OK</span></div></div></div>
+      <div class="row"><b>Photos</b><div class="bar-wrap"><div class="bar"><div class="bar-fill" style="width: 60%;"></div></div><div class="bar-label"><span>5 test files</span><span>✓ OK</span></div></div></div>
+      <div class="row"><b>Check-ins</b><div class="bar-wrap"><div class="bar"><div class="bar-fill" style="width: 35%;"></div></div><div class="bar-label"><span>3 test files</span><span>~ thin</span></div></div></div>
+      <div class="row"><b>Inventory</b><div class="bar-wrap"><div class="bar"><div class="bar-fill warn" style="width: 35%;"></div></div><div class="bar-label"><span>3 test files</span><span>~ thin</span></div></div></div>
+      <div class="row"><b>Estimates</b><div class="bar-wrap"><div class="bar"><div class="bar-fill warn" style="width: 25%;"></div></div><div class="bar-label"><span>2 test files</span><span>⚠ gap</span></div></div></div>
+      <div class="row"><b>Projects list / map / dashboard</b><div class="bar-wrap"><div class="bar"><div class="bar-fill bad" style="width: 5%;"></div></div><div class="bar-label"><span>0 test files</span><span>✗ none</span></div></div></div>
+      <div class="row"><b>Deals / clients / files</b><div class="bar-wrap"><div class="bar"><div class="bar-fill bad" style="width: 5%;"></div></div><div class="bar-label"><span>0 test files</span><span>✗ none</span></div></div></div>
+    </div>
+    <p style="font-size: 12px; margin: 12px 0 0; color: var(--ink-50);">Suggested: 2-3 hours adding 30-50 page-level tests on the most-touched routes (dashboard, projects list, map, deals list). Each test is mostly "fetch with workspace scope, assert shape".</p>
+    <div class="effort">Effort: <b>~ 2–3 h</b> · Risk: very low · Rollback: n/a (additive)</div>
+  </div>
+
+</div>
+</body>
+</html>

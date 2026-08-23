@@ -107,6 +107,26 @@ export function NewProjectForm({
         />
       </Field>
 
+      <Field
+        label="Status"
+        htmlFor="status"
+        hint="Use PROSPECT for projects still in talking stages (no signed contract yet). Switch to ACTIVE once the contract is signed."
+        error={state?.fieldErrors?.status}
+      >
+        <select
+          id="status"
+          name="status"
+          defaultValue="ACTIVE"
+          className="block w-full px-3.5 py-3 bg-transparent border border-line text-ink text-sm outline-none"
+        >
+          <option value="PROSPECT">Prospect (talking stages)</option>
+          <option value="ACTIVE">Active</option>
+          <option value="ON_HOLD">On hold</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+      </Field>
+
       {/* Pre-fill SOV with the standard CSI template */}
       <label className="flex items-start gap-3 bg-cream-2 border-2 border-line p-4 cursor-pointer hover:border-orange transition-colors">
         <input

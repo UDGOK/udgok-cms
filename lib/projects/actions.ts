@@ -24,6 +24,10 @@ const projectSchema = z.object({
   city: z.string().max(120).optional(),
   state: z.string().max(40).optional(),
   zip: z.string().max(20).optional(),
+  // ProjectStatus enum. Defaults to ACTIVE in the createProjectAction
+  // (form sends an empty string when untouched, which we coerce to
+  // ACTIVE so a half-filled new-project form still works).
+  status: z.enum(['PROSPECT', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED']).optional(),
 });
 
 export type CreateProjectState =
@@ -53,6 +57,10 @@ export async function createProjectAction(
     city: formData.get('city') || undefined,
     state: formData.get('state') || undefined,
     zip: formData.get('zip') || undefined,
+    // The form's <select> always sends a value; if the user didn't
+    // touch it we get 'ACTIVE' (the defaultValue). Empty string is
+    // impossible because the <select> has no "" option.
+    status: formData.get('status') || 'ACTIVE',
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -93,6 +101,11 @@ export async function createProjectAction(
       city: parsed.data.city || null,
       state: parsed.data.state || null,
       zip: parsed.data.zip || null,
+      // PROSPECT for early-stage projects, ACTIVE for signed work.
+      // The form always sends a value, so parsed.data.status is
+      // guaranteed to be one of the 5 enum values (the schema's
+      // z.enum will reject anything else).
+      status: parsed.data.status ?? 'ACTIVE',
     },
     select: { id: true },
   });

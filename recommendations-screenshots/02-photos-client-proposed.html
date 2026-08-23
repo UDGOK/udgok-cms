@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recommendation 1 — ProjectPhotosClient (proposed refactor)</title>
+<style>
+  :root {
+    --paper: #f5f1ea;
+    --ink: #1e2a3a;
+    --ink-50: #7c8694;
+    --ink-30: #b8bcc4;
+    --line: #c9c1ad;
+    --line-soft: #ddd5be;
+    --orange: #ff5a1d;
+    --orange-d: #e54a14;
+    --success: #2c8a5f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #e8e3d3;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    color: var(--ink);
+    padding: 40px 20px;
+  }
+  .frame {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    padding: 32px;
+  }
+  .label {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 8px 0;
+    font-weight: 900;
+    line-height: 1.1;
+  }
+  .sub {
+    color: var(--ink-50);
+    font-style: italic;
+    margin: 0 0 24px 0;
+    font-size: 14px;
+  }
+  .file-tree {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 20px 16px 20px 24px;
+    line-height: 1.75;
+    white-space: pre;
+  }
+  .file-tree .dir  { color: var(--ink-50); }
+  .file-tree .new  { color: var(--success); font-weight: 700; }
+  .file-tree .kept { color: var(--ink); }
+  .file-tree .shrunk { color: var(--orange-d); font-weight: 700; }
+  .tree {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .tree-card {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+  }
+  .tree-card h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .tree-card .meta {
+    font-size: 12px;
+    color: var(--ink-50);
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .col {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+  }
+  .col.now {
+    border-color: var(--error);
+  }
+  .col.next {
+    border-color: var(--success);
+  }
+  .col h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .col.now h3 { color: var(--error); }
+  .col.next h3 { color: var(--success); }
+  .pill {
+    display: inline-block;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 2px 6px;
+    border: 1px solid var(--ink);
+    margin-right: 4px;
+  }
+  .pill.ok { background: #d4edda; border-color: var(--success); color: var(--success); }
+  .pill.bad { background: #f8d7da; border-color: var(--error); color: var(--error); }
+  .arrow {
+    text-align: center;
+    font-size: 24px;
+    margin: 12px 0;
+    color: var(--ink-50);
+  }
+  ul { margin: 8px 0; padding-left: 20px; }
+  li { margin: 4px 0; font-size: 13px; }
+  .effort {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+    margin: 20px 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .effort-cell {
+    text-align: center;
+    font-family: 'Courier New', monospace;
+  }
+  .effort-cell .num {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--orange);
+  }
+  .effort-cell .lbl {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-50);
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="label">// Recommendation #1 — proposed structure</div>
+  <h1>ProjectPhotosClient → 8 focused files</h1>
+  <p class="sub">Each component becomes a standalone file with its own test, lazy-loadable from a barrel.</p>
+
+  <div class="compare">
+    <div class="col now">
+      <h3>Current</h3>
+      <div><span class="pill bad">1,733 LOC</span><span class="pill bad">14 components</span><span class="pill bad">1 test file</span></div>
+      <ul>
+        <li>Single client bundle for the whole feature</li>
+        <li>Can't lazy-load the lightbox / editor</li>
+        <li>Every edit re-runs the entire test suite</li>
+        <li>Components deeply nested, hard to follow</li>
+      </ul>
+    </div>
+    <div class="col next">
+      <h3>After</h3>
+      <div><span class="pill ok">~ 250 LOC main</span><span class="pill ok">8 small files</span><span class="pill ok">8 test files</span></div>
+      <ul>
+        <li>Main file imports & composes the pieces</li>
+        <li>Lightbox + editor can <code>dynamic()</code> import</li>
+        <li>Each component tested in isolation</li>
+        <li>One file = one responsibility</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tree">
+    <div class="tree-card">
+      <h3>components/photos/</h3>
+      <div class="meta">Split by feature / responsibility</div>
+      <div class="file-tree"><span class="dir">components/photos/</span>
+  <span class="shrunk">ProjectPhotosClient.tsx</span>     <span class="dir">~250 LOC (main shell)</span>
+  <span class="new">├─ PhotoGrid.tsx</span>             <span class="dir">~180 LOC</span>
+  <span class="new">├─ PhotoCard.tsx</span>              <span class="dir">~120 LOC</span>
+  <span class="new">├─ PhotoLightbox.tsx</span>          <span class="dir">~280 LOC (dynamic import)</span>
+  <span class="new">├─ PhotoEditForm.tsx</span>           <span class="dir">~200 LOC (dynamic import)</span>
+  <span class="new">├─ PhotoFilterBar.tsx</span>          <span class="dir">~90 LOC</span>
+  <span class="new">├─ PhotoDeleteMenu.tsx</span>         <span class="dir">~80 LOC</span>
+  <span class="new">├─ PhotoCaptionInline.tsx</span>      <span class="dir">~60 LOC (was InlineRenameInput)</span>
+  <span class="new">└─ hooks.ts</span>                   <span class="dir">~70 LOC (custom hooks)</span>
+
+  <span class="dir">__tests__/</span>
+  <span class="new">├─ ProjectPhotosClient.test.tsx</span>
+  <span class="new">├─ PhotoLightbox.test.tsx</span>
+  <span class="new">├─ PhotoEditForm.test.tsx</span>
+  <span class="new">├─ PhotoFilterBar.test.tsx</span>
+  <span class="new">└─ PhotoCaptionInline.test.tsx</span></div>
+    </div>
+
+    <div class="tree-card">
+      <h3>What the main file becomes</h3>
+      <div class="meta">Thin shell that composes the pieces</div>
+      <div class="file-tree" style="line-height: 1.5;"><span class="com">'use client';</span>
+import { PhotoGrid } from './PhotoGrid';
+import { PhotoLightbox } from './PhotoLightbox';
+import { PhotoEditForm } from './PhotoEditForm';
+import { PhotoFilterBar } from './PhotoFilterBar';
+import { usePhotoSelection } from './hooks';
+
+const PHASE_OPTIONS = [...];
+function canEdit(role) { ... }
+
+export function ProjectPhotosClient(props) {
+  const { photos, role } = props;
+  const sel = usePhotoSelection(photos);
+
+  return (
+    &lt;div className="..."&gt;
+      &lt;PhotoFilterBar /&gt;
+      &lt;PhotoGrid
+        photos={sel.filtered()}
+        onOpen={sel.open}
+        onEdit={sel.edit}
+      /&gt;
+      {sel.lightbox &amp;&amp; (
+        &lt;PhotoLightbox
+          photo={sel.lightbox}
+          onClose={sel.close}
+        /&gt;
+      )}
+      {sel.editing &amp;&amp; (
+        &lt;PhotoEditForm
+          photo={sel.editing}
+          onSave={sel.save}
+        /&gt;
+      )}
+    &lt;/div&gt;
+  );
+}</div>
+    </div>
+  </div>
+
+  <div class="effort">
+    <div class="effort-cell">
+      <div class="num">~ 3 h</div>
+      <div class="lbl">estimated effort</div>
+    </div>
+    <div class="effort-cell">
+      <div class="num">- 60%</div>
+      <div class="lbl">main file size</div>
+    </div>
+    <div class="effort-cell">
+      <div class="num">+ 7</div>
+      <div class="lbl">new test files</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -228,6 +228,7 @@ export function EditProjectDetailsButton({
                 defaultValue={initial.status}
                 className="w-full px-3 py-2.5 bg-cream border-2 border-ink text-[14px] focus:outline-none focus:ring-2 focus:ring-orange"
               >
+                <option value="PROSPECT">Prospect (talking stages)</option>
                 <option value="ACTIVE">Active</option>
                 <option value="ON_HOLD">On hold</option>
                 <option value="COMPLETED">Completed</option>

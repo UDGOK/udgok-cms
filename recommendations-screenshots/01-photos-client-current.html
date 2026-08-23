@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recommendation 1 — ProjectPhotosClient (current state)</title>
+<style>
+  :root {
+    --paper: #f5f1ea;
+    --ink: #1e2a3a;
+    --ink-50: #7c8694;
+    --ink-30: #b8bcc4;
+    --line: #c9c1ad;
+    --orange: #ff5a1d;
+    --orange-d: #e54a14;
+    --error: #c8423a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #e8e3d3;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    color: var(--ink);
+    padding: 40px 20px;
+  }
+  .frame {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    padding: 32px;
+  }
+  .label {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 8px 0;
+    font-weight: 900;
+    line-height: 1.1;
+  }
+  .sub {
+    color: var(--ink-50);
+    font-style: italic;
+    margin: 0 0 24px 0;
+    font-size: 14px;
+  }
+  .code {
+    font-family: 'Courier New', monospace;
+    background: #1e2a3a;
+    color: #f5f1ea;
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    border: 2px solid var(--ink);
+  }
+  .code .com { color: #6a737d; font-style: italic; }
+  .code .key { color: #ff7b72; }
+  .code .str { color: #a5d6ff; }
+  .code .fn  { color: #d2a8ff; font-weight: 600; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .stat {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--orange);
+    line-height: 1;
+  }
+  .stat-lbl {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-50);
+    margin-top: 4px;
+  }
+  .blob {
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 16px;
+    margin: 12px 0;
+  }
+  .blob-title {
+    font-weight: 800;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .fn-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+  }
+  .fn-item { color: var(--ink-50); }
+  .fn-item b { color: var(--ink); }
+  .warn {
+    background: #fff5e6;
+    border: 2px solid var(--orange);
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .warn b { color: var(--orange-d); }
+  .file-tree {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    background: #fff;
+    border: 2px solid var(--ink);
+    padding: 20px 16px 20px 28px;
+    line-height: 1.7;
+    white-space: pre;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="label">// Recommendation #1 — biggest refactor target</div>
+  <h1>ProjectPhotosClient.tsx</h1>
+  <p class="sub">components/photos/ProjectPhotosClient.tsx — 1,733 LOC, 14 sub-components in one file</p>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">1,733</div>
+      <div class="stat-lbl">lines of code</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">14</div>
+      <div class="stat-lbl">sub-components in one file</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">11</div>
+      <div class="stat-lbl">useState calls (one big component)</div>
+    </div>
+  </div>
+
+  <div class="blob">
+    <div class="blob-title">All 14 components live in the same file (line numbers from current build)</div>
+    <div class="fn-list">
+<span class="fn-item"><b>ProjectPhotosClient</b> (main, 1–310)</span>
+<span class="fn-item">userCanEdit (24)</span>
+<span class="fn-item"><b>PhotoCard</b> (340)</span>
+<span class="fn-item"><b>InlineRenameInput</b> (430)</span>
+<span class="fn-item"><b>Lightbox</b> (510)</span>
+<span class="fn-item"><b>PhotoDetailsView</b> (660)</span>
+<span class="fn-item"><b>DetailField</b> (700)</span>
+<span class="fn-item"><b>PhotoEditForm</b> (740)</span>
+<span class="fn-item">handleDeleteRequest (270)</span>
+<span class="fn-item">handleDeleteConfirm (282)</span>
+<span class="fn-item">applyPhotoEdit (290)</span>
+<span class="fn-item">sheet open/close state (5 hooks)</span>
+<span class="fn-item">lightbox open/close state (3 hooks)</span>
+<span class="fn-item">editingPhotoId + photoMenuId (3 hooks)</span>
+    </div>
+  </div>
+
+  <div class="warn">
+    <b>Why this hurts:</b> any time you touch the file you recompile & re-test the whole
+    component. The Lightbox, PhotoEditForm, and delete menu can't be tested in isolation
+    — only 1 test file (<code>ProjectPhotosClient.test.ts</code>) covers the whole 1,733-line
+    surface. Client bundle ships the entire file as one chunk, so users who never open
+    a photo still download the photo editor.
+  </div>
+
+  <div class="blob">
+    <div class="blob-title">What the file looks like at the top</div>
+    <div class="code">
+<span class="com">'use client';</span>
+
+import { useState, useTransition, useRef, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import Image from 'next/image';
+<span class="com">// ... 30 more imports</span>
+
+const PHASE_LABELS = { ... };
+const PHASE_COLORS = { ... };
+function userCanEdit(role: WorkspaceRole): boolean { ... }
+<span class="com">// 1,700 more lines, all in this one file</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
