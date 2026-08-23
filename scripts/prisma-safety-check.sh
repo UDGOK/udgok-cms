@@ -34,10 +34,18 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  Prisma safety check (build pre-flight)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# Use whichever env var is set. Vercel sets DATABASE_URL; in our
+# local scripts we often use a project-specific name (e.g. RESTORE_URL).
+DB_URL="${DATABASE_URL:-${RESTORE_URL:-}}"
+if [ -z "$DB_URL" ]; then
+  echo "❌ FAIL: no DATABASE_URL or RESTORE_URL set"
+  exit 1
+fi
+
 # Generate the migration SQL without applying it. We point Prisma at
 # the schema and the live DB and ask for the diff.
 DIFF_SQL=$(npx prisma migrate diff \
-  --from-url "$DATABASE_URL" \
+  --from-url "$DB_URL" \
   --to-schema-datamodel prisma/schema.prisma \
   --script 2>&1) || {
   echo "❌ FAIL: prisma migrate diff errored:"
