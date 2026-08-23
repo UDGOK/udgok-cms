@@ -365,13 +365,6 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
           // correlation.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (blob as any).photoId = record.id;
-          // eslint-disable-next-line no-console
-          console.log(
-            '[handleUpload] photos onUploadCompleted: created ProjectPhoto',
-            record.id,
-            'for blob',
-            blob.pathname,
-          );
         } catch (err) {
           // Without this, a Prisma error here would silently
           // lose the row while the file is happily in Vercel

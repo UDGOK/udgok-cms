@@ -47,7 +47,6 @@ export async function POST(req: NextRequest) {
   // don't call auth() at the top of this handler.
 
   const body = (await req.json()) as HandleUploadBody;
-  console.log('[files/upload] POST hit, body.type =', (body as { type?: string }).type);
   try {
     const json = await handleUpload({
       body,
@@ -67,8 +66,6 @@ export async function POST(req: NextRequest) {
         }
         await requireRole(meta.workspaceId, ['OWNER', 'ADMIN', 'PM', 'ESTIMATOR', 'FIELD']);
 
-        console.log('[files/upload] onBeforeGenerateToken: OK for category', meta.category, 'workspace', meta.workspaceId);
-
         return {
           allowedContentTypes: [
             'application/pdf',
@@ -85,14 +82,12 @@ export async function POST(req: NextRequest) {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        console.log('[files/upload] onUploadCompleted FIRED for blob', blob.pathname, 'hasToken', !!tokenPayload, 'url', blob.url);
         if (!tokenPayload) {
           console.error('[handleUpload] onUploadCompleted called without tokenPayload');
           return;
         }
         try {
           const meta = JSON.parse(tokenPayload) as WorkspaceFileTokenPayload;
-          console.log('[files/upload] meta decoded', { workspaceId: meta.workspaceId, uploaderId: meta.uploaderId, category: meta.category, clientId: meta.clientId, projectId: meta.projectId });
           const filename = blob.pathname.split('/').pop() ?? 'file';
           let size = 0;
           try {
@@ -162,8 +157,6 @@ export async function POST(req: NextRequest) {
               takenAt,
             },
           });
-
-          console.log('[files/upload] File row CREATED for blob', blob.pathname, 'workspace', meta.workspaceId, 'category', meta.category);
 
           // Revalidate the workspace files page so the next request
           // re-renders with the new file even if the client doesn't

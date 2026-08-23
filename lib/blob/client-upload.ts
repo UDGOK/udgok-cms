@@ -358,13 +358,6 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
       };
 
       try {
-        console.log('[useBlobUpload] starting upload', {
-          fileName: file.name,
-          fileSize: file.size,
-          handleUploadUrl,
-          transport: forceXhr ? 'xhr' : 'vercel-blob-client',
-          hasTokenPayload: Object.keys(tokenPayload).length > 0,
-        });
         let result: { url: string; pathname: string };
 
         if (forceXhr) {
@@ -400,7 +393,6 @@ export function useBlobUpload(opts: UseBlobUploadOpts) {
           result = { url: v.url, pathname: v.pathname };
         }
         if (!heartbeatCleared) clearInterval(heartbeat);
-        console.log('[useBlobUpload] upload PUT resolved, waiting for server callback', { url: result.url });
         // We just landed the bytes in Vercel Blob. Now the
         // server's onUploadCompleted callback fires
         // asynchronously (Vercel dispatches it). The File row
