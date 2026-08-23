@@ -37,9 +37,10 @@ const basePhoto: ProjectPhotoListItem = {
 };
 
 const noop = () => {};
-// onApplyEdit takes (id, patch) — most tests don't care
-// about the args, so a no-arg adapter is enough.
-const noopEdit = (_id: string, _patch: Partial<ProjectPhotoListItem>) => {};
+// onApplyEdit takes (id, patch) — most tests don't care about
+// the args, so use vi.fn() which ESLint won't flag for unused
+// parameters (it doesn't read function arg names).
+const noopEdit = vi.fn();
 
 describe('PhotoCard', () => {
   beforeEach(() => {
