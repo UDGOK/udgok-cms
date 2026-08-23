@@ -29,9 +29,17 @@ describe('service worker — request routing', () => {
     expect(swSource).toMatch(/if\s*\(\s*isHtml\s*\)\s*\{[\s\S]*c\.put/);
   });
 
-  it('handles HTML page requests network-first with cache fallback', () => {
+  it('handles HTML page requests network-first (no HTML cache to avoid stale bundles)', () => {
+    // The previous behavior was network-first with cache fallback
+    // for HTML, but that caused "Server Components render" errors
+    // when a new deploy shipped — the SW served the OLD cached
+    // HTML whose JS bundle hashes no longer existed on the
+    // server. The fix is network-only for HTML (the app shell
+    // is still cached for offline cold-start).
     expect(swSource).toMatch(/accept.*text\/html/);
-    expect(swSource).toMatch(/caches\.match\(request\)/);
+    // The HTML branch must NOT cache the response
+    const htmlSection = swSource.match(/isHtml[\s\S]{0,400}/);
+    expect(htmlSection?.[0]).not.toMatch(/c\.put\(request, copy\)/);
   });
 
   it('handles API routes network-first with offline JSON fallback', () => {
@@ -54,7 +62,12 @@ describe('service worker — request routing', () => {
 
 describe('service worker — cache versioning', () => {
   it('declares a CACHE_VERSION constant', () => {
-    expect(swSource).toMatch(/const\s+CACHE_VERSION\s*=\s*['"]udgok-v\d+['"]/);
+    // The version can be either a fixed number (udgok-v3) or
+    // a content-derived version (udgok-v4-<sha>-<date>) — the
+    // scripts/sync-sw-cache-version.sh build hook writes the
+    // latter for every deploy so we never ship a new build
+    // without invalidating the cache.
+    expect(swSource).toMatch(/const\s+CACHE_VERSION\s*=\s*['"]udgok-v[\w-]+['"]/);
   });
 
   it('deletes old caches on activate', () => {

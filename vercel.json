@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bash scripts/prisma-safety-check.sh && bash scripts/prisma-migrate.sh && rm -rf node_modules/.prisma && pnpm exec prisma generate && pnpm exec next build",
+  "buildCommand": "bash scripts/prisma-safety-check.sh && bash scripts/prisma-migrate.sh && bash scripts/sync-sw-cache-version.sh && rm -rf node_modules/.prisma && pnpm exec prisma generate && pnpm exec next build",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "crons": [
     {
