@@ -1,3 +1,8 @@
+/**
+ * Workspace layout — wraps every page under /w/[ws]/* with
+ * the sidebar + topbar + global app shell. The actual page
+ * content comes in as `children`.
+ */
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/client';
@@ -18,68 +23,92 @@ export default async function WorkspaceLayout({
   children: React.ReactNode;
   params: { workspace: string };
 }) {
-  const { userId } = await auth();
-  if (!userId) redirect('/sign-in');
+  // TEMPORARY DEBUG: surface actual error inline. No useEffect,
+  // no fetch. Renders the real error.message in JSX so the
+  // user can see what's actually breaking.
+  let layoutError: { name: string; message: string; stack: string | null } | null = null;
+  let userId: string | null = null;
+  let workspace: Awaited<ReturnType<typeof prisma.workspace.findUnique>> = null;
+  let membership: Awaited<ReturnType<typeof prisma.membership.findUnique>> = null;
+  let currentUser: { timezone: string | null } | null = null;
+  let allWorkspaces: Array<{ id: string; slug: string; name: string; role: string }> = [];
+  let members: Array<{ id: string; name: string; role: string }> = [];
+  let master = false;
 
-  // Find the workspace by slug.
-  const workspace = await prisma.workspace.findUnique({
-    where: { slug: params.workspace },
-  });
-  if (!workspace) notFound();
+  try {
+    const authResult = await auth();
+    userId = authResult.userId;
+    if (!userId) redirect('/sign-in');
 
-  // Verify the user is a member. Also fetch the
-  // user's timezone preference in parallel so the
-  // workspace context can ship it to every client
-  // component.
-  const [membership, currentUser] = await Promise.all([
-    prisma.membership.findUnique({
-      where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { timezone: true },
-    }),
-  ]);
-  if (!membership) {
-    redirect('/workspaces');
+    workspace = await prisma.workspace.findUnique({ where: { slug: params.workspace } });
+    if (!workspace) notFound();
+
+    const [m, cu] = await Promise.all([
+      prisma.membership.findUnique({
+        where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { timezone: true },
+      }),
+    ]);
+    membership = m;
+    currentUser = cu;
+    if (!membership) redirect('/workspaces');
+
+    const allMemberships = await prisma.membership.findMany({
+      where: { userId },
+      include: { workspace: { select: { id: true, slug: true, name: true } } },
+      orderBy: { joinedAt: 'asc' },
+    });
+    allWorkspaces = allMemberships.map((mm) => ({
+      id: mm.workspace.id,
+      slug: mm.workspace.slug,
+      name: mm.workspace.name,
+      role: mm.role,
+    }));
+
+    const memberRows = await prisma.membership.findMany({
+      where: { workspaceId: workspace.id },
+      include: { user: { select: { id: true, name: true, email: true } } },
+      orderBy: { user: { name: 'asc' } },
+    });
+    members = memberRows.map((mr) => ({
+      id: mr.user.id,
+      name: mr.user.name ?? mr.user.email,
+      role: mr.role,
+    }));
+
+    master = await isMasterAdmin(userId);
+  } catch (e) {
+    layoutError = {
+      name: e instanceof Error ? e.name : 'Unknown',
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack ?? null : null,
+    };
   }
 
-  // Load all workspaces the user belongs to, for the topbar switcher
-  const allMemberships = await prisma.membership.findMany({
-    where: { userId },
-    include: { workspace: { select: { id: true, slug: true, name: true } } },
-    orderBy: { joinedAt: 'asc' },
-  });
-  const allWorkspaces = allMemberships.map((m) => ({
-    id: m.workspace.id,
-    slug: m.workspace.slug,
-    name: m.workspace.name,
-    role: m.role,
-  }));
+  if (layoutError) {
+    return (
+      <div className="p-6 bg-cream min-h-screen">
+        <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-error mb-3">
+          {'// Workspace layout data error'}
+        </div>
+        <h1 className="text-xl font-black mb-3">Layout failed to load.</h1>
+        <pre className="bg-paper border-2 border-error p-3 text-xs font-mono whitespace-pre-wrap break-words text-ink">
+          <strong>ERROR:</strong> {layoutError.name}: {layoutError.message}
+          {'\n\n'}
+          <strong>STACK:</strong>
+          {'\n'}
+          {layoutError.stack}
+        </pre>
+      </div>
+    );
+  }
 
-  // Workspace member roster — for the notification
-  // bell's compose modal's recipient picker. Only
-  // members of the CURRENT workspace, ordered by
-  // name. The bell renders this list when the user
-  // opens the compose form. We include id, name,
-  // and role; the modal also uses the count for
-  // the "→ N members" preview line.
-  const memberRows = await prisma.membership.findMany({
-    where: { workspaceId: workspace.id },
-    include: {
-      user: { select: { id: true, name: true, email: true } },
-    },
-    orderBy: { user: { name: 'asc' } },
-  });
-  const members = memberRows.map((m) => ({
-    id: m.user.id,
-    name: m.user.name ?? m.user.email,
-    role: m.role,
-  }));
-
-  // Master admin check — the platform owner (yasir@udgok.com) gets
-  // an "Admin" button in the topbar and bypasses all plan gates.
-  const master = await isMasterAdmin(userId);
+  if (!userId || !workspace || !membership || !currentUser) {
+    return <div>Workspace not found</div>;
+  }
 
   return (
     <WorkspaceProvider
@@ -88,7 +117,7 @@ export default async function WorkspaceLayout({
         slug: workspace.slug,
         name: workspace.name,
         role: membership.role,
-        timezone: currentUser?.timezone ?? 'UTC',
+        timezone: currentUser.timezone ?? 'UTC',
       }}
     >
       <PresenceShell workspaceId={workspace.id}>
@@ -101,10 +130,7 @@ export default async function WorkspaceLayout({
             Server time stamp — read by the ClockSkewIndicator
             client component to surface "your phone clock is
             off from our server" before the visitor trusts a
-            timestamp they see on the page. Stamped fresh on
-            every server render so it's the actual time the
-            response started being generated, not the time the
-            user clicked a link.
+            timestamp they see on the page.
           */}
           <div
             id="server-now"
@@ -113,7 +139,6 @@ export default async function WorkspaceLayout({
             className="hidden"
           />
           <div className="flex min-h-screen bg-cream">
-            {/* Desktop sidebar — hidden on mobile (md:flex) */}
             <div className="hidden md:flex">
               <Sidebar />
             </div>
@@ -129,12 +154,7 @@ export default async function WorkspaceLayout({
                 isMasterAdmin={master}
                 members={members}
               />
-              {/* pb-16 on mobile to leave room for the bottom tab bar */}
               <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
-              {/* Mini footer — desktop only. The mobile
-                  bottom tab bar (rendered by MobileShellClient)
-                  already serves as the visual ground on small
-                  screens, and a 2-line footer would crowd it. */}
               <AppFooter />
             </div>
           </div>
