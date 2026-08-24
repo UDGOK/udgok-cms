@@ -29,6 +29,7 @@
     "@prisma/client": "^6.19.3",
     "@react-pdf/renderer": "^4.6.1",
     "@types/three": "^0.185.4",
+    "@vercel/analytics": "^1.5.0",
     "@vercel/blob": "^2.8.0",
     "html5-qrcode": "^2.3.8",
     "maplibre-gl": "^4.7.1",
