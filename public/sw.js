@@ -19,7 +19,7 @@
 //
 // Form drafts are persisted in localStorage by the app itself, not here.
 
-const CACHE_VERSION = 'udgok-v4-598135c-2026-08-24';
+const CACHE_VERSION = 'udgok-v4-2030ba4-2026-08-24';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
