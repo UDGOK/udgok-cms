@@ -68,8 +68,40 @@ const aliases = {
   UDGOK_CMS_TAKEOFF_API_KEY: ['TAKEOFF_API_KEY'],
 };
 
+// IMPORTANT: For UDGOK_* env vars, PREFER the prefixed value over
+// the unprefixed one when both are set. The project convention is
+// that the prefixed value is the source of truth (Vercel "smart
+// prefix" integration sets these). If we prefer unprefixed, a
+// stale DATABASE_URL from an earlier deploy would shadow the
+// current UDGOK_CMS_DATABASE_URL — which is what masked the Aug
+// 2026 "Can't reach database server" error for hours.
+//
+// For non-UDGOK_* aliases (e.g. Clerk's NEXT_PUBLIC_CLERK_* which
+// Vercel also renames), the existing "unprefixed wins" rule is
+// fine because there's no project convention to honor.
 for (const [target, sources] of Object.entries(aliases)) {
-  if (!process.env[target]) {
+  const isUdgokPrefixed = target.startsWith('UDGOK_') || target.startsWith('UDGOK_CMS_') ||
+    sources.some((s) => s.startsWith('UDGOK_') || s.startsWith('UDGOK_CMS_'));
+  if (isUdgokPrefixed) {
+    // Prefer the prefixed UDGOK_* source. Only fall back to
+    // the unprefixed target if no prefixed source is set.
+    let found = false;
+    for (const src of sources) {
+      if ((src.startsWith('UDGOK_') || src.startsWith('UDGOK_CMS_')) && process.env[src]) {
+        process.env[target] = process.env[src];
+        found = true;
+        break;
+      }
+    }
+    if (!found && !process.env[target]) {
+      for (const src of sources) {
+        if (process.env[src]) {
+          process.env[target] = process.env[src];
+          break;
+        }
+      }
+    }
+  } else if (!process.env[target]) {
     for (const src of sources) {
       if (process.env[src]) {
         process.env[target] = process.env[src];
