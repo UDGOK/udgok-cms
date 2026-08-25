@@ -163,8 +163,15 @@ export function PrintableCheckInSheet({
                       {c.addressSnapshot ? ` · ${c.addressSnapshot}` : null}
                     </div>
                   ) : (
-                    <div className="mt-1 text-[8px] font-mono text-ink-30">
-                      No GPS pin (legacy sticker)
+                    <div className="mt-1 text-[8px] font-mono text-ink-70 leading-tight">
+                      {c.addressSnapshot ? (
+                        <>
+                          <span className="text-ink-50">Site address:</span>{' '}
+                          {c.addressSnapshot}
+                        </>
+                      ) : (
+                        <span className="text-ink-30">No GPS pin (legacy sticker)</span>
+                      )}
                     </div>
                   )}
                   <div className="text-[8px] font-mono break-all text-ink-50 mt-2 leading-tight">
