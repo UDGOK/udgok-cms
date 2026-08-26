@@ -48,6 +48,9 @@ export default async function CheckInDashboardPage({
         id: true,
         name: true,
         code: true,
+        address: true,
+        city: true,
+        state: true,
         siteCheckInCodes: {
           orderBy: { createdAt: 'desc' },
           select: { id: true, label: true, isActive: true, createdAt: true },
@@ -103,6 +106,7 @@ export default async function CheckInDashboardPage({
               <thead className="bg-ink text-cream text-[10px] font-mono uppercase tracking-[0.12em]">
                 <tr>
                   <th className="px-3 py-2">Project</th>
+                  <th className="px-3 py-2 hidden md:table-cell">Location</th>
                   <th className="px-3 py-2">Codes</th>
                   <th className="px-3 py-2 hidden sm:table-cell">Latest</th>
                   <th className="px-3 py-2 text-right">Actions</th>
@@ -121,6 +125,18 @@ export default async function CheckInDashboardPage({
                             {p.code}
                           </div>
                         ) : null}
+                      </td>
+                      <td className="px-3 py-3 hidden md:table-cell text-ink-70">
+                        {p.address || p.city || p.state ? (
+                          <div>
+                            {p.address ? <div className="truncate max-w-[200px]">{p.address}</div> : null}
+                            <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+                              {[p.city, p.state].filter(Boolean).join(', ')}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-ink-30">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-3 font-mono">
                         {total}
