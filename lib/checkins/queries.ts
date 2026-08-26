@@ -13,6 +13,13 @@ export interface OpenCheckInRow {
   id: string;
   projectId: string;
   projectName: string;
+  // Project address at check-in time, used by the workspace
+  // dashboard's "on site now" and "recent check-ins" rows
+  // so the user can tell at a glance which city the activity
+  // is at without opening the project.
+  projectAddress: string | null;
+  projectCity: string | null;
+  projectState: string | null;
   siteCheckInCodeId: string;
   codeLabel: string;
   who: { kind: 'user' | 'sub'; id: string; name: string };
@@ -64,7 +71,7 @@ export async function listOpenCheckInsForWorkspace(
     where: { workspaceId, checkedOutAt: null },
     orderBy: { checkedInAt: 'desc' },
     include: {
-      project: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true, address: true, city: true, state: true } },
       siteCheckInCode: { select: { id: true, label: true } },
       user: { select: { id: true, name: true, email: true } },
       subcontractor: { select: { id: true, name: true } },
@@ -74,6 +81,9 @@ export async function listOpenCheckInsForWorkspace(
     id: r.id,
     projectId: r.projectId,
     projectName: r.project.name,
+      projectAddress: r.project.address ?? null,
+      projectCity: r.project.city ?? null,
+      projectState: r.project.state ?? null,
     siteCheckInCodeId: r.siteCheckInCodeId,
     codeLabel: r.siteCheckInCode.label,
     who: r.userId && r.user
@@ -100,7 +110,7 @@ export async function listOpenCheckInsForProject(
     where: { projectId, checkedOutAt: null },
     orderBy: { checkedInAt: 'desc' },
     include: {
-      project: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true, address: true, city: true, state: true } },
       siteCheckInCode: { select: { id: true, label: true } },
       user: { select: { id: true, name: true, email: true } },
       subcontractor: { select: { id: true, name: true } },
@@ -110,6 +120,9 @@ export async function listOpenCheckInsForProject(
     id: r.id,
     projectId: r.projectId,
     projectName: r.project.name,
+      projectAddress: r.project.address ?? null,
+      projectCity: r.project.city ?? null,
+      projectState: r.project.state ?? null,
     siteCheckInCodeId: r.siteCheckInCodeId,
     codeLabel: r.siteCheckInCode.label,
     who: r.userId && r.user
@@ -140,7 +153,7 @@ export async function listRecentCheckInsForProject(
     orderBy: { checkedOutAt: 'desc' },
     take: limit,
     include: {
-      project: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true, address: true, city: true, state: true } },
       siteCheckInCode: { select: { id: true, label: true } },
       user: { select: { id: true, name: true, email: true } },
       subcontractor: { select: { id: true, name: true } },
@@ -150,6 +163,9 @@ export async function listRecentCheckInsForProject(
     id: r.id,
     projectId: r.projectId,
     projectName: r.project.name,
+      projectAddress: r.project.address ?? null,
+      projectCity: r.project.city ?? null,
+      projectState: r.project.state ?? null,
     siteCheckInCodeId: r.siteCheckInCodeId,
     codeLabel: r.siteCheckInCode.label,
     who: r.userId && r.user
@@ -185,7 +201,7 @@ export async function listRecentCheckInsForWorkspace(
     orderBy: { checkedOutAt: 'desc' },
     take: limit,
     include: {
-      project: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true, address: true, city: true, state: true } },
       siteCheckInCode: { select: { id: true, label: true } },
       user: { select: { id: true, name: true, email: true } },
       subcontractor: { select: { id: true, name: true } },
@@ -195,6 +211,9 @@ export async function listRecentCheckInsForWorkspace(
     id: r.id,
     projectId: r.projectId,
     projectName: r.project.name,
+      projectAddress: r.project.address ?? null,
+      projectCity: r.project.city ?? null,
+      projectState: r.project.state ?? null,
     siteCheckInCodeId: r.siteCheckInCodeId,
     codeLabel: r.siteCheckInCode.label,
     who: r.userId && r.user

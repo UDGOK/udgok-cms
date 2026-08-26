@@ -204,6 +204,11 @@ export default async function CheckInDashboardPage({
                   <div className="text-[11px] text-ink-70">
                     {c.projectName} · {c.codeLabel}
                   </div>
+                  {(c.projectCity || c.projectState) ? (
+                    <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+                      {[c.projectCity, c.projectState].filter(Boolean).join(', ')}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
@@ -248,6 +253,11 @@ export default async function CheckInDashboardPage({
                   <div className="text-[11px] text-ink-70">
                     {c.projectName} · {c.codeLabel}
                   </div>
+                  {(c.projectCity || c.projectState) ? (
+                    <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
+                      {[c.projectCity, c.projectState].filter(Boolean).join(', ')}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="text-right shrink-0 text-ink-70">
                   <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-ink-50">
