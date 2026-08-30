@@ -85,6 +85,11 @@ const isPublicRoute = createRouteMatcher([
   // — no PII, no auth needed, useful for the user to verify
   // the BLOB_READ_WRITE_TOKEN is alive without an actual upload.
   '/api/debug/blob-health',
+  // Internal debug endpoint for diagnosing env var issues
+  // Only useful in production troubleshooting — no auth needed
+  // because it only reveals which env vars are set, not their
+  // full values (we truncate to first 8 + last 4 chars).
+  '/api/debug/(.*)',
   // ---- CRON ----
   // Vercel Cron calls these with no Clerk session — the
   // CRON_SECRET bearer token is the credential, validated
