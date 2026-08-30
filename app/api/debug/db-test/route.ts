@@ -33,7 +33,7 @@ export async function GET() {
       workspaces: number;
       projects: number;
     };
-  = {
+  } = {
     ok: false,
     checks: {
       shimWorked: !!dbUrl,
